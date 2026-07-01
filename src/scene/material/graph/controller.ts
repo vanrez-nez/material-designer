@@ -27,7 +27,8 @@ export type GraphChange =
       bakeStructural?: boolean;
     };
 
-const STORAGE_KEY = "material-graph-document:v1";
+const STORAGE_KEY = "material-designer:material-graph-document:v1";
+const LEGACY_STORAGE_KEY = "material-graph-document:v1";
 const DOC_VERSION = 2;
 
 const rid = (): string => Math.random().toString(36).slice(2, 8);
@@ -82,9 +83,8 @@ export class MaterialGraphController {
   // or null. Exclusive — soloing one node clears any other. Transient (not persisted to the document).
   private soloNode_: string | null = null;
 
-  // `storageKey` namespaces sessionStorage persistence. The tree's material uses the default key; a second
-  // graph (e.g. the visual floor, or a throwaway used purely for an export bake) passes null to disable
-  // persistence so it never clobbers the tree's saved graph.
+  // `storageKey` namespaces sessionStorage persistence. The app's material uses the default key; throwaway
+  // graphs used purely for export baking pass null to disable persistence.
   constructor(
     private readonly registry: NodeRegistry = defaultRegistry,
     private readonly storageKey: string | null = STORAGE_KEY,
@@ -425,7 +425,7 @@ export class MaterialGraphController {
   // selection and by throwaway graphs the bake service compiles for export.
   //
   // `persist` (default true) controls whether the new document is written to storage. Authoring actions
-  // (e.g. picking a preset for the tree) persist; ephemeral/preview/bake loads pass `persist: false` so
+  // (e.g. picking a preset for the app material) persist; ephemeral/preview/bake loads pass `persist: false` so
   // inspecting a material never clobbers the saved graph. Listeners are always notified so any bound
   // surface rebuilds. (A null-storageKey controller never persists regardless of this flag.)
   loadDocument(doc: MaterialGraphDocument, { persist = true }: { persist?: boolean } = {}): void {
@@ -437,7 +437,7 @@ export class MaterialGraphController {
   }
 
   private persist(): void {
-    if (this.storageKey === null) return; // persistence disabled (e.g. the floor controller)
+    if (this.storageKey === null) return; // persistence disabled for throwaway/export controllers
     try {
       sessionStorage.setItem(this.storageKey, JSON.stringify(this.doc));
     } catch {
@@ -448,7 +448,11 @@ export class MaterialGraphController {
   private load(): MaterialGraphDocument | null {
     if (this.storageKey === null) return null;
     try {
-      const raw = sessionStorage.getItem(this.storageKey);
+      let raw = sessionStorage.getItem(this.storageKey);
+      if (!raw && this.storageKey === STORAGE_KEY) {
+        raw = sessionStorage.getItem(LEGACY_STORAGE_KEY);
+        if (raw) sessionStorage.setItem(STORAGE_KEY, raw);
+      }
       if (!raw) return null;
       const parsed = JSON.parse(raw) as MaterialGraphDocument;
       if (parsed.version !== DOC_VERSION || !Array.isArray(parsed.nodes)) return null;

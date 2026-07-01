@@ -17,8 +17,8 @@ const SETTLE_MS = 150;
 const FILL_STRUCTURAL_MS = 600;
 const FILL_UNIFORM_MS = 200;
 
-// A docked, collapsible widget with ONE 0–100% loader for the bake of the CURRENT editor document.
-// `setActive` re-scopes it to whichever material the editor shows (tree / floor). Self-contained DOM;
+// A docked, collapsible widget with ONE 0-100% loader for the bake of the CURRENT editor document.
+// `setActive` re-scopes it to whichever material the editor shows. Self-contained DOM;
 // imports nothing from the generic node editor.
 export class BakeProgressWidget {
   private readonly root: HTMLDivElement;
@@ -32,7 +32,7 @@ export class BakeProgressWidget {
   // Active binding (the document the editor currently shows).
   private source: string | null = null;
   private nodeCount = 0;
-  // Flush-and-rebake the active material from scratch (re-scoped by setActive to tree / floor).
+  // Flush-and-rebake the active material from scratch (re-scoped by setActive).
   private regenerate: (() => void) | null = null;
 
   // Single-loader run state. A "burst" spans one or more coalesced runs (a drag); it ends when the work

@@ -11,15 +11,31 @@ body,
   overflow: hidden;
 }
 
-#app {
-  --node-editor-top-inset: 0px;
-  --node-editor-bottom-inset: 0px;
-  transition: padding 0.15s ease;
-}
-
 body {
   min-width: 320px;
-  background: #111111;
+  background: #141518;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 38vw);
+  grid-template-rows: 100%;
+  color: #d6d9df;
+  font-family: system-ui, sans-serif;
+}
+
+.graph-host {
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid #2f333a;
+  background: #1b1d21;
+}
+
+.preview-host {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background: #181818;
 }
 
 .scene {
@@ -29,15 +45,11 @@ body {
 }
 
 .pane-host {
-  position: fixed;
-  top: calc(16px + var(--node-editor-top-inset));
+  position: absolute;
+  top: 16px;
   right: 16px;
-  width: min(25rem, calc(100vw - 32px));
-  /* Hug the pane's actual height (not the full viewport), so the empty area below it doesn't overlay the
-     canvas and swallow clicks. Cap at the viewport minus the docked node-editor insets, and scroll only
-     when the pane is genuinely taller. Folding the pane now collapses the host with it. */
-  height: auto;
-  max-height: calc(100vh - 32px - var(--node-editor-top-inset) - var(--node-editor-bottom-inset));
+  width: min(23rem, calc(100% - 32px));
+  max-height: calc(100% - 32px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -45,9 +57,17 @@ body {
 .pane-host .tp-dfwv,
 .pane-host > .tp-rotv {
   position: static !important;
-  width: min(25rem, calc(100vw - 32px)) !important;
+  width: min(23rem, calc(100vw - 32px)) !important;
 }
 
-/* While the node editor is docked, the canvas content box is inset via inline padding on #app set by
-   the panel; the canvas (width/height:100%) shrinks into the remaining area and `resize()` reacts.
-   The fixed Tweakpane remains visible, with its scroll bounds adjusted by editor inset variables. */
+@media (max-width: 900px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(360px, 58vh) minmax(240px, 42vh);
+  }
+
+  .graph-host {
+    border-right: 0;
+    border-bottom: 1px solid #2f333a;
+  }
+}

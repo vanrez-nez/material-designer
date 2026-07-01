@@ -9,7 +9,7 @@ import { curveToArray, type CurveValue, type MaterialBackend, type MaterialValue
 import type { MaterialGraphController, GraphChange } from "./controller";
 import { SURFACE_CHANNELS, type MaterialBakeService, type BakedTextureSet } from "./bake-service";
 
-// Parallax-occlusion march steps (LINEAR cost, paid per floor fragment — the dominant GPU cost of the
+// Parallax-occlusion march steps (LINEAR cost, paid per preview fragment — the dominant GPU cost of the
 // effect). 12 is the perf/quality balance.
 const PARALLAX_LAYERS = 12;
 // The on-screen surface bakes at the graph's authored `outputResolution` (Material Output), so the viewport is
@@ -59,7 +59,7 @@ export class TexturedSurface {
   constructor(
     private readonly graph: MaterialGraphController,
     private readonly service: MaterialBakeService,
-    // Identifies this surface in bake telemetry (e.g. "tree" / "floor") so UI can scope its progress.
+    // Identifies this surface in bake telemetry so UI can scope its progress.
     private readonly source?: string,
   ) {
     this.set = service.createTextureSet(SURFACE_CHANNELS, this.surfaceBakeSize());

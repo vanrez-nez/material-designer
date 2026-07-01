@@ -58,6 +58,8 @@ export type NodeEditorPanelOptions = {
   appElement?: HTMLElement
   /** Invoked (next frame) whenever the docked gutter changes, so the host can re-run its resize. */
   onLayoutChange?: () => void
+  /** Render as an in-flow workspace panel instead of a fixed dock. */
+  embedded?: boolean
 }
 
 const DOCK_MODES: DockMode[] = ['left', 'top', 'bottom']
@@ -89,7 +91,7 @@ const CONTENT_PADDING_REM = 5
 const CONTENT_KEEP_PX = 96
 const NODE_FALLBACK_SIZE = 288 // node element size fallback when offsetWidth/Height isn't measured yet
 const FIT_SCALE = 0.8 // zoomAt gap to the viewport border on "fit" (lower = more margin)
-const STORAGE_PREFIX = 'tree-graph:node-editor:positions:v1'
+const STORAGE_PREFIX = 'material-designer:node-editor:positions:v1'
 
 export class NodeEditorPanel {
   private readonly root: HTMLDivElement
@@ -97,6 +99,7 @@ export class NodeEditorPanel {
   private readonly handle: HTMLDivElement
   private readonly appElement: HTMLElement
   private readonly onLayoutChange?: () => void
+  private readonly embedded: boolean
   // Add-node palette (button + dropdown menu); populated per-config in populatePalette.
   private readonly paletteWrap: HTMLDivElement
   private readonly paletteMenu: HTMLDivElement
@@ -130,9 +133,11 @@ export class NodeEditorPanel {
     defineEditorElements()
     this.appElement = options.appElement ?? (document.getElementById('app') as HTMLElement)
     this.onLayoutChange = options.onLayoutChange
+    this.embedded = options.embedded ?? false
 
     this.root = document.createElement('div')
     this.root.className = 'ne-panel'
+    this.root.classList.toggle('ne-panel--embedded', this.embedded)
     this.root.hidden = true
 
     const header = document.createElement('div')
@@ -270,6 +275,12 @@ export class NodeEditorPanel {
   open(config: EditorGraphConfig, mode?: DockMode): void {
     this.root.hidden = false
     this.open_ = true
+    if (this.embedded) {
+      this.handle.hidden = true
+      void this.rebuild(config)
+      this.notifyLayout()
+      return
+    }
     this.appElement.classList.add('editor-open')
     // Keep the current dock when re-opening (e.g. group navigation re-renders); default to bottom.
     this.applyDock(mode ?? this.mode)
@@ -280,13 +291,17 @@ export class NodeEditorPanel {
     if (!this.open_) return
     this.open_ = false
     this.root.hidden = true
+    if (this.embedded) {
+      this.notifyLayout()
+      return
+    }
     this.appElement.classList.remove('editor-open')
     this.clearAppPadding()
     this.notifyLayout()
   }
 
   setDockMode(mode: DockMode): void {
-    if (!this.open_) return
+    if (!this.open_ || this.embedded) return
     this.applyDock(mode)
     // Reflow the selected arrangement into the changed viewport, then refit.
     requestAnimationFrame(() => void this.arrangeGraph())
@@ -309,8 +324,10 @@ export class NodeEditorPanel {
     this.arrange = null
     this.editor = null
     this.root.remove()
-    this.appElement.classList.remove('editor-open')
-    this.clearAppPadding()
+    if (!this.embedded) {
+      this.appElement.classList.remove('editor-open')
+      this.clearAppPadding()
+    }
   }
 
   // --- internals ---------------------------------------------------------

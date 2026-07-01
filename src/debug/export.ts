@@ -11,7 +11,6 @@ import {
   type PbrSocket,
   type MaterialGraphDocument,
 } from "../scene/material/graph/types";
-import type { GraphDocument } from "../scene/graph/document";
 
 // Dev-only: bake a PBR channel and POST it to the bake server (scripts/bake-server.mjs,
 // `npm run bake:server`), which writes it to ./bake/<channel>.png. Lets a node configuration be saved
@@ -31,7 +30,7 @@ export interface ExportDeps {
   // isolated /export-bake worker can reuse this tooling with `defaultRegistry`.
   registry: NodeRegistry;
   // The live document to bake when `saveChannelToBake`/`downloadChannelPng` are called without an explicit
-  // `doc` (the app supplies the tree's current graph). Optional: the worker never uses those paths.
+  // `doc`. Optional: the worker never uses those paths.
   liveDocument?: () => MaterialGraphDocument;
 }
 
@@ -160,7 +159,6 @@ export interface ExportApi {
     render?: DemoRenderOptions,
   ): Promise<string[]>;
   saveTilingComposite(type: string, img: ImageData): Promise<void>;
-  downloadDocument(doc: GraphDocument): void;
 }
 
 // Reject a malformed document before anything is written. loadDocument does NO validation (it stores the
@@ -222,7 +220,7 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
   }
 
   // A throwaway graph for export baking. Built from a document with NO persistence, so it never touches the
-  // tree's or floor's live material — this is the whole point of the bake-service split (no more clobber).
+  // live material — this is the whole point of the bake-service split (no more clobber).
   function exportGraph(doc: MaterialGraphDocument): MaterialGraphController {
     const graph = new MaterialGraphController(registry, null);
     graph.loadDocument(doc, { persist: false });
@@ -232,7 +230,7 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
 
   // Bake-to-disk is an ephemeral PREVIEW tool: it compiles the document on a throwaway, non-persisting
   // controller (exportGraph) so inspecting a channel never reads, mutates, or persists any on-screen
-  // material. `doc` defaults to a clone of the current tree graph (loadDocument mutates its input, so the
+  // material. `doc` defaults to a clone of the current material graph (loadDocument mutates its input, so the
   // live doc must never be passed directly); pass any document to bake something off-screen.
   async function saveChannelToBake(
     channel: PbrSocket,
@@ -441,7 +439,7 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
 
   // Reusable material-task pipeline: bake the standard channel set on a throwaway graph, write the preset,
   // prove the base tile as a 2x2 image, and capture a 512x512 standard material demo (sphere plus plane).
-  // Every catalog render task uses this — and it never disturbs the on-screen tree/floor materials.
+  // Every catalog render task uses this — and it never disturbs the on-screen material.
   async function bakeMaterialTask(
     doc: MaterialGraphDocument,
     outputFolder: string,
@@ -511,23 +509,11 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     return written;
   }
 
-  // Serialize the current graph document and trigger a browser download.
-  function downloadDocument(doc: GraphDocument): void {
-    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "tree-document.json";
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
   return {
     saveChannelToBake,
     downloadChannelPng,
     bakeConfigToBake,
     bakeMaterialTask,
     saveTilingComposite,
-    downloadDocument,
   };
 }

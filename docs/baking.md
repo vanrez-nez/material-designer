@@ -4,14 +4,14 @@ The GPU renders the material graph in the browser, so to get channels/renders ou
 POSTed to a small local **bake server** that writes them under `./bake/` (gitignored).
 
 - Start it alongside the dev server: `npm run bake:server` (listens on `http://127.0.0.1:8788`).
-- Dev server: `npm run dev` (or `npm run dev:proxy` → `http://tree-graph.localhost`).
+- Dev server: `npm run dev` (or `npm run dev:proxy` -> `http://material-designer.localhost`).
 
 There are two ways to drive a bake:
 
 - **[`/export-bake` POST route](#export-bake-post-route)** — automated/headless; POST an arbitrary
   document and get the full channel + render set on disk. **Preferred for scripting/agents.**
 - **[Dev-console handles](#dev-console-handles)** — `__*` helpers exposed in dev builds, driven from the
-  app's console against the live tree material.
+  app's console against the live material graph.
 
 Contents:
 
@@ -45,13 +45,13 @@ under `<repo>/bake/`.
 
 ## `/export-bake` POST route
 
-An isolated app route that bakes an **arbitrary `MaterialGraphDocument`** with **no tree/floor scene and
+An isolated app route that bakes an **arbitrary `MaterialGraphDocument`** with **no preview scene and
 no Tweakpane**. Because the GPU bake only runs in the browser (and a browser tab can't listen for HTTP),
 it is a relay: you POST the document to the bake server, which pushes it over SSE to an open
 `/export-bake` tab that bakes it and posts the result back.
 
 1. Start the bake server + dev server.
-2. Open **`/export-bake`** in a browser (e.g. `http://tree-graph.localhost/export-bake`). It boots an
+2. Open **`/export-bake`** in a browser (e.g. `http://material-designer.localhost/export-bake`). It boots an
    isolated renderer and connects — the status log shows `connected to bake server — waiting for POST
    jobs`. Leave the tab open; it is the persistent **worker** (one at a time — last connection wins; jobs
    run sequentially).
@@ -151,12 +151,12 @@ bake/<name>/
 
 ## Dev-console handles
 
-Exposed only in dev builds (`import.meta.env.DEV`), on the normal app route. They bake off the **live tree
-material** (or an explicit document) and POST to the same bake server.
+Exposed only in dev builds (`import.meta.env.DEV`), on the normal app route. They bake off the **live
+material graph** (or an explicit document) and POST to the same bake server.
 
 | Handle | Signature | Writes |
 |---|---|---|
-| `__savePng(channel, size?)` | bake one channel of the live tree graph | `bake/<channel>.png` |
+| `__savePng(channel, size?)` | bake one channel of the live material graph | `bake/<channel>.png` |
 | `__bakeConfig(doc, name?, size?)` | bake every connected channel of a document | `bake/<name>/config.json` + `bake/<name>/<channel>.ours.png` |
 | `__bakeMaterialTask(doc, folder, size?, channels?, render?)` | full task: preset + channels + tiled proof + profile renders | `bake/<folder>/…` (see [output layout](#output-layout)) |
 | `__baker.readImageData(_renderer, controller, channel, size?)` | low-level: returns `ImageData` for a channel | — |

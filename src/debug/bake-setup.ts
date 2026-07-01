@@ -13,7 +13,7 @@ import { createExport, type ExportApi, type DemoRenderOptions } from "./export";
 const BAKE_SERVER = "http://127.0.0.1:8788";
 
 // ---------------------------------------------------------------------------------------------------------
-// DEV console handles (moved out of app.ts). These drive baking off the LIVE tree scene, so they take the
+// DEV console handles (moved out of app.ts). These drive baking off the live material scene, so they take the
 // scene + the exporter bound to it. Installed only in DEV, on the normal app route.
 // ---------------------------------------------------------------------------------------------------------
 export interface BakeDevHandleDeps {
@@ -58,7 +58,7 @@ export function installBakeDevHandles({ mainScene, exporter }: BakeDevHandleDeps
 
 // ---------------------------------------------------------------------------------------------------------
 // /export-bake route — an isolated headless bake driven entirely by the URL. Visiting the page boots a
-// minimal renderer + a non-persisting material controller (NO tree/floor scene, NO Tweakpane), bakes each
+// minimal renderer + a non-persisting material controller (NO preview scene, NO Tweakpane), bakes each
 // requested preset's channels, and POSTs them to the bake server. See runExportBake below.
 // ---------------------------------------------------------------------------------------------------------
 
@@ -179,7 +179,7 @@ async function runPresetOneShot(
   log(`startup bake done (${presets.length} preset(s)).`);
 }
 
-// Entry point for the `/export-bake` route. Boots an isolated renderer (NO tree/floor scene, NO Tweakpane)
+// Entry point for the `/export-bake` route. Boots an isolated renderer (NO preview scene, NO Tweakpane)
 // and connects to the bake server as a persistent WORKER: each document POSTed to the server's
 // `/export-bake` endpoint is relayed here over SSE, baked on the GPU, and its result reported back. An
 // optional `?preset=`/`?size=`/`?channels=` runs a one-shot preset bake at startup.

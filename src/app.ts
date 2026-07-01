@@ -16,15 +16,16 @@ if (!app) {
 }
 
 const canvas = app.querySelector<HTMLCanvasElement>(".scene");
+const graphHost = app.querySelector<HTMLDivElement>(".graph-host");
 const paneHost = app.querySelector<HTMLDivElement>(".pane-host");
 
-if (!canvas || !paneHost) {
+if (!canvas || !graphHost || !paneHost) {
   throw new Error("Missing app elements");
 }
 
 const sceneCanvas = canvas;
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-camera.position.z = 4;
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 30);
+camera.position.set(0, 1.35, 7.2);
 
 // Renderer config lives in the debug/tweakpane module (the Render tab owns it), but the renderer must be
 // constructed with it before the pane exists — so load it here and hand the object to setupTweakpane.
@@ -38,29 +39,26 @@ const renderer = new WebGPURenderer({
 });
 renderer.setPixelRatio(rendererConfig.pixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; // default tone mapping (Scene panel can change it live)
-// Static (baked-once) tree shadows: VSM for soft edges. The directional light's shadow map is rendered only
-// when the tree or sun changes (shadow.autoUpdate=false in MainScene), so there's no per-frame shadow cost —
-// it behaves like a baked shadow. See MainScene's directional-light shadow setup + requestShadowBake().
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.VSMShadowMap;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const controls = new OrbitControls(camera, sceneCanvas);
 controls.enableDamping = true;
+controls.target.set(-0.6, 0.45, 0);
+controls.update();
 
 const mainScene = new MainScene();
-const rendererSize = new THREE.Vector2();
 
-// Bake/export tooling (dev), bound to the renderer + scene it renders against. Consumed by the pane's
-// Export/Bake buttons and by the DEV console handles below.
+// Bake/export tooling (dev), bound to the renderer + material graph it renders against.
 const exporter = createExport({
   renderer,
   registry: mainScene.materialController.getRegistry(),
   liveDocument: () => mainScene.materialController.document,
 });
 
-// Build the entire Settings pane. Returns the handful of handles the render loop + DEV console still need.
-const { stats, refreshTexturePreview, initFloor, materialEditor, rebuildEditor } = setupTweakpane({
+const { stats, refreshTexturePreview, materialEditor, rebuildEditor } = setupTweakpane({
   app,
+  graphHost,
   paneHost,
   renderer,
   mainScene,
@@ -83,8 +81,7 @@ function animate(timestamp?: number): void {
   stats.begin();
   timer.update(timestamp);
 
-  renderer.getDrawingBufferSize(rendererSize);
-  mainScene.update(timer.getDelta(), camera, rendererSize);
+  mainScene.update();
   refreshTexturePreview();
   controls.update();
   // Skip the frame render while a bake is compiling pipelines: `renderer.compileAsync` mutates shared
@@ -94,34 +91,17 @@ function animate(timestamp?: number): void {
   stats.end();
 }
 
-// Resize on window resize + on node-editor dock/undock (its onLayoutChange hook pads #app → the canvas
-// reflows). We deliberately do NOT use a ResizeObserver on the canvas: `renderer.setSize` writes the canvas
-// backing-store attributes, which on Firefox perturb the canvas's laid-out content box — so observing that
-// box feeds setSize back into the observer, an infinite shrink loop that hard-freezes the page. A window /
-// onLayoutChange trigger isn't watching the perturbed box, so there's no loop.
 window.addEventListener("resize", () => resize());
-// #app pads with a 0.15s transition when the editor docks; onLayoutChange fires at the START of that
-// transition (pre-final size), so also resize when the padding transition finishes to capture the final box.
-app.addEventListener("transitionend", (e) => {
-  if ((e as TransitionEvent).propertyName.startsWith("padding")) resize();
-});
 
 // WebGPURenderer initialises its backend asynchronously (unlike WebGLRenderer). Wait for it before
 // the first render, then drive the loop via setAnimationLoop (the WebGPU-friendly RAF).
 await renderer.init();
-// Offline baking needs the renderer — hand it to the one shared bake service now that it's initialised,
-// then refresh both surfaces so they swap from the live startup fallback to the baked offline material.
+// Offline baking needs the renderer. Hand it to the shared bake service, then refresh the preview surface so
+// it swaps from the live startup fallback to the baked offline material.
 bakeService.attachRenderer(renderer);
-mainScene.treeSurface.refresh();
+await mainScene.materialSurface.refresh();
 
-// The visual floor: load the chosen floor preset (independent of the tree's graph), refresh its surface,
-// and apply visibility/tiling. Owned by the pane (floorState), so it runs via the returned handle.
-initFloor();
-
-// Shared IBL environment: one RoomEnvironment PMREM cubemap drives image-based lighting for every tree
-// (a single shader sample, no per-instance cost), giving soft directional fill + subtle reflections that
-// a flat AmbientLight can't. This is the "fill" half of the fake/baked lighting rig (the baked per-vertex
-// AO is the occlusion half); there are deliberately NO shadow maps. Built once after init.
+// Shared IBL environment: one RoomEnvironment PMREM cubemap gives the preview soft fill and reflections.
 try {
   const pmrem = new PMREMGenerator(renderer);
   mainScene.scene.environment = pmrem.fromScene(new RoomEnvironment()).texture;
@@ -148,11 +128,9 @@ if (import.meta.env.DEV) {
     __editor: materialEditor,
     __openEditor: rebuildEditor,
     __frame: () => {
-      mainScene.update(0, camera, rendererSize);
+      mainScene.update();
       renderer.render(mainScene.scene, camera);
     },
   });
-  // Bake-to-disk console handles (__bakeService, __baker, __savePng, __bakeConfig, __bakeMaterialTask,
-  // __tilingTest) live in debug/bake-setup alongside the /export-bake route.
   installBakeDevHandles({ mainScene, exporter });
 }

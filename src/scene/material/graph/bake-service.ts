@@ -106,7 +106,7 @@ export interface BakeOptions {
   size?: number;
   soloNodeId?: string;
   label?: string;
-  // Identifies which surface this bake belongs to (e.g. "tree" / "floor"), so UI can scope its progress
+  // Identifies which surface this bake belongs to, so UI can scope its progress
   // readout to one material. Forwarded onto every BakeReport.
   source?: string;
 }

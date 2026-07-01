@@ -1,6 +1,6 @@
 import "./style.css";
 
-// Entry dispatcher. `/export-bake` boots an isolated headless bake (no tree/floor scene, no Tweakpane);
+// Entry dispatcher. `/export-bake` boots an isolated headless bake (no preview scene, no Tweakpane);
 // every other path boots the full app. Dynamic imports keep the two graphs apart — the export route never
 // loads MainScene/tweakpane, and the normal route never loads the bake-setup module.
 const path = new URL(location.href).pathname.replace(/\/+$/, "");

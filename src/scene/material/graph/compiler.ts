@@ -99,7 +99,7 @@ const DERIVATIVE_REFERENCE = 2048;
 // Height) within THIS subgraph? Walks the upstream edges from the output's source node. Nested groups aren't
 // recursed into — a derivative inside one is handled by that group's own cache sizing (compiled first). This
 // catches the derivative's OWN containing cache; caches that FEED a derivative across group boundaries are
-// found by derivativeTaintedCaches (a whole-tree pre-pass).
+// found by derivativeTaintedCaches (a whole-document pre-pass).
 function dependsOnDerivative(startNodeId: string, doc: MaterialGraphDocument, registry: NodeRegistry): boolean {
   const byId = new Map(doc.nodes.map((n) => [n.id, n]));
   const seen = new Set<string>();
@@ -116,7 +116,7 @@ function dependsOnDerivative(startNodeId: string, doc: MaterialGraphDocument, re
   return false;
 }
 
-// Whole-tree pre-pass: the set of decomposition cache ids (`groupId/portKey`) whose value transitively FEEDS a
+// Whole-document pre-pass: the set of decomposition cache ids (`groupId/portKey`) whose value transitively FEEDS a
 // derivative node (bakeDerivative) anywhere downstream — crossing group boundaries. Those caches supply the
 // height detail a Normal From Height differentiates, so they must render at the reference resolution too (a
 // cache left at the low output res would blur the detail away BEFORE the derivative sees it, and no amount of
@@ -191,7 +191,7 @@ function derivativeTaintedCaches(rootDoc: MaterialGraphDocument, registry: NodeR
     taintSource(sub, feed.fromNode, feed.fromOutput, subEscape);
   };
 
-  // Seed the taint at every derivative node in the tree, walking each doc with the escape that maps its Group
+  // Seed the taint at every derivative node in the document tree, walking each doc with the escape that maps its Group
   // Input back to its parent group's feeding sources.
   const visitDoc = (doc: MaterialGraphDocument, escape: (portKey: string) => void): void => {
     for (const node of doc.nodes) {
@@ -432,7 +432,7 @@ function compileGroup(
       const cacheId = `${groupNode.id}/${p.key}`;
       // Render this cache at the reference resolution (a `minSize` floor + mips) when it either COMPUTES a
       // derivative (nfh on its upstream path — its dFdx needs a fine, fixed grid) or FEEDS one downstream
-      // (a whole-tree taint — the height detail nfh differentiates must survive at low output res). Either
+      // (a whole-document taint — the height detail nfh differentiates must survive at low output res). Either
       // way the cache renders at ≥ DERIVATIVE_REFERENCE and downsamples faithfully via mips (see cacheSizeFor).
       // Auto: no per-node config, keyed off the node def's bakeDerivative flag.
       const onDerivativePath =
@@ -493,7 +493,7 @@ export function applyBundle(
 
 // Compile a document into the LIVE surface material: a procedural MeshPhysicalNodeMaterial whose channels
 // are evaluated per fragment over positionWorld (seamless 3D). The offline backend uses OfflineMaterial
-// instead (bakes channels to textures). Physical is a subclass of Standard, satisfying the mesher's
+// instead (bakes channels to textures). Physical is a subclass of Standard, satisfying the preview
 // surface-material contract (plan L1/L2).
 export function compileGraph(
   doc: MaterialGraphDocument,
