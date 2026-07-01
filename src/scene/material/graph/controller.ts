@@ -1,31 +1,22 @@
-import { compileSockets, type CompileOptions, type CompiledSockets } from "./compiler";
-import { defaultRegistry, nodePorts, type NodeRegistry } from "./registry";
+import {
+  compileSockets,
+  defaultRegistry,
+  nodePorts,
+  type CompileOptions,
+  type CompiledSockets,
+  type GraphChange,
+  type MaterialGraphSource,
+  type NodeRegistry,
+} from "@/runtime";
 import { createDefaultDocument } from "../presets";
-import { coercionFor, GROUP_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE } from "./types";
 import type {
   GraphEdge,
   GraphNode,
   MaterialGraphDocument,
-  ParamType,
   PortDef,
   PortKind,
-} from "./types";
-
-// A change emitted to surface subscribers. `structural` = topology / document / solo / int-bool-select /
-// group edits (the compiled material must be rebuilt). `param` = a single live-tweakable value edit
-// (float/colour/vec3/curve) the surface can apply as a uniform (live backend) or fold into a re-bake.
-export type GraphChange =
-  | { kind: "structural" }
-  | {
-      kind: "param";
-      nodeId: string;
-      key: string;
-      paramType: ParamType;
-      value: unknown;
-      // The param def's bakeStructural flag (see ParamDef): a float that's build-time in the offline bake.
-      // The surface uses it to skip its offline uniform fast-path and re-bake instead.
-      bakeStructural?: boolean;
-    };
+} from "@/runtime";
+import { coercionFor, GROUP_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE } from "@/runtime";
 
 const STORAGE_KEY = "material-designer:material-graph-document:v1";
 const LEGACY_STORAGE_KEY = "material-graph-document:v1";
@@ -72,7 +63,7 @@ function initStarterGroup(node: GraphNode): void {
 // is a TexturedSurface bound to this graph. Edits persist to sessionStorage and emit a GraphChange so the
 // surface(s) react (live-uniform tweak vs re-bake vs rebuild). Splitting these concerns means baking one
 // graph can never knock out another object's material (material-graph-plan.md).
-export class MaterialGraphController {
+export class MaterialGraphController implements MaterialGraphSource {
   private doc: MaterialGraphDocument;
   private lastError_: string | null = null;
   private readonly changeListeners = new Set<(change: GraphChange) => void>();

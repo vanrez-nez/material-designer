@@ -1,5 +1,5 @@
 import type { MaterialGraphController } from "./graph/controller";
-import { CURVE_CHANNELS, CURVE_IDENTITY, type CurveValue } from "./graph/types";
+import { CURVE_CHANNELS, CURVE_IDENTITY, type CurveValue } from "@/runtime";
 
 // Canvas curve editor for the RGB Curves node's `curve` param. Renders the four channel curves (Combined
 // + R/G/B) with the active one editable; each channel has 5 fixed-x control points (x = 0/.25/.5/.75/1)

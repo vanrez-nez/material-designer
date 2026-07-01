@@ -11,11 +11,11 @@ import {
 } from "../tweak-pane/texture-preview-blade";
 import { NodeEditorPanel } from "../node-editor";
 import { buildMaterialEditorConfig } from "../scene/material/editor-config";
-import { bakeService } from "../scene/material/graph/bake-service";
-import { countGraphNodes } from "../scene/material/graph/compiler";
+import { bakeService } from "@/runtime";
+import { countGraphNodes } from "@/runtime";
 import { BakeProgressWidget } from "../ui/bake-progress-widget";
 import { MATERIAL_PRESETS, makePreset, DEFAULT_PRESET } from "../scene/material/presets";
-import type { PbrSocket } from "../scene/material/graph/types";
+import type { PbrSocket } from "@/runtime";
 import type { ExportApi } from "./export";
 
 export interface RendererConfig {

@@ -1,4 +1,4 @@
-import type { MaterialGraphDocument } from "../graph/types";
+import type { MaterialGraphDocument } from "@/runtime";
 import defaultDoc from "./default.json";
 import checkersDoc from "./checkers.json";
 import voronoiCellsDoc from "./voronoi-cells.json";

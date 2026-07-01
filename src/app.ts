@@ -4,7 +4,7 @@ import { WebGPURenderer, PMREMGenerator } from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { MainScene } from "./scene/main";
-import { bakeService } from "./scene/material/graph/bake-service";
+import { bakeService } from "@/runtime";
 import { createExport } from "./debug/export";
 import { installBakeDevHandles } from "./debug/bake-setup";
 import { loadRendererConfig, setupTweakpane } from "./debug/tweakpane";

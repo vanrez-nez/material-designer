@@ -1,11 +1,11 @@
 import { WebGPURenderer } from "three/webgpu";
 import type { MainScene } from "../scene/main";
-import { bakeService } from "../scene/material/graph/bake-service";
+import { bakeService } from "@/runtime";
 import type { MaterialGraphController } from "../scene/material/graph/controller";
-import { defaultRegistry } from "../scene/material/graph/registry";
-import { runTilingTest } from "../scene/material/graph/tiling-test";
+import { defaultRegistry } from "@/runtime";
+import { runTilingTest } from "@/runtime";
 import { MATERIAL_PRESETS, makePreset } from "../scene/material/presets";
-import { PBR_SOCKETS, type PbrSocket, type MaterialGraphDocument } from "../scene/material/graph/types";
+import { PBR_SOCKETS, type PbrSocket, type MaterialGraphDocument } from "@/runtime";
 import { createExport, type ExportApi, type DemoRenderOptions } from "./export";
 
 // The dev bake server (scripts/bake-server.mjs, `npm run bake:server`). `POST /save?name=<path>` writes the

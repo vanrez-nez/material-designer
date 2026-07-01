@@ -1,5 +1,5 @@
 import type { MaterialGraphController } from "./graph/controller";
-import type { PortDef, PortKind } from "./graph/types";
+import type { PortDef, PortKind } from "@/runtime";
 
 // Group-interface editor, mounted on the Group Input / Group Output boundary nodes (Phase 5). Lists the
 // group's exposed sockets for that side with rename + delete, plus an add row (name + kind). Each edit

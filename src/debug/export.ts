@@ -1,16 +1,16 @@
 import * as THREE from "three";
 import { RenderTarget, PMREMGenerator, type WebGPURenderer } from "three/webgpu";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { bakeService } from "../scene/material/graph/bake-service";
-import { readOutputResolution } from "../scene/material/graph/compiler";
+import { bakeService } from "@/runtime";
+import { readOutputResolution } from "@/runtime";
 import { MaterialGraphController } from "../scene/material/graph/controller";
-import type { NodeRegistry } from "../scene/material/graph/registry";
-import { TexturedSurface } from "../scene/material/graph/textured-surface";
+import type { NodeRegistry } from "@/runtime";
+import { TexturedSurface } from "@/runtime";
 import {
   PBR_SOCKETS,
   type PbrSocket,
   type MaterialGraphDocument,
-} from "../scene/material/graph/types";
+} from "@/runtime";
 
 // Dev-only: bake a PBR channel and POST it to the bake server (scripts/bake-server.mjs,
 // `npm run bake:server`), which writes it to ./bake/<channel>.png. Lets a node configuration be saved

@@ -2,7 +2,7 @@ import { Pane } from "tweakpane";
 import type { BindingApi } from "@tweakpane/core";
 import type { EditorGraphConfig, EditorNodeConfig, EditorPaletteItem } from "../../node-editor";
 import type { MaterialGraphController } from "./graph/controller";
-import { nodePorts, nodeParamDefs } from "./graph/registry";
+import { nodePorts, nodeParamDefs } from "@/runtime";
 import { mountCurveWidget } from "./curve-widget";
 import { mountInterfaceWidget } from "./interface-widget";
 import {
@@ -13,7 +13,7 @@ import {
   type GraphNode,
   type ParamDef,
   type PortDef,
-} from "./graph/types";
+} from "@/runtime";
 
 const OUTPUT_TYPE = "material-output";
 // Nodes that can't be deleted from the canvas (terminal output + a subgraph's boundary markers).

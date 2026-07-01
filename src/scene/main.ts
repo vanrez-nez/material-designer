@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { MaterialGraphController } from "./material/graph/controller";
-import { TexturedSurface } from "./material/graph/textured-surface";
-import { bakeService } from "./material/graph/bake-service";
+import { TexturedSurface } from "@/runtime";
+import { bakeService } from "@/runtime";
 
 const SHADOW_MAP_SIZE = 2048;
 

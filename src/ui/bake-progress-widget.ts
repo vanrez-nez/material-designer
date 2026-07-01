@@ -1,4 +1,4 @@
-import type { BakeReport } from "../scene/material/graph/bake-service";
+import type { BakeReport } from "@/runtime";
 import "./bake-progress-widget.css";
 
 export interface BakeProgressWidgetOptions {
