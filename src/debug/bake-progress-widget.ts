@@ -1,4 +1,5 @@
 import type { BakeReport } from "@/runtime";
+import { FloatingWidget } from "@/editor/panes/graph/floating-widget";
 import "./bake-progress-widget.css";
 
 export interface BakeProgressWidgetOptions {
@@ -21,13 +22,10 @@ const FILL_UNIFORM_MS = 200;
 // `setActive` re-scopes it to whichever material the editor shows. Self-contained DOM;
 // imports nothing from the generic node editor.
 export class BakeProgressWidget {
-  private readonly root: HTMLDivElement;
-  private readonly summaryEl: HTMLSpanElement;
+  private readonly widget: FloatingWidget;
   private readonly fill: HTMLDivElement;
   private readonly detailEl: HTMLDivElement;
   private readonly regenBtn: HTMLButtonElement;
-
-  private collapsed = localStorage.getItem(COLLAPSE_KEY) === "1";
 
   // Active binding (the document the editor currently shows).
   private source: string | null = null;
@@ -56,19 +54,18 @@ export class BakeProgressWidget {
       return el;
     };
 
-    this.root = make("div", "bake-widget");
+    this.widget = new FloatingWidget({
+      mount: opts.mount,
+      align: "bottom-left",
+      orientation: "vertical",
+      className: "bake-widget",
+      title: "Material bake",
+      collapsible: true,
+      persistKey: COLLAPSE_KEY,
+      extraInfo: true,
+    });
+    this.widget.setSummary("idle");
 
-    const header = make("div", "bake-widget__header");
-    const title = make("span", "bake-widget__title");
-    title.textContent = "Material bake";
-    this.summaryEl = make("span", "bake-widget__summary");
-    this.summaryEl.textContent = "idle";
-    const chevron = make("span", "bake-widget__chevron");
-    chevron.textContent = "▾";
-    header.append(title, this.summaryEl, chevron);
-    header.addEventListener("click", () => this.setCollapsed(!this.collapsed));
-
-    const body = make("div", "bake-widget__body");
     const bar = make("div", "bake-bar");
     this.fill = make("div", "bake-bar__fill");
     bar.appendChild(this.fill);
@@ -80,11 +77,7 @@ export class BakeProgressWidget {
     this.regenBtn.textContent = "⟳ Regenerate";
     this.regenBtn.title = "Flush all caches and re-bake this material from scratch";
     this.regenBtn.addEventListener("click", () => this.regenerate?.());
-    body.append(bar, this.detailEl, this.regenBtn);
-
-    this.root.append(header, body);
-    this.applyCollapsed();
-    opts.mount.appendChild(this.root);
+    this.widget.body.append(bar, this.detailEl, this.regenBtn);
 
     opts.subscribe((r) => {
       if (r.source === this.source) this.onReport(r);
@@ -99,19 +92,10 @@ export class BakeProgressWidget {
     this.nodeCount = getNodeCount();
     if (!this.busy) {
       this.fill.style.width = "0%";
-      this.root.classList.remove("bake-widget--busy");
-      this.summaryEl.textContent = `${this.nodeCount} nodes`;
+      this.widget.setBusy(false);
+      this.widget.setSummary(`${this.nodeCount} nodes`);
       this.detailEl.textContent = `${this.nodeCount} nodes`;
     }
-  }
-
-  private setCollapsed(v: boolean): void {
-    this.collapsed = v;
-    localStorage.setItem(COLLAPSE_KEY, v ? "1" : "0");
-    this.applyCollapsed();
-  }
-  private applyCollapsed(): void {
-    this.root.classList.toggle("bake-widget--collapsed", this.collapsed);
   }
 
   private onReport(r: BakeReport): void {
@@ -130,7 +114,7 @@ export class BakeProgressWidget {
         this.pct = 0;
         this.runStart = performance.now();
         this.estimateMs = r.nodeCount > 0 ? FILL_STRUCTURAL_MS : FILL_UNIFORM_MS;
-        this.root.classList.add("bake-widget--busy");
+        this.widget.setBusy(true);
         this.regenBtn.disabled = true;
         this.startRaf();
       }
@@ -143,7 +127,7 @@ export class BakeProgressWidget {
     }
     this.texCount = r.texturesTotal;
     this.detailEl.textContent = `Regenerating ${this.texCount} textures…`;
-    this.summaryEl.textContent = "Regenerating…";
+    this.widget.setSummary("Regenerating…");
 
     if (r.phase === "done") {
       this.lastTotalMs = r.totalMs;
@@ -159,7 +143,7 @@ export class BakeProgressWidget {
     const nodes = this.recompiled ? `${this.nodeCount} nodes · ` : "";
     const ms = Math.round(this.lastTotalMs);
     this.detailEl.textContent = `${nodes}${this.texCount} textures · ${ms}ms`;
-    this.summaryEl.textContent = `✓ ${this.texCount} tex · ${ms}ms`;
+    this.widget.setSummary(`✓ ${this.texCount} tex · ${ms}ms`);
     if (!this.raf) this.startRaf();
   }
 
@@ -176,7 +160,7 @@ export class BakeProgressWidget {
           this.fill.style.width = "100%";
           this.busy = false;
           this.finishing = false;
-          this.root.classList.remove("bake-widget--busy");
+          this.widget.setBusy(false);
           this.regenBtn.disabled = false;
           this.raf = 0;
           return;

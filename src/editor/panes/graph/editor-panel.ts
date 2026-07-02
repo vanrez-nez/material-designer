@@ -23,14 +23,12 @@ import {
   PanelBottom,
   PanelLeft,
   PanelTop,
-  Plus,
-  Scan,
   X,
-  ZoomIn,
-  ZoomOut,
   type IconNode,
 } from 'lucide'
 import { GRAPH_AUTO_LAYOUT_EVENT, type GraphAutoLayoutEvent } from '@/app-events'
+import { ZoomControls } from './zoom-controls'
+import { AddNodeControl } from './node-palette-dialog'
 import {
   EditorNode,
   PaneControl,
@@ -105,9 +103,10 @@ export class EditorPanel {
   private readonly appElement: HTMLElement
   private readonly onLayoutChange?: () => void
   private readonly embedded: boolean
-  // Add-node palette (button + dropdown menu); populated per-config in populatePalette.
-  private readonly paletteWrap: HTMLDivElement
-  private readonly paletteMenu: HTMLDivElement
+  // Canvas-overlay floating widgets (created once; re-fed per config). Populated in the constructor
+  // after the canvas host exists.
+  private zoomControls!: ZoomControls
+  private addNodeControl!: AddNodeControl
   // Group navigation trail (root → current group); hidden at the root.
   private readonly breadcrumb: HTMLDivElement
 
@@ -165,44 +164,8 @@ export class EditorPanel {
     })
     window.addEventListener(GRAPH_AUTO_LAYOUT_EVENT, this.onGraphAutoLayout)
 
-    // Add-node palette: a button toggling a menu of node types (filled per config in populatePalette).
-    this.paletteWrap = document.createElement('div')
-    this.paletteWrap.className = 'ne-palette'
-    this.paletteWrap.hidden = true
-    const paletteBtn = document.createElement('button')
-    paletteBtn.className = 'ne-dock__btn'
-    paletteBtn.title = 'Add node'
-    paletteBtn.setAttribute('aria-label', 'Add node')
-    appendLucideIcon(paletteBtn, Plus)
-    this.paletteMenu = document.createElement('div')
-    this.paletteMenu.className = 'ne-palette__menu'
-    this.paletteMenu.hidden = true
-    paletteBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      this.paletteMenu.hidden = !this.paletteMenu.hidden
-    })
-    document.addEventListener('click', () => {
-      this.paletteMenu.hidden = true
-    })
-    this.paletteWrap.append(paletteBtn, this.paletteMenu)
-    header.appendChild(this.paletteWrap)
-
-    // Zoom controls: out / fit / in (plain wheel pans; Shift + wheel zooms — see `ensureEditor`).
-    const zoom = document.createElement('div')
-    zoom.className = 'ne-zoom'
-    const zoomBtn = (icon: IconNode, label: string, onClick: () => void): void => {
-      const b = document.createElement('button')
-      b.className = 'ne-dock__btn'
-      b.title = label
-      b.setAttribute('aria-label', label)
-      appendLucideIcon(b, icon)
-      b.addEventListener('click', onClick)
-      zoom.appendChild(b)
-    }
-    zoomBtn(ZoomOut, 'Zoom out', () => void this.zoomBy(1 / ZOOM_STEP))
-    zoomBtn(Scan, 'Fit to view', () => void this.zoomToFit())
-    zoomBtn(ZoomIn, 'Zoom in', () => void this.zoomBy(ZOOM_STEP))
-    header.appendChild(zoom)
+    // Zoom controls and the add-node palette now live as floating overlays on the canvas (created below,
+    // once the canvas host exists), not in the header.
 
     const layout = document.createElement('div')
     layout.className = 'ne-layout'
@@ -249,6 +212,19 @@ export class EditorPanel {
     tip.textContent = 'Scroll to zoom · Shift + scroll to pan · Double-click a title to focus'
     this.canvasHost.appendChild(this.areaHost)
     this.canvasHost.appendChild(tip)
+
+    // Floating canvas overlays: zoom controls (top-right) and the add-node palette (top-left). They live
+    // in the canvas host, which survives editor rebuilds, so they're created once and re-fed per config.
+    this.zoomControls = new ZoomControls({
+      mount: this.canvasHost,
+      onZoomOut: () => void this.zoomBy(1 / ZOOM_STEP),
+      onFit: () => void this.zoomToFit(),
+      onZoomIn: () => void this.zoomBy(ZOOM_STEP),
+    })
+    this.addNodeControl = new AddNodeControl({
+      mount: this.canvasHost,
+      onPick: (type) => void this.addPaletteNode(type),
+    })
 
     // Drag handle on the panel's inner edge (repositioned per dock mode in `applyDock`).
     this.handle = document.createElement('div')
@@ -338,6 +314,8 @@ export class EditorPanel {
       capture: true,
     } as EventListenerOptions)
     this.destroyEditorRuntime()
+    this.zoomControls.dispose()
+    this.addNodeControl.dispose()
     this.root.remove()
     if (!this.embedded) {
       this.appElement.classList.remove('editor-open')
@@ -787,40 +765,11 @@ export class EditorPanel {
     })
   }
 
-  // (Re)build the palette menu items from the config, grouped by category (the node class) into labelled
-  // sections — mirroring Blender's Add menu. Hidden when no palette/onAddNode is supplied.
+  // (Re)feed the add-node palette overlay from the config. The "+" overlay hides itself when there's no
+  // palette / onAddNode; the full grouped menu is built on open (see AddNodeControl).
   private populatePalette(config: EditorGraphConfig): void {
     const canAdd = Boolean(config.onAddNode && config.palette && config.palette.length > 0)
-    this.paletteWrap.hidden = !canAdd
-    this.paletteMenu.replaceChildren()
-    if (!canAdd) return
-
-    // Group preserving the order categories first appear; uncategorised items fall under "Other".
-    const groups = new Map<string, EditorGraphConfig['palette'] & object>()
-    for (const item of config.palette!) {
-      const key = item.category ?? 'other'
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(item)
-    }
-
-    for (const [category, items] of groups) {
-      const heading = document.createElement('div')
-      heading.className = 'ne-palette__group'
-      heading.dataset.category = category
-      heading.textContent = category
-      this.paletteMenu.appendChild(heading)
-      for (const item of items) {
-        const btn = document.createElement('button')
-        btn.className = 'ne-palette__item'
-        btn.textContent = item.label
-        btn.dataset.category = category
-        btn.addEventListener('click', () => {
-          this.paletteMenu.hidden = true
-          void this.addPaletteNode(item.type)
-        })
-        this.paletteMenu.appendChild(btn)
-      }
-    }
+    this.addNodeControl.setPalette(canAdd ? config.palette! : [])
   }
 
   // DEV/test helper: simulate a user-drawn connection by config ids. Goes through the same

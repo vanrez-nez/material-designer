@@ -1,0 +1,101 @@
+/* Reusable floating panel for the graph canvas overlays (bake widget, zoom controls, add-node).
+   Dark panel idiom shared with the editor (editor.css). Positioned by inline styles (8 anchors). */
+.floating-widget {
+  position: absolute;
+  z-index: 5;
+  background: #202227;
+  color: #d6d9df;
+  border: 1px solid #3a3d44;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  user-select: none;
+  overflow: hidden;
+}
+
+.floating-widget__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #2a2c31;
+  border-bottom: 1px solid #3a3d44;
+}
+.floating-widget__header--collapsible {
+  cursor: pointer;
+}
+.floating-widget--collapsed .floating-widget__header {
+  border-bottom: none;
+}
+
+.floating-widget__title {
+  font-weight: 600;
+  color: #c8ccd4;
+  white-space: nowrap;
+}
+.floating-widget__summary {
+  flex: 1;
+  text-align: right;
+  color: #8b919c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floating-widget--busy .floating-widget__summary {
+  color: #5b8fd6;
+}
+.floating-widget__chevron {
+  color: #8b919c;
+  transition: transform 0.15s ease;
+}
+.floating-widget--collapsed .floating-widget__chevron {
+  transform: rotate(-90deg);
+}
+
+.floating-widget__body {
+  display: flex;
+  gap: 6px;
+}
+.floating-widget__body--vertical {
+  flex-direction: column;
+  padding: 8px;
+}
+.floating-widget__body--horizontal {
+  flex-direction: row;
+  align-items: center;
+  padding: 4px;
+}
+.floating-widget--collapsed .floating-widget__body {
+  display: none;
+}
+
+/* Compact button used by button-group widgets (zoom, add-node). Matches .ne-dock__btn. */
+.fw__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  min-width: 26px;
+  padding: 0 5px;
+  background: #34373e;
+  border: 1px solid #3a3d44;
+  border-radius: 4px;
+  color: #c8ccd4;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.fw__btn:hover {
+  background: #3f434b;
+}
+.fw__btn:active {
+  background: #454b54;
+}
+.fw__btn .lucide-icon {
+  display: block;
+  fill: none;
+  pointer-events: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
