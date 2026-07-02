@@ -10,11 +10,13 @@ import {
   type MaterialGraphSlice,
 } from "@/store/modules/material-graph";
 import {
+  DEFAULT_VISIBLE_PANES,
   createLayoutTree,
   createWorkspaceLayoutSlice,
   type WorkspaceLayoutNode,
   type WorkspaceLayoutPreset,
   type WorkspaceLayoutSlice,
+  type WorkspacePaneVisibility,
 } from "@/store/modules/layout";
 
 export type {
@@ -27,6 +29,7 @@ export type {
   WorkspaceLayoutNode,
   WorkspaceLayoutPreset,
   WorkspaceLayoutSlice,
+  WorkspacePaneVisibility,
   WorkspacePaneId,
 } from "@/store/modules/layout";
 
@@ -73,6 +76,7 @@ type PersistedWorkspaceState = {
   materialGroupPath: string[];
   materialSoloNode: string | null;
   maximizedPaneId: WorkspaceStore["maximizedPaneId"];
+  visiblePanes: WorkspacePaneVisibility;
 };
 
 const DEFAULT_HISTORY_TRANSACTION_SCOPE = "global";
@@ -317,6 +321,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         layoutPreset: state.layoutPreset,
         layoutTree: state.layoutTree,
         maximizedPaneId: state.maximizedPaneId,
+        visiblePanes: state.visiblePanes,
       }),
       storage: createTransactionAwareBrowserStorage<PersistedWorkspaceState>(),
       migrate: (persisted): PersistedWorkspaceState => {
@@ -327,9 +332,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           layoutPreset: previousState.layoutPreset ?? "graph-left",
           layoutTree: previousState.layoutTree ?? createLayoutTree("graph-left"),
           maximizedPaneId: previousState.maximizedPaneId ?? null,
+          visiblePanes: {
+            ...DEFAULT_VISIBLE_PANES,
+            ...(previousState.visiblePanes ?? {}),
+          },
         };
       },
-      version: 3,
+      version: 4,
     },
   ),
 );

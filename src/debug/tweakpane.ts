@@ -51,6 +51,7 @@ export interface TweakpaneDeps {
 export interface TweakpaneHandles {
   stats: StatsBladeApi;
   materialEditor: EditorPanel;
+  paneElement: HTMLElement;
   rebuildEditor: () => void;
 }
 
@@ -411,5 +412,5 @@ export function setupTweakpane({
   };
   rebuildEditor();
 
-  return { stats, materialEditor, rebuildEditor };
+  return { stats, materialEditor, paneElement: pane.element, rebuildEditor };
 }

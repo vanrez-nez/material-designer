@@ -32,13 +32,14 @@ export function WorkspaceLayout({
 }) {
   const layoutTree = useWorkspaceStore((state) => state.layoutTree);
   const maximizedPaneId = useWorkspaceStore((state) => state.maximizedPaneId);
+  const visiblePanes = useWorkspaceStore((state) => state.visiblePanes);
 
   return (
     <div
       className={cn("workspace-layout", maximizedPaneId && "workspace-layout--maximized")}
       data-maximized-pane={maximizedPaneId ?? undefined}
     >
-      {renderLayoutNode(layoutTree, panes, toolbars)}
+      {renderLayoutNode(layoutTree, panes, toolbars, visiblePanes)}
     </div>
   );
 }
@@ -47,8 +48,11 @@ function renderLayoutNode(
   node: WorkspaceLayoutNode,
   panes: PaneRegistry,
   toolbars: PaneToolbarRegistry,
+  visiblePanes: Record<WorkspacePaneId, boolean>,
 ): ReactNode {
   if (node.type === "pane") {
+    if (!visiblePanes[node.paneId]) return null;
+
     return (
       <PaneFrame paneId={node.paneId} toolbar={toolbars[node.paneId]}>
         {panes[node.paneId]}
@@ -56,17 +60,36 @@ function renderLayoutNode(
     );
   }
 
-  return <SplitNode node={node} panes={panes} toolbars={toolbars} />;
+  const visibleChildren = node.children.filter((child) => hasVisiblePane(child, visiblePanes));
+
+  if (visibleChildren.length === 0) return null;
+  if (visibleChildren.length === 1) {
+    return renderLayoutNode(visibleChildren[0], panes, toolbars, visiblePanes);
+  }
+
+  return (
+    <SplitNode
+      node={node}
+      panes={panes}
+      toolbars={toolbars}
+      visibleChildren={visibleChildren}
+      visiblePanes={visiblePanes}
+    />
+  );
 }
 
 function SplitNode({
   node,
   panes,
   toolbars,
+  visibleChildren,
+  visiblePanes,
 }: {
   node: Extract<WorkspaceLayoutNode, { type: "split" }>;
   panes: PaneRegistry;
   toolbars: PaneToolbarRegistry;
+  visibleChildren: WorkspaceLayoutNode[];
+  visiblePanes: Record<WorkspacePaneId, boolean>;
 }) {
   const updateLayoutSplitSizes = useWorkspaceStore((state) => state.updateLayoutSplitSizes);
 
@@ -75,47 +98,59 @@ function SplitNode({
       className="min-h-0 min-w-0"
       orientation={node.direction}
       onLayoutChanged={(layout) => {
-        const sizes = node.children.map((child) => layout[child.id] ?? 0);
+        const sizes = node.children.map((child, index) => layout[child.id] ?? node.sizes[index] ?? 0);
         updateLayoutSplitSizes(node.id, sizes);
       }}
     >
-      {node.children.map((child, index) => (
+      {visibleChildren.map((child, index) => (
         <FragmentWithHandle
           key={child.id}
           child={child}
           index={index}
           panes={panes}
-          sizes={node.sizes}
+          size={node.sizes[node.children.indexOf(child)]}
           toolbars={toolbars}
+          visiblePanes={visiblePanes}
         />
       ))}
     </ResizablePanelGroup>
   );
 }
 
+function hasVisiblePane(
+  node: WorkspaceLayoutNode,
+  visiblePanes: Record<WorkspacePaneId, boolean>,
+): boolean {
+  if (node.type === "pane") return visiblePanes[node.paneId];
+
+  return node.children.some((child) => hasVisiblePane(child, visiblePanes));
+}
+
 function FragmentWithHandle({
   child,
   index,
   panes,
-  sizes,
+  size,
   toolbars,
+  visiblePanes,
 }: {
   child: WorkspaceLayoutNode;
   index: number;
   panes: PaneRegistry;
-  sizes: number[];
+  size: number;
   toolbars: PaneToolbarRegistry;
+  visiblePanes: Record<WorkspacePaneId, boolean>;
 }) {
   return (
     <>
       {index > 0 ? <ResizableHandle withHandle /> : null}
       <ResizablePanel
         className="min-h-0 min-w-0 overflow-hidden"
-        defaultSize={sizes[index]}
+        defaultSize={size}
         id={child.id}
         minSize={18}
       >
-        {renderLayoutNode(child, panes, toolbars)}
+        {renderLayoutNode(child, panes, toolbars, visiblePanes)}
       </ResizablePanel>
     </>
   );

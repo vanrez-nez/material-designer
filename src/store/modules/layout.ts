@@ -5,6 +5,7 @@ import type { WorkspaceStore } from "@/store/app";
 export type WorkspacePaneId = "graph" | "scene" | "texture-preview";
 export type WorkspaceLayoutDirection = "horizontal" | "vertical";
 export type WorkspaceLayoutPreset = "graph-left" | "graph-right" | "graph-top" | "graph-bottom";
+export type WorkspacePaneVisibility = Record<WorkspacePaneId, boolean>;
 
 export type WorkspaceLayoutNode =
   | {
@@ -28,7 +29,15 @@ export type WorkspaceLayoutSlice = {
   restoreWorkspaceLayout: () => void;
   setLayoutPreset: (preset: WorkspaceLayoutPreset) => void;
   setMaximizedPane: (paneId: WorkspacePaneId | null) => void;
+  setPaneVisible: (paneId: WorkspacePaneId, visible: boolean) => void;
   updateLayoutSplitSizes: (splitId: string, sizes: number[]) => void;
+  visiblePanes: WorkspacePaneVisibility;
+};
+
+export const DEFAULT_VISIBLE_PANES: WorkspacePaneVisibility = {
+  graph: true,
+  scene: true,
+  "texture-preview": true,
 };
 
 export function createLayoutTree(preset: WorkspaceLayoutPreset): WorkspaceLayoutNode {
@@ -87,6 +96,7 @@ export function createWorkspaceLayoutSlice(): StateCreator<
         layoutPreset: "graph-left",
         layoutTree: createLayoutTree("graph-left"),
         maximizedPaneId: null,
+        visiblePanes: DEFAULT_VISIBLE_PANES,
       }),
     restoreWorkspaceLayout: () => set({ maximizedPaneId: null }),
     setLayoutPreset: (preset) =>
@@ -96,9 +106,28 @@ export function createWorkspaceLayoutSlice(): StateCreator<
         maximizedPaneId: null,
       }),
     setMaximizedPane: (paneId) => set({ maximizedPaneId: paneId }),
+    setPaneVisible: (paneId, visible) =>
+      set((state) => {
+        if (!visible) {
+          const visibleCount = Object.values(state.visiblePanes).filter(Boolean).length;
+          if (visibleCount <= 1 && state.visiblePanes[paneId]) return state;
+        }
+
+        const visiblePanes = {
+          ...state.visiblePanes,
+          [paneId]: visible,
+        };
+
+        return {
+          maximizedPaneId:
+            !visible && state.maximizedPaneId === paneId ? null : state.maximizedPaneId,
+          visiblePanes,
+        };
+      }),
     updateLayoutSplitSizes: (splitId, sizes) =>
       set((state) => ({
         layoutTree: updateSplitSizes(state.layoutTree, splitId, sizes),
       })),
+    visiblePanes: DEFAULT_VISIBLE_PANES,
   });
 }

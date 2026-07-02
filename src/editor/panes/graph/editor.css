@@ -166,6 +166,13 @@ body.ne-resizing .ne-canvas {
   background-size: 22px 22px;
 }
 
+.ne-area-host {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .ne-canvas__tip {
   position: absolute;
   z-index: 2;
@@ -184,8 +191,8 @@ body.ne-resizing .ne-canvas {
   user-select: none;
 }
 
-/* Rete injects its root into .ne-canvas; make it fill. */
-.ne-canvas > * {
+/* Rete injects its root into .ne-area-host; make it fill. */
+.ne-area-host > * {
   width: 100%;
   height: 100%;
 }

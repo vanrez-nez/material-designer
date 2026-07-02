@@ -10,8 +10,12 @@ import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
 import type { MaterialAppServices } from "@/components/app/services";
 import {
   MATERIAL_DOCUMENT_LOAD_EVENT,
+  MATERIAL_GRAPH_PANE_MOUNT_EVENT,
   MATERIAL_GRAPH_REBUILD_EVENT,
+  MATERIAL_PREVIEW_PANE_MOUNT_EVENT,
   type MaterialDocumentLoadEvent,
+  type MaterialGraphPaneMountEvent,
+  type MaterialPreviewPaneMountEvent,
 } from "@/app-events";
 import { useWorkspaceStore } from "@/store/app";
 
@@ -22,15 +26,14 @@ if (!app) {
   throw new Error("Missing #app root element");
 }
 
-const canvas = app.querySelector<HTMLCanvasElement>(".scene");
-const graphHost = app.querySelector<HTMLDivElement>(".graph-host");
-const paneHost = app.querySelector<HTMLDivElement>(".pane-host");
+let sceneHost = app.querySelector<HTMLDivElement>(".scene-host") ?? document.createElement("div");
+const graphHost = app.querySelector<HTMLDivElement>(".graph-host") ?? document.createElement("div");
+let paneHost = app.querySelector<HTMLDivElement>(".pane-host") ?? document.createElement("div");
 
-if (!canvas || !graphHost || !paneHost) {
-  throw new Error("Missing app elements");
-}
+const sceneCanvas = document.createElement("canvas");
+sceneCanvas.className = "scene";
+sceneHost.appendChild(sceneCanvas);
 
-const sceneCanvas = canvas;
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 30);
 camera.position.set(0, 1.35, 7.2);
 
@@ -72,7 +75,7 @@ const timer = new THREE.Timer();
 timer.connect(document);
 let sceneRenderable = false;
 
-const { stats, materialEditor, rebuildEditor } = setupTweakpane({
+const { stats, materialEditor, paneElement, rebuildEditor } = setupTweakpane({
   app,
   graphHost,
   paneHost,
@@ -82,6 +85,19 @@ const { stats, materialEditor, rebuildEditor } = setupTweakpane({
   resize,
   exporter,
 });
+
+function attachPreviewHosts(nextSceneHost: HTMLDivElement, nextPaneHost: HTMLDivElement): void {
+  sceneHost = nextSceneHost;
+  paneHost = nextPaneHost;
+  if (sceneCanvas.parentElement !== sceneHost) sceneHost.appendChild(sceneCanvas);
+  if (paneElement.parentElement !== paneHost) paneHost.appendChild(paneElement);
+  resize();
+}
+
+function attachGraphHost(nextGraphHost: HTMLDivElement): void {
+  materialEditor.attachHost(nextGraphHost);
+  rebuildEditor();
+}
 
 services.setTextureApi({
   exportTextureZip: ({ channels, size }) => exporter.exportTextureZip({ channels, size }),
@@ -110,6 +126,16 @@ window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
 
 window.addEventListener(MATERIAL_GRAPH_REBUILD_EVENT, () => {
   rebuildEditor();
+});
+
+window.addEventListener(MATERIAL_PREVIEW_PANE_MOUNT_EVENT, (event) => {
+  const { sceneHost: nextSceneHost, paneHost: nextPaneHost } =
+    (event as MaterialPreviewPaneMountEvent).detail;
+  attachPreviewHosts(nextSceneHost, nextPaneHost);
+});
+
+window.addEventListener(MATERIAL_GRAPH_PANE_MOUNT_EVENT, (event) => {
+  attachGraphHost((event as MaterialGraphPaneMountEvent).detail.graphHost);
 });
 
 function resize(): boolean {

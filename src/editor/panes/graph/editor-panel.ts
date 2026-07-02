@@ -100,6 +100,7 @@ const FIT_SCALE = 0.8 // zoomAt gap to the viewport border on "fit" (lower = mor
 export class EditorPanel {
   private readonly root: HTMLDivElement
   private readonly canvasHost: HTMLDivElement
+  private readonly areaHost: HTMLDivElement
   private readonly handle: HTMLDivElement
   private readonly appElement: HTMLElement
   private readonly onLayoutChange?: () => void
@@ -114,6 +115,8 @@ export class EditorPanel {
   private area: AreaPlugin<Schemes, AreaExtra> | null = null
   private arrange: AutoArrangePlugin<ArrangeSchemes> | null = null
   private building = false
+  private rebuildRunning = false
+  private pendingRebuild: EditorGraphConfig | null = null
   private open_ = false
   private layoutArrangement: LayoutArrangement = 'down'
   private graphSignature: string | null = null
@@ -239,9 +242,12 @@ export class EditorPanel {
 
     this.canvasHost = document.createElement('div')
     this.canvasHost.className = 'ne-canvas'
+    this.areaHost = document.createElement('div')
+    this.areaHost.className = 'ne-area-host'
     const tip = document.createElement('div')
     tip.className = 'ne-canvas__tip'
     tip.textContent = 'Scroll to zoom · Shift + scroll to pan · Double-click a title to focus'
+    this.canvasHost.appendChild(this.areaHost)
     this.canvasHost.appendChild(tip)
 
     // Drag handle on the panel's inner edge (repositioned per dock mode in `applyDock`).
@@ -253,11 +259,23 @@ export class EditorPanel {
     this.root.appendChild(this.canvasHost)
     this.root.appendChild(this.handle)
     ;(options.host ?? document.body).appendChild(this.root)
+    this.canvasHost.addEventListener('wheel', this.onWheelPan, { passive: false, capture: true })
+    window.addEventListener('pointerdown', this.onTitlePointerDown, { capture: true })
+    window.addEventListener('mousedown', this.onTitleDblClick, { capture: true })
+    window.addEventListener('pointerup', this.onNodePositionPointerEnd, { capture: true })
+    window.addEventListener('pointercancel', this.onNodePositionPointerEnd, { capture: true })
     this.updateLayoutButtons()
   }
 
   isOpen(): boolean {
     return this.open_
+  }
+
+  attachHost(host: HTMLElement): void {
+    if (this.root.parentElement !== host) {
+      host.appendChild(this.root)
+    }
+    this.notifyLayout()
   }
 
   // The canvas element (position: relative), so callers can mount their own absolutely-positioned
@@ -271,14 +289,14 @@ export class EditorPanel {
     this.open_ = true
     if (this.embedded) {
       this.handle.hidden = true
-      void this.rebuild(config)
+      this.queueRebuild(config)
       this.notifyLayout()
       return
     }
     this.appElement.classList.add('editor-open')
     // Keep the current dock when re-opening (e.g. group navigation re-renders); default to bottom.
     this.applyDock(mode ?? this.mode)
-    void this.rebuild(config)
+    this.queueRebuild(config)
   }
 
   close(): void {
@@ -319,10 +337,7 @@ export class EditorPanel {
     window.removeEventListener('pointercancel', this.onNodePositionPointerEnd, {
       capture: true,
     } as EventListenerOptions)
-    this.area?.destroy()
-    this.area = null
-    this.arrange = null
-    this.editor = null
+    this.destroyEditorRuntime()
     this.root.remove()
     if (!this.embedded) {
       this.appElement.classList.remove('editor-open')
@@ -430,7 +445,7 @@ export class EditorPanel {
     if (this.editor) return
 
     const editor = new NodeEditor<Schemes>()
-    const area = new AreaPlugin<Schemes, AreaExtra>(this.canvasHost)
+    const area = new AreaPlugin<Schemes, AreaExtra>(this.areaHost)
     const connection = new ConnectionPlugin<Schemes, AreaExtra>()
     const render = new LitPlugin<Schemes, AreaExtra>()
     const arrange = new AutoArrangePlugin<ArrangeSchemes>()
@@ -478,16 +493,8 @@ export class EditorPanel {
     // wheel zoom. Capture phase so the canvas claims the wheel before any node input / Tweakpane control
     // (which would otherwise consume it), making zoom/pan work everywhere over the graph.
     area.area.setZoomHandler(null)
-    this.canvasHost.addEventListener('wheel', this.onWheelPan, { passive: false, capture: true })
-    // Double-click on a node title → focus it. Rete's drag handle suppresses the browser's click/dblclick
-    // on titles (they never fire — verified), so there's no `dblclick` to listen to. We use the events that
-    // DO fire: `pointerdown` carries the real title target; the paired `mousedown` carries the browser's
-    // native consecutive-click count in `event.detail` (governed by the OS double-click speed). detail===2
-    // on a title = an OS double-click. Window + capture so nothing upstream can stop it.
-    window.addEventListener('pointerdown', this.onTitlePointerDown, { capture: true })
-    window.addEventListener('mousedown', this.onTitleDblClick, { capture: true })
-    window.addEventListener('pointerup', this.onNodePositionPointerEnd, { capture: true })
-    window.addEventListener('pointercancel', this.onNodePositionPointerEnd, { capture: true })
+    // Double-click/window listeners are installed once by the panel shell. The runtime only owns Rete
+    // instances mounted under areaHost.
 
     // Clamp zoom to range, and keep any pan (wheel or background drag) within the content
     // bounds. The wheel handler pre-clamps, so this mainly catches drag-pan; the `clamping` flag
@@ -546,10 +553,38 @@ export class EditorPanel {
     this.syncBackground() // align the grid to the initial transform
   }
 
-  private async rebuild(config: EditorGraphConfig): Promise<void> {
-    this.ensureEditor()
-    const editor = this.editor!
+  private queueRebuild(config: EditorGraphConfig): void {
+    this.pendingRebuild = config
+    if (!this.rebuildRunning) void this.runQueuedRebuilds()
+  }
 
+  private async runQueuedRebuilds(): Promise<void> {
+    this.rebuildRunning = true
+    try {
+      while (this.pendingRebuild) {
+        const config = this.pendingRebuild
+        this.pendingRebuild = null
+        await this.rebuildNow(config)
+      }
+    } catch (err) {
+      console.error('[graph-editor] rebuild failed', err)
+    } finally {
+      this.rebuildRunning = false
+      if (this.pendingRebuild) void this.runQueuedRebuilds()
+    }
+  }
+
+  private destroyEditorRuntime(): void {
+    this.area?.destroy()
+    this.area = null
+    this.arrange = null
+    this.editor = null
+    this.building = false
+    this.nodeIdsByRuntimeId.clear()
+    this.areaHost.replaceChildren()
+  }
+
+  private async rebuildNow(config: EditorGraphConfig): Promise<void> {
     // A same-graph rebuild (e.g. a declare-driven param change adding/removing sockets) keeps the same
     // node ids → same signature. In that case preserve the user's pan/zoom instead of refitting; only a
     // genuinely different graph (preset load, group navigation) should refit. Captured before graphSignature
@@ -558,42 +593,43 @@ export class EditorPanel {
     const prevTransform = this.area ? { ...this.area.area.transform } : null
     const hasMissingPositions = config.nodes.some((node) => !node.position)
 
+    this.destroyEditorRuntime()
+    this.ensureEditor()
+    const editor = this.editor!
+
     this.config = config
     if (config.editorViewState?.layoutArrangement) {
       this.layoutArrangement = config.editorViewState.layoutArrangement
       this.updateLayoutButtons()
     }
     this.building = true
-    // Clear any previous graph.
-    for (const conn of [...editor.getConnections()]) await editor.removeConnection(conn.id)
-    for (const node of [...editor.getNodes()]) await editor.removeNode(node.id)
+    try {
+      const byId = new Map<string, EditorNode>()
+      this.graphSignature = this.getGraphSignature(config)
+      for (const def of config.nodes) {
+        const node = await this.createNode(def, def.position)
+        byId.set(def.id, node)
+      }
+      this.populatePalette(config)
+      this.populateBreadcrumb(config)
 
-    const byId = new Map<string, EditorNode>()
-    this.graphSignature = this.getGraphSignature(config)
-    this.nodeIdsByRuntimeId.clear()
-    for (const def of config.nodes) {
-      const node = await this.createNode(def, def.position)
-      byId.set(def.id, node)
+      for (const c of config.connections) {
+        const from = byId.get(c.from) as ClassicPreset.Node | undefined
+        const to = byId.get(c.to) as ClassicPreset.Node | undefined
+        if (!from || !to) continue
+        await editor.addConnection(
+          new ClassicPreset.Connection(from, c.fromOutput as never, to, c.toInput as never),
+        )
+      }
+    } finally {
+      this.building = false
     }
-    this.populatePalette(config)
-    this.populateBreadcrumb(config)
 
-    for (const c of config.connections) {
-      const from = byId.get(c.from) as ClassicPreset.Node | undefined
-      const to = byId.get(c.to) as ClassicPreset.Node | undefined
-      if (!from || !to) continue
-      await editor.addConnection(
-        new ClassicPreset.Connection(from, c.fromOutput as never, to, c.toInput as never),
-      )
-    }
-    this.building = false
-
-    requestAnimationFrame(() => {
-      const savedTransform = config.editorViewState?.transform
-      if (savedTransform && !hasMissingPositions) void this.restoreTransform(savedTransform)
-      else if (prevTransform && prevKey === this.graphSignature && !hasMissingPositions) void this.restoreTransform(prevTransform)
-      else void this.arrangeGraph({ history: 'skip' })
-    })
+    await nextFrame()
+    const savedTransform = config.editorViewState?.transform
+    if (savedTransform && !hasMissingPositions) await this.restoreTransform(savedTransform)
+    else if (prevTransform && prevKey === this.graphSignature && !hasMissingPositions) await this.restoreTransform(prevTransform)
+    else await this.arrangeGraph({ history: 'skip' })
   }
 
   // Reapply an exact area transform (zoom around the origin to set k, then translate to set x/y). Used to
@@ -648,8 +684,11 @@ export class EditorPanel {
       .filter((c) => c.target === target && c.targetInput === targetInput && c.id !== exceptId)
     if (existing.length === 0) return
     this.building = true
-    for (const c of existing) await editor.removeConnection(c.id)
-    this.building = false
+    try {
+      for (const c of existing) await editor.removeConnection(c.id)
+    } finally {
+      this.building = false
+    }
   }
 
   // Build + place a single editor node from its config, registering its id mapping. Used by rebuild
@@ -692,8 +731,11 @@ export class EditorPanel {
     const def = this.config.onAddNode(type, position)
     if (!def) return
     this.building = true
-    await this.createNode(def, def.position ?? position)
-    this.building = false
+    try {
+      await this.createNode(def, def.position ?? position)
+    } finally {
+      this.building = false
+    }
     this.saveNodePositions({ history: 'skip' })
   }
 
@@ -703,12 +745,15 @@ export class EditorPanel {
     if (!editor) return
     this.config?.onDeleteNode?.(configId)
     this.building = true
-    for (const conn of editor.getConnections().filter((c) => c.source === runtimeId || c.target === runtimeId)) {
-      await editor.removeConnection(conn.id)
+    try {
+      for (const conn of editor.getConnections().filter((c) => c.source === runtimeId || c.target === runtimeId)) {
+        await editor.removeConnection(conn.id)
+      }
+      await editor.removeNode(runtimeId)
+      this.nodeIdsByRuntimeId.delete(runtimeId)
+    } finally {
+      this.building = false
     }
-    await editor.removeNode(runtimeId)
-    this.nodeIdsByRuntimeId.delete(runtimeId)
-    this.building = false
   }
 
   // The graph-space coordinate at the centre of the visible canvas (so new nodes land in view).
