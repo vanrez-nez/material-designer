@@ -1,7 +1,11 @@
 import { useState } from "react";
 
 import { DocumentExportDialog } from "@/components/app/dialogs/DocumentExportDialog";
+import { OpenDocumentDialog } from "@/components/app/dialogs/OpenDocumentDialog";
 import { TextureExportDialog } from "@/components/app/dialogs/TextureExportDialog";
+import { DocumentTitle } from "@/components/app/DocumentTitle";
+import { useDocumentLibrarySync } from "@/components/app/useDocumentLibrarySync";
+import { newDocument, openDocument } from "@/store/document-actions";
 import { AppMenu } from "@/components/app/menu/AppMenu";
 import { LayoutToolbar } from "@/editor/panes/common/LayoutToolbar";
 import { WorkspaceLayout } from "@/editor/panes/common/WorkspaceLayout";
@@ -15,6 +19,9 @@ import type { MaterialAppServices } from "@/components/app/services";
 export function Layout({ services }: { services: MaterialAppServices }) {
   const [isDocumentExportOpen, setIsDocumentExportOpen] = useState(false);
   const [isTextureExportOpen, setIsTextureExportOpen] = useState(false);
+  const [isOpenDocumentOpen, setIsOpenDocumentOpen] = useState(false);
+
+  useDocumentLibrarySync();
 
   return (
     <>
@@ -23,7 +30,10 @@ export function Layout({ services }: { services: MaterialAppServices }) {
           <AppMenu
             onExportDocument={() => setIsDocumentExportOpen(true)}
             onExportTextures={() => setIsTextureExportOpen(true)}
+            onNewDocument={newDocument}
+            onOpenDocument={() => setIsOpenDocumentOpen(true)}
           />
+          <DocumentTitle onShowAll={() => setIsOpenDocumentOpen(true)} />
           <LayoutToolbar />
         </header>
         <main id="app" className="workspace-body">
@@ -40,6 +50,11 @@ export function Layout({ services }: { services: MaterialAppServices }) {
           />
         </main>
       </div>
+      <OpenDocumentDialog
+        open={isOpenDocumentOpen}
+        onOpen={openDocument}
+        onOpenChange={setIsOpenDocumentOpen}
+      />
       <DocumentExportDialog open={isDocumentExportOpen} onOpenChange={setIsDocumentExportOpen} />
       <TextureExportDialog
         open={isTextureExportOpen}

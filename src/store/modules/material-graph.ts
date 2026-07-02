@@ -29,6 +29,7 @@ export type MaterialGraphSlice = {
     change: GraphChange,
     options?: HistoryUpdateOptions,
   ) => void;
+  setDocumentTitle: (title: string) => void;
   materialDocument: MaterialGraphDocument;
   materialGraphEvent: MaterialGraphEvent | null;
   materialGraphRevision: number;
@@ -145,6 +146,16 @@ export function createMaterialGraphSlice(): StateCreator<
             "soloNode" in patch ? patch.soloNode ?? null : state.materialSoloNode,
         };
       }),
+    // Title is cosmetic (the compiler ignores metadata) — update the document in place WITHOUT emitting a
+    // materialGraphEvent, so it persists but triggers no recompile/history. The controller re-reads the
+    // store on its next edit, so nothing goes stale.
+    setDocumentTitle: (title) =>
+      set((state) => ({
+        materialDocument: {
+          ...state.materialDocument,
+          metadata: { ...state.materialDocument.metadata, title },
+        },
+      })),
     materialDocument: readLegacyMaterialDocument() ?? createDefaultDocument(),
     materialGraphEvent: null,
     materialGraphRevision: 0,

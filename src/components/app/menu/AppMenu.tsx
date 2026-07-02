@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MaterialGraphDocument } from "@/runtime";
-import { dispatchMaterialDocumentLoad, MATERIAL_GRAPH_REBUILD_EVENT } from "@/app-events";
+import { MATERIAL_GRAPH_REBUILD_EVENT } from "@/app-events";
+import { importDocumentFromFile } from "@/store/document-actions";
 import { useWorkspaceStore } from "@/store/app";
 import { Kbd, KbdGroup } from "@/components/ui/primitives/kbd";
 import {
@@ -47,9 +48,16 @@ function Shortcut({ keys }: { keys: string[] }) {
 type AppMenuProps = {
   onExportDocument?: () => void;
   onExportTextures?: () => void;
+  onNewDocument?: () => void;
+  onOpenDocument?: () => void;
 };
 
-export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
+export function AppMenu({
+  onExportDocument,
+  onExportTextures,
+  onNewDocument,
+  onOpenDocument,
+}: AppMenuProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [openMenu, setOpenMenu] = useState("");
   const [lastLoadedFile, setLastLoadedFile] = useState<string | null>(null);
@@ -66,7 +74,7 @@ export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
       if (!isMaterialGraphDocument(parsed)) {
         throw new Error("JSON is not a MaterialGraphDocument.");
       }
-      dispatchMaterialDocumentLoad(parsed, file.name);
+      importDocumentFromFile(parsed, file.name);
       setLastLoadedFile(file.name);
       setLoadError(null);
     } catch (err) {
@@ -156,6 +164,25 @@ export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
         <MenubarMenu value="file">
           <MenubarTrigger>File</MenubarTrigger>
           <MenubarContent align="start">
+            <MenubarItem
+              onSelect={() => {
+                closeMenu();
+                onNewDocument?.();
+              }}
+            >
+              <span>New</span>
+              <Shortcut keys={[modifierKeyLabel, "N"]} />
+            </MenubarItem>
+            <MenubarItem
+              onSelect={() => {
+                closeMenu();
+                onOpenDocument?.();
+              }}
+            >
+              <span>Open</span>
+              <Shortcut keys={[modifierKeyLabel, "O"]} />
+            </MenubarItem>
+            <MenubarSeparator />
             <MenubarSub>
               <MenubarSubTrigger>Export</MenubarSubTrigger>
               <MenubarSubContent>

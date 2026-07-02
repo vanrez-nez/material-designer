@@ -7,7 +7,6 @@ import {
   useSyncExternalStore,
   type PointerEvent,
   type RefObject,
-  type WheelEvent,
 } from "react";
 import { ImageIcon, Loader2 } from "lucide-react";
 
@@ -260,26 +259,37 @@ function InteractiveTextureCanvas({
     event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
-  const handleWheel = (event: WheelEvent<HTMLCanvasElement>) => {
-    if (!image) return;
-    const deltaY = normalizedWheelDelta(event.deltaY, event.deltaMode);
-    if (event.altKey || event.metaKey || !Number.isFinite(deltaY) || deltaY === 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const scale = wheelZoomScale(deltaY);
-    const nextZoom = deltaY > 0 ? zoom * scale : zoom / scale;
-    const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
-    if (clampedZoom === zoom) return;
-    const currentTile = tileSize * zoom;
-    const nextTile = tileSize * clampedZoom;
-    const center = { x: size.width * 0.5, y: size.height * 0.5 };
-    const ratio = nextTile / currentTile;
-    setPan((current) => ({
-      x: center.x - (center.x - current.x) * ratio,
-      y: center.y - (center.y - current.y) * ratio,
-    }));
-    onZoom(clampedZoom);
-  };
+  // Wheel-to-zoom needs a NON-passive native listener: React attaches its `onWheel` as passive, so the
+  // preventDefault() that stops the page from scrolling is ignored (and logs a console warning). Bind it
+  // manually with { passive: false }. Re-bound when the closed-over zoom/tile/size/image change.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    const onWheel = (event: globalThis.WheelEvent) => {
+      if (!image) return;
+      const deltaY = normalizedWheelDelta(event.deltaY, event.deltaMode);
+      if (event.altKey || event.metaKey || !Number.isFinite(deltaY) || deltaY === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const scale = wheelZoomScale(deltaY);
+      const nextZoom = deltaY > 0 ? zoom * scale : zoom / scale;
+      const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+      if (clampedZoom === zoom) return;
+      const currentTile = tileSize * zoom;
+      const nextTile = tileSize * clampedZoom;
+      const center = { x: size.width * 0.5, y: size.height * 0.5 };
+      const ratio = nextTile / currentTile;
+      setPan((current) => ({
+        x: center.x - (center.x - current.x) * ratio,
+        y: center.y - (center.y - current.y) * ratio,
+      }));
+      onZoom(clampedZoom);
+    };
+
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, [image, zoom, tileSize, size, onZoom]);
 
   return (
     <div ref={hostRef} className="texture-preview-canvas-host">
@@ -291,7 +301,6 @@ function InteractiveTextureCanvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onWheel={handleWheel}
       />
       {!image ? <TexturePlaceholder label={loading ? "Loading texture" : "No image"} loading={loading} /> : null}
       {loading && image ? <LoadingBadge /> : null}

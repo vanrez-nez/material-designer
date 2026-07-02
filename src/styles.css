@@ -395,7 +395,8 @@ body {
 }
 
 .workspace-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   height: 40px;
   border-bottom: 1px solid var(--border);
@@ -425,6 +426,154 @@ body {
   align-items: center;
   gap: 2px;
   flex: none;
+  justify-self: end;
+}
+
+/* Centered, editable document title (its own component — the menu/toolbar are just placeholders). */
+.document-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  justify-self: center;
+  max-width: 340px;
+  min-width: 0;
+}
+
+.document-title__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  cursor: text;
+  transition: color 0.15s ease;
+}
+
+.document-title:hover .document-title__name {
+  color: var(--muted-foreground);
+}
+
+.document-title__pen {
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.document-title:hover .document-title__pen {
+  opacity: 0.7;
+}
+
+.document-title__text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.document-title__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.document-title:hover .document-title__chevron,
+.document-title__chevron[data-state="open"] {
+  opacity: 1;
+}
+
+.document-title__chevron:hover {
+  background: var(--accent);
+}
+
+.document-title__input {
+  height: 24px;
+  min-width: 180px;
+  max-width: 340px;
+  padding: 2px 6px;
+  border: 1px solid var(--ring);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  outline: none;
+}
+
+.document-title__menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 230px;
+}
+
+.document-title__recent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.document-title__recent:hover {
+  background: var(--accent);
+}
+
+.document-title__recent-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.document-title__recent-time {
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.document-title__sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
+.document-title__show-all {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+}
+
+.document-title__show-all:hover {
+  background: var(--accent);
 }
 
 .workspace-body,

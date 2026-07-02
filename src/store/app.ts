@@ -54,6 +54,7 @@ export type HistorySlice = {
   activeHistoryTransaction: HistoryTransaction | null;
   beginHistoryTransaction: (scope?: string) => void;
   cancelHistoryTransaction: (scope?: string) => void;
+  clearHistory: () => void;
   commitHistoryTransaction: (scope?: string) => void;
   createHistoryCheckpoint: (state: WorkspaceStore) => Pick<
     HistorySlice,
@@ -219,6 +220,14 @@ function createHistorySlice(
         endStorageHistoryTransaction();
 
         return { activeHistoryTransaction: null };
+      }),
+    // Wipe the (global, non-persisted) undo stack — used on a document switch so undo can't cross
+    // document boundaries.
+    clearHistory: () =>
+      set(() => {
+        endStorageHistoryTransaction();
+
+        return { activeHistoryTransaction: null, historyFuture: [], historyPast: [] };
       }),
     commitHistoryTransaction: (scope) =>
       set((state) => {
