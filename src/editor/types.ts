@@ -1,7 +1,7 @@
-// The generic config contract the node editor consumes. This module is intentionally decoupled
+// The generic config contract the editor consumes. This module is intentionally decoupled
 // from any specific domain (e.g. the material graph): callers describe their graph as plain data
 // plus a `mountControls` hook, and the editor renders it. The material side supplies this via an
-// adapter (src/scene/material/editor-config.ts), so src/node-editor/ stays reusable.
+// adapter (src/scene/material/editor-config.ts), so src/editor/ stays reusable.
 
 /** Where the editor panel is anchored. */
 export type DockMode = 'left' | 'top' | 'bottom'

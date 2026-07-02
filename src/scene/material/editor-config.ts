@@ -1,6 +1,6 @@
 import { Pane } from "tweakpane";
 import type { BindingApi } from "@tweakpane/core";
-import type { EditorGraphConfig, EditorNodeConfig, EditorPaletteItem } from "../../node-editor";
+import type { EditorGraphConfig, EditorNodeConfig, EditorPaletteItem } from "../../editor";
 import type { MaterialGraphController } from "./graph/controller";
 import { nodePorts, nodeParamDefs } from "@/runtime";
 import { mountCurveWidget } from "./curve-widget";

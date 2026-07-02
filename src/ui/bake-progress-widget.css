@@ -1,5 +1,5 @@
-/* Bake-progress widget — two overall loaders (nodes + textures). Matches the node editor's dark panel
-   idiom (see node-editor.css). Docked to the node-editor canvas' bottom-left corner. The width/height
+/* Bake-progress widget — two overall loaders (nodes + textures). Matches the editor's dark panel
+   idiom (see editor.css). Docked to the editor canvas' bottom-left corner. The width/height
    `!important` overrides the `.ne-canvas > *` fill rule (the editor's tip overlay does the same). */
 .bake-widget {
   position: absolute;

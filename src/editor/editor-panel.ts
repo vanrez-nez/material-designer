@@ -1,4 +1,4 @@
-// A dockable panel hosting a Rete v2 node editor. The graph is supplied as a plain `EditorGraphConfig`
+// A dockable panel hosting a Rete v2 editor. The graph is supplied as a plain `EditorGraphConfig`
 // (decoupled — see types.ts) and is treated as read-only topology: nodes/connections are placed
 // programmatically and user-initiated create/remove is vetoed, so the underlying fixed pipeline can't
 // be broken from the UI. Docking is done by padding `#app` on the docked edge so the 3D canvas
@@ -38,7 +38,7 @@ import {
   defineEditorElements,
 } from './rete-elements'
 import type { DockMode, EditorConnectionConfig, EditorGraphConfig, EditorNodeConfig } from './types'
-import './node-editor.css'
+import './editor.css'
 
 type AreaExtra = LitArea2D<Schemes>
 type ArrangeNode = ClassicPreset.Node & {
@@ -51,7 +51,7 @@ type ArrangeSchemes = GetSchemes<ArrangeNode, ArrangeConnection>
 type LayoutArrangement = 'down' | 'right' | 'up' | 'left'
 type StoredPositions = Record<string, { x: number; y: number }>
 
-export type NodeEditorPanelOptions = {
+export type EditorPanelOptions = {
   /** Where the panel attaches; defaults to `document.body`. */
   host?: HTMLElement
   /** The element to pad so the 3D canvas reflows when docking; defaults to `#app`. */
@@ -91,9 +91,9 @@ const CONTENT_PADDING_REM = 5
 const CONTENT_KEEP_PX = 96
 const NODE_FALLBACK_SIZE = 288 // node element size fallback when offsetWidth/Height isn't measured yet
 const FIT_SCALE = 0.8 // zoomAt gap to the viewport border on "fit" (lower = more margin)
-const STORAGE_PREFIX = 'material-designer:node-editor:positions:v1'
+const STORAGE_PREFIX = 'material-designer:editor:positions:v1'
 
-export class NodeEditorPanel {
+export class EditorPanel {
   private readonly root: HTMLDivElement
   private readonly canvasHost: HTMLDivElement
   private readonly handle: HTMLDivElement
@@ -129,7 +129,7 @@ export class NodeEditorPanel {
   private sizeUserSet = false
   private dragStart: { x: number; y: number; size: number } | null = null
 
-  constructor(options: NodeEditorPanelOptions = {}) {
+  constructor(options: EditorPanelOptions = {}) {
     defineEditorElements()
     this.appElement = options.appElement ?? (document.getElementById('app') as HTMLElement)
     this.onLayoutChange = options.onLayoutChange
@@ -366,7 +366,7 @@ export class NodeEditorPanel {
       this.stripSize = clamp(this.stripSize, Math.min(MIN_STRIP, maxStrip), maxStrip)
       root.height = `${this.stripSize}px`
       app[this.mode === 'top' ? 'paddingTop' : 'paddingBottom'] = `${this.stripSize}px`
-      app.setProperty(`--node-editor-${this.mode}-inset`, `${this.stripSize}px`)
+      app.setProperty(`--editor-${this.mode}-inset`, `${this.stripSize}px`)
     }
     this.notifyLayout()
   }
@@ -374,8 +374,8 @@ export class NodeEditorPanel {
   private clearAppPadding(): void {
     const s = this.appElement.style
     s.paddingLeft = s.paddingRight = s.paddingTop = s.paddingBottom = ''
-    s.removeProperty('--node-editor-top-inset')
-    s.removeProperty('--node-editor-bottom-inset')
+    s.removeProperty('--editor-top-inset')
+    s.removeProperty('--editor-bottom-inset')
   }
 
   private readonly onHandleDown = (event: PointerEvent): void => {

@@ -9,7 +9,7 @@ import {
   TexturePreviewBladeApi,
   TexturePreviewPluginBundle,
 } from "../tweak-pane/texture-preview-blade";
-import { NodeEditorPanel } from "../node-editor";
+import { EditorPanel } from "../editor";
 import { buildMaterialEditorConfig } from "../scene/material/editor-config";
 import { bakeService } from "@/runtime";
 import { countGraphNodes } from "@/runtime";
@@ -55,7 +55,7 @@ export interface TweakpaneDeps {
 export interface TweakpaneHandles {
   stats: StatsBladeApi;
   refreshTexturePreview: () => void;
-  materialEditor: NodeEditorPanel;
+  materialEditor: EditorPanel;
   rebuildEditor: () => void;
 }
 
@@ -378,7 +378,7 @@ export function setupTweakpane({
   buildRenderControls(pane);
   applyTransparentBg(rendererConfig.transparentBg);
 
-  const materialEditor = new NodeEditorPanel({
+  const materialEditor = new EditorPanel({
     host: graphHost,
     appElement: app,
     embedded: true,

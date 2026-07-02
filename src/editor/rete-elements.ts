@@ -116,7 +116,7 @@ export class EditorNodeElement extends LitElement {
   }
 
   // Light DOM (not shadow) so Tweakpane's globally-injected stylesheet reaches the embedded panes.
-  // Node chrome is styled from node-editor.css via `ne-node` selectors.
+  // Node chrome is styled from editor.css via `ne-node` selectors.
   protected createRenderRoot(): HTMLElement {
     return this
   }

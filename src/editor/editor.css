@@ -1,4 +1,4 @@
-/* Dock panel chrome for the node editor. The node bodies themselves are styled inside their Lit
+/* Dock panel chrome for the editor. The node bodies themselves are styled inside their Lit
    shadow roots (see rete-elements.ts); this file owns the fixed dock container, its header toolbar,
    and the Rete area background. Colors approximate Tweakpane's dark theme. */
 
@@ -37,7 +37,7 @@
   display: none;
 }
 
-/* Dock placements — the docked extent (width/height) is set inline by node-editor-panel.ts (default
+/* Dock placements — the docked extent (width/height) is set inline by editor-panel.ts (default
    50% of the viewport, draggable), so only edge anchoring lives here. */
 .ne-panel--left {
   top: 0;
