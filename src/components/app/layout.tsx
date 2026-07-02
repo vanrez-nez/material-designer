@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { AppMenu } from "@/components/app/menu/AppMenu";
+import { TexturePreviewPane } from "@/components/app/texture-preview-pane";
 import { Button } from "@/components/ui/primitives/button";
 import {
   ResizableHandle,
@@ -30,6 +31,7 @@ type PaneRegistry = Record<WorkspacePaneId, ReactNode>;
 const paneTitle: Record<WorkspacePaneId, string> = {
   graph: "Graph",
   scene: "Scene",
+  "texture-preview": "Textures",
 };
 
 const presetIcons = {
@@ -63,6 +65,7 @@ export function Layout() {
                 <div className="pane-host" />
               </div>
             ),
+            "texture-preview": <TexturePreviewPane />,
           }}
         />
       </main>

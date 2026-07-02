@@ -12,6 +12,7 @@ import {
   MATERIAL_GRAPH_REBUILD_EVENT,
   type MaterialDocumentLoadEvent,
 } from "./app-events";
+import { setTexturePreviewReader } from "./texture-preview/preview-bridge";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -60,7 +61,7 @@ const exporter = createExport({
   liveDocument: () => mainScene.materialController.document,
 });
 
-const { stats, refreshTexturePreview, materialEditor, rebuildEditor } = setupTweakpane({
+const { stats, materialEditor, rebuildEditor } = setupTweakpane({
   app,
   graphHost,
   paneHost,
@@ -70,6 +71,10 @@ const { stats, refreshTexturePreview, materialEditor, rebuildEditor } = setupTwe
   resize,
   exporter,
 });
+
+setTexturePreviewReader((channel, size) =>
+  bakeService.readImage(mainScene.materialController, channel, size),
+);
 
 window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
   const { document: doc, filename } = (event as MaterialDocumentLoadEvent).detail;
@@ -111,7 +116,6 @@ function animate(timestamp?: number): void {
   timer.update(timestamp);
 
   mainScene.update();
-  refreshTexturePreview();
   controls.update();
   // Skip the frame render while a bake is compiling pipelines: `renderer.compileAsync` mutates shared
   // renderer state, so rendering during its await window corrupts the output (black screen / broken

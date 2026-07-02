@@ -5,10 +5,6 @@ import { WebGPURenderer, MeshPhysicalNodeMaterial } from "three/webgpu";
 import { Pane } from "tweakpane";
 import { MainScene } from "../scene/main";
 import { StatsBladeApi, StatsPanePluginBundle } from "../tweak-pane/stats-blade";
-import {
-  TexturePreviewBladeApi,
-  TexturePreviewPluginBundle,
-} from "../tweak-pane/texture-preview-blade";
 import { EditorPanel } from "../editor";
 import { buildMaterialEditorConfig } from "../scene/material/editor-config";
 import { bakeService } from "@/runtime";
@@ -54,7 +50,6 @@ export interface TweakpaneDeps {
 
 export interface TweakpaneHandles {
   stats: StatsBladeApi;
-  refreshTexturePreview: () => void;
   materialEditor: EditorPanel;
   rebuildEditor: () => void;
 }
@@ -84,18 +79,8 @@ export function setupTweakpane({
   const pane = new Pane({ container: paneHost, title: "Material" });
   pane.registerPlugin(EssentialsPlugin);
   pane.registerPlugin(StatsPanePluginBundle);
-  pane.registerPlugin(TexturePreviewPluginBundle);
 
   const stats = pane.addBlade({ view: "stats" }) as StatsBladeApi;
-
-  let texturePreview: TexturePreviewBladeApi | null = null;
-  const previewState = { channel: "basecolor" as PreviewChannel, seams: false };
-  let previewDirty = true;
-  let previewBaking = false;
-  const markPreviewDirty = (): void => {
-    previewDirty = true;
-  };
-  mainScene.materialSurface.onRebuilt(markPreviewDirty);
 
   const materialState = {
     backend: "offline" as "live" | "offline",
@@ -182,36 +167,6 @@ export function setupTweakpane({
   function applyTransparentBg(on: boolean): void {
     mainScene.scene.background = on ? null : new THREE.Color(0x181818);
     renderer.setClearAlpha(on ? 0 : 1);
-  }
-
-  function refreshTexturePreview(): void {
-    if (!texturePreview || !previewDirty || previewBaking) return;
-    previewDirty = false;
-    previewBaking = true;
-    void bakeService
-      .readImage(mainScene.materialController, PREVIEW_SOCKET[previewState.channel], 256)
-      .then((image) => {
-        if (image) texturePreview?.setImageData(image);
-      })
-      .catch(() => {
-        previewDirty = true;
-      })
-      .finally(() => {
-        previewBaking = false;
-      });
-  }
-
-  function buildPreviewControls(container: ContainerApi): void {
-    const folder = container.addFolder({ title: "Preview", expanded: true });
-    texturePreview = folder.addBlade({ view: "texturePreview", height: 180 }) as TexturePreviewBladeApi;
-    folder
-      .addBinding(previewState, "channel", {
-        options: { Basecolor: "basecolor", Normal: "normal", AO: "ao", Roughness: "roughness" },
-      })
-      .on("change", markPreviewDirty);
-    folder
-      .addBinding(previewState, "seams")
-      .on("change", (event) => texturePreview?.setSeams(event.value));
   }
 
   function buildMaterialControls(container: ContainerApi): void {
@@ -370,7 +325,6 @@ export function setupTweakpane({
     });
   }
 
-  buildPreviewControls(pane);
   buildMaterialControls(pane);
   buildSurfaceControls(pane);
   buildExportControls(pane);
@@ -397,5 +351,5 @@ export function setupTweakpane({
   };
   rebuildEditor();
 
-  return { stats, refreshTexturePreview, materialEditor, rebuildEditor };
+  return { stats, materialEditor, rebuildEditor };
 }

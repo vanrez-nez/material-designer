@@ -34,7 +34,7 @@ export type MaterialGraphPatch = {
   soloNode?: string | null;
 };
 
-export type WorkspacePaneId = "graph" | "scene";
+export type WorkspacePaneId = "graph" | "scene" | "texture-preview";
 export type WorkspaceLayoutDirection = "horizontal" | "vertical";
 export type WorkspaceLayoutPreset = "graph-left" | "graph-right" | "graph-top" | "graph-bottom";
 
@@ -121,11 +121,23 @@ function cloneDocument(doc: MaterialGraphDocument): MaterialGraphDocument {
 function createLayoutTree(preset: WorkspaceLayoutPreset): WorkspaceLayoutNode {
   const graph: WorkspaceLayoutNode = { id: "pane-graph", paneId: "graph", type: "pane" };
   const scene: WorkspaceLayoutNode = { id: "pane-scene", paneId: "scene", type: "pane" };
+  const texturePreview: WorkspaceLayoutNode = {
+    id: "pane-texture-preview",
+    paneId: "texture-preview",
+    type: "pane",
+  };
   const horizontal = preset === "graph-left" || preset === "graph-right";
   const graphFirst = preset === "graph-left" || preset === "graph-top";
+  const previewStack: WorkspaceLayoutNode = {
+    children: [scene, texturePreview],
+    direction: horizontal ? "vertical" : "horizontal",
+    id: "split-scene-preview",
+    sizes: [60, 40],
+    type: "split",
+  };
 
   return {
-    children: graphFirst ? [graph, scene] : [scene, graph],
+    children: graphFirst ? [graph, previewStack] : [previewStack, graph],
     direction: horizontal ? "horizontal" : "vertical",
     id: "root",
     sizes: graphFirst ? [62, 38] : [38, 62],
@@ -489,7 +501,17 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         maximizedPaneId: state.maximizedPaneId,
       }),
       storage: createTransactionAwareSessionStorage<PersistedWorkspaceState>(),
-      version: 1,
+      migrate: (persisted): PersistedWorkspaceState => {
+        const previousState = persisted as PersistedWorkspaceState;
+
+        return {
+          ...previousState,
+          layoutPreset: "graph-left",
+          layoutTree: createLayoutTree("graph-left"),
+          maximizedPaneId: null,
+        };
+      },
+      version: 2,
     },
   ),
 );
