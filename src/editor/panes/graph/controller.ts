@@ -8,7 +8,7 @@ import {
   type MaterialGraphSource,
   type NodeRegistry,
 } from "@/runtime";
-import { createDefaultDocument } from "../presets";
+import { createDefaultDocument } from "@/presets";
 import type {
   GraphEdge,
   GraphNode,

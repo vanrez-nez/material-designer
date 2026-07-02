@@ -1,4 +1,4 @@
-import type { MaterialGraphController } from "./graph/controller";
+import type { MaterialGraphController } from "./controller";
 import { CURVE_CHANNELS, CURVE_IDENTITY, type CurveValue } from "@/runtime";
 
 // Canvas curve editor for the RGB Curves node's `curve` param. Renders the four channel curves (Combined

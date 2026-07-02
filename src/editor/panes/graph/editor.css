@@ -32,6 +32,7 @@
 }
 
 .ne-panel--embedded .ne-dock,
+.ne-panel--embedded .ne-layout,
 .ne-panel--embedded .ne-header__close,
 .ne-panel--embedded .ne-resize {
   display: none;

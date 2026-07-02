@@ -12,6 +12,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/primitives/dialog";
 import { cn } from "@/lib/utils";
+import {
+  Widget,
+  type WidgetOwnerRect,
+  type WidgetPosition,
+} from "@/editor/panes/common/Widget";
 
 type HelpHintSize = "xs" | "md" | "lg";
 type HelpHintTrigger = "hover" | "click" | "both";
@@ -60,8 +65,15 @@ function parseHelpDoc(raw: string): ParsedHelpDoc {
   return { body: raw.slice(match[0].length).trim(), description, title };
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
+function rectToOwnerRect(rect: DOMRect): WidgetOwnerRect {
+  return {
+    bottom: rect.bottom,
+    height: rect.height,
+    left: rect.left,
+    right: rect.right,
+    top: rect.top,
+    width: rect.width,
+  };
 }
 
 export function HelpHint({
@@ -74,7 +86,11 @@ export function HelpHint({
 }: HelpHintProps) {
   const { body, description, title } = useMemo(() => parseHelpDoc(doc), [doc]);
   const [hoverOpen, setHoverOpen] = useState(false);
-  const [position, setPosition] = useState({ x: VIEWPORT_PADDING, y: VIEWPORT_PADDING });
+  const [position, setPosition] = useState<WidgetPosition>({
+    x: VIEWPORT_PADDING,
+    y: VIEWPORT_PADDING,
+  });
+  const [ownerRect, setOwnerRect] = useState<WidgetOwnerRect | null>(null);
   const leaveTimerRef = useRef<number>(0);
   const showHover = (trigger === "hover" || trigger === "both") && Boolean(description);
   const showDialog = trigger === "click" || trigger === "both";
@@ -83,10 +99,8 @@ export function HelpHint({
     window.clearTimeout(leaveTimerRef.current);
     const rect = event.currentTarget.getBoundingClientRect();
     const maxX = Math.max(VIEWPORT_PADDING, window.innerWidth - HOVER_PANEL_WIDTH - VIEWPORT_PADDING);
-    setPosition({
-      x: clamp(rect.left, VIEWPORT_PADDING, maxX),
-      y: rect.bottom + 6,
-    });
+    setPosition({ x: Math.min(Math.max(rect.left, VIEWPORT_PADDING), maxX), y: rect.bottom + 6 });
+    setOwnerRect(rectToOwnerRect(rect));
     setHoverOpen(true);
   };
 
@@ -112,14 +126,18 @@ export function HelpHint({
 
   const hoverPanel =
     showHover && hoverOpen ? (
-      <div
-        className="fixed z-50 rounded-md border bg-card p-3 text-xs text-card-foreground shadow-2xl"
+      <Widget
+        contentClassName="min-h-0 p-3"
+        floatingOwnerRect={ownerRect ?? undefined}
+        floatingPosition={position}
+        showFloatingOwnerCallout
         onMouseEnter={() => window.clearTimeout(leaveTimerRef.current)}
         onMouseLeave={closeHover}
-        style={{ left: position.x, top: position.y, width: HOVER_PANEL_WIDTH }}
+        style={{ width: HOVER_PANEL_WIDTH }}
+        variant="floating"
       >
         <p className="leading-relaxed">{description}</p>
-      </div>
+      </Widget>
     ) : null;
 
   if (!showDialog) {

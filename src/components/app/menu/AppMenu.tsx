@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { MaterialGraphDocument } from "@/runtime";
 import { dispatchMaterialDocumentLoad, MATERIAL_GRAPH_REBUILD_EVENT } from "@/app-events";
-import { useMenuStore } from "@/store/menu";
 import { useWorkspaceStore } from "@/store/app";
 import { Kbd, KbdGroup } from "@/components/ui/primitives/kbd";
 import {
@@ -53,14 +52,12 @@ type AppMenuProps = {
 export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [openMenu, setOpenMenu] = useState("");
+  const [lastLoadedFile, setLastLoadedFile] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const undoHistory = useWorkspaceStore((state) => state.undoHistory);
   const redoHistory = useWorkspaceStore((state) => state.redoHistory);
   const canUndo = useWorkspaceStore((state) => state.historyPast.length > 0);
   const canRedo = useWorkspaceStore((state) => state.historyFuture.length > 0);
-  const lastLoadedFile = useMenuStore((state) => state.lastLoadedFile);
-  const loadError = useMenuStore((state) => state.loadError);
-  const setLoadError = useMenuStore((state) => state.setLoadError);
-  const setLoadedFile = useMenuStore((state) => state.setLoadedFile);
   const modifierKeyLabel = getModifierKeyLabel();
 
   async function loadFile(file: File): Promise<void> {
@@ -70,7 +67,8 @@ export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
         throw new Error("JSON is not a MaterialGraphDocument.");
       }
       dispatchMaterialDocumentLoad(parsed, file.name);
-      setLoadedFile(file.name);
+      setLastLoadedFile(file.name);
+      setLoadError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn("[menu] Load failed:", message);

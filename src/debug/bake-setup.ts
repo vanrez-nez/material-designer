@@ -1,10 +1,10 @@
 import { WebGPURenderer } from "three/webgpu";
-import type { MainScene } from "../scene/main";
+import type { MainScene } from "@/editor/panes/preview/MainScene";
 import { bakeService } from "@/runtime";
-import type { MaterialGraphController } from "../scene/material/graph/controller";
+import type { MaterialGraphController } from "@/editor/panes/graph/controller";
 import { defaultRegistry } from "@/runtime";
 import { runTilingTest } from "@/runtime";
-import { MATERIAL_PRESETS, makePreset } from "../scene/material/presets";
+import { MATERIAL_PRESETS, makePreset } from "@/presets";
 import { PBR_SOCKETS, type PbrSocket, type MaterialGraphDocument } from "@/runtime";
 import { createExport, type ExportApi, type DemoRenderOptions } from "./export";
 

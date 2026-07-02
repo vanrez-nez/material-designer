@@ -1,25 +1,9 @@
 import { create } from "zustand";
 
 import type { PbrSocket } from "@/runtime";
+import { TEXTURE_CHANNELS } from "@/editor/panes/textures/channels";
 
-export type TexturePreviewChannel = {
-  id: string;
-  label: string;
-  socket: PbrSocket;
-};
-
-export type TexturePreviewColumns = 2 | 3 | 4;
-
-export const TEXTURE_PREVIEW_CHANNELS = [
-  { id: "basecolor", label: "Base Color", socket: "baseColor" },
-  { id: "normal", label: "Normal", socket: "normal" },
-  { id: "ao", label: "AO", socket: "ambientOcclusion" },
-  { id: "roughness", label: "Roughness", socket: "roughness" },
-] as const satisfies readonly TexturePreviewChannel[];
-
-export type TexturePreviewChannelId = (typeof TEXTURE_PREVIEW_CHANNELS)[number]["id"];
-
-type TexturePreviewImageState = {
+export type TexturePreviewImageState = {
   error: string | null;
   image: ImageData | null;
   loading: boolean;
@@ -27,22 +11,18 @@ type TexturePreviewImageState = {
 };
 
 export type TexturePreviewStore = {
-  columns: TexturePreviewColumns;
-  images: Record<TexturePreviewChannelId, TexturePreviewImageState>;
-  selectedChannel: TexturePreviewChannelId;
+  images: Record<PbrSocket, TexturePreviewImageState>;
   seams: boolean;
   tileSize: number;
   zoom: number;
-  setColumns: (columns: TexturePreviewColumns) => void;
-  setImageError: (channel: TexturePreviewChannelId, requestId: number, error: string) => void;
-  setImageLoading: (channel: TexturePreviewChannelId, requestId: number) => void;
+  setImageError: (channel: PbrSocket, requestId: number, error: string) => void;
+  setImageLoading: (channel: PbrSocket, requestId: number) => void;
   setImageReady: (
-    channel: TexturePreviewChannelId,
+    channel: PbrSocket,
     requestId: number,
     image: ImageData | null,
   ) => void;
   setSeams: (seams: boolean) => void;
-  setSelectedChannel: (channel: TexturePreviewChannelId) => void;
   setTileSize: (tileSize: number) => void;
   setZoom: (zoom: number) => void;
 };
@@ -54,19 +34,16 @@ const emptyImageState = (): TexturePreviewImageState => ({
   requestId: 0,
 });
 
-const createInitialImages = (): Record<TexturePreviewChannelId, TexturePreviewImageState> =>
+const createInitialImages = (): Record<PbrSocket, TexturePreviewImageState> =>
   Object.fromEntries(
-    TEXTURE_PREVIEW_CHANNELS.map((channel) => [channel.id, emptyImageState()]),
-  ) as Record<TexturePreviewChannelId, TexturePreviewImageState>;
+    TEXTURE_CHANNELS.map((channel) => [channel.socket, emptyImageState()]),
+  ) as Record<PbrSocket, TexturePreviewImageState>;
 
 export const useTexturePreviewStore = create<TexturePreviewStore>()((set) => ({
-  columns: 4,
   images: createInitialImages(),
   seams: false,
-  selectedChannel: "basecolor",
   tileSize: 160,
   zoom: 1,
-  setColumns: (columns) => set({ columns }),
   setImageError: (channel, requestId, error) =>
     set((state) => {
       if (state.images[channel].requestId !== requestId) return state;
@@ -102,7 +79,6 @@ export const useTexturePreviewStore = create<TexturePreviewStore>()((set) => ({
       };
     }),
   setSeams: (seams) => set({ seams }),
-  setSelectedChannel: (selectedChannel) => set({ selectedChannel }),
   setTileSize: (tileSize) => set({ tileSize }),
   setZoom: (zoom) => set({ zoom }),
 }));

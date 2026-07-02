@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import metadataHelp from "@/help/document-metadata.md?raw";
-import { downloadDocumentExport } from "@/document-export/document-export";
+import { downloadDocumentExport } from "@/editor/panes/graph/document-export";
 import { Button } from "@/components/ui/primitives/button";
 import { Checkbox } from "@/components/ui/primitives/checkbox";
 import {

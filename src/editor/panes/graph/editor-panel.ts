@@ -15,10 +15,10 @@ import {
 import type { LayoutOptions } from 'elkjs'
 import { html } from 'lit'
 import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignStartHorizontal,
+  AlignStartVertical,
   createElement as createLucideElement,
   PanelBottom,
   PanelLeft,
@@ -30,6 +30,7 @@ import {
   ZoomOut,
   type IconNode,
 } from 'lucide'
+import { GRAPH_AUTO_LAYOUT_EVENT, type GraphAutoLayoutEvent } from '@/app-events'
 import {
   EditorNode,
   PaneControl,
@@ -159,6 +160,7 @@ export class EditorPanel {
       e.preventDefault()
       this.config.onExit()
     })
+    window.addEventListener(GRAPH_AUTO_LAYOUT_EVENT, this.onGraphAutoLayout)
 
     // Add-node palette: a button toggling a menu of node types (filled per config in populatePalette).
     this.paletteWrap = document.createElement('div')
@@ -308,6 +310,7 @@ export class EditorPanel {
 
   dispose(): void {
     this.canvasHost.removeEventListener('wheel', this.onWheelPan, { capture: true } as EventListenerOptions)
+    window.removeEventListener(GRAPH_AUTO_LAYOUT_EVENT, this.onGraphAutoLayout as EventListener)
     window.removeEventListener('pointerdown', this.onTitlePointerDown, {
       capture: true,
     } as EventListenerOptions)
@@ -325,6 +328,13 @@ export class EditorPanel {
       this.appElement.classList.remove('editor-open')
       this.clearAppPadding()
     }
+  }
+
+  private readonly onGraphAutoLayout = (event: Event): void => {
+    if (!this.open_) return
+    const arrangement = (event as GraphAutoLayoutEvent).detail?.arrangement
+    if (!arrangement || !LAYOUT_ARRANGEMENTS.includes(arrangement)) return
+    this.setLayoutArrangement(arrangement)
   }
 
   // --- internals ---------------------------------------------------------
@@ -1071,10 +1081,10 @@ const DOCK_ICON: Record<DockMode, IconNode> = {
 }
 
 const LAYOUT_ICON: Record<LayoutArrangement, IconNode> = {
-  down: ArrowDown,
-  right: ArrowRight,
-  up: ArrowUp,
-  left: ArrowLeft,
+  down: AlignEndVertical,
+  right: AlignEndHorizontal,
+  up: AlignStartVertical,
+  left: AlignStartHorizontal,
 }
 
 function appendLucideIcon(button: HTMLButtonElement, icon: IconNode): void {

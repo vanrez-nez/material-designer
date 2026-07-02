@@ -8,7 +8,10 @@ if (path === "/export-bake") {
   const { runExportBake } = await import("./debug/bake-setup");
   await runExportBake();
 } else {
-  const { mountAppMenu } = await import("./menu-root");
-  await mountAppMenu();
-  await import("./app"); // side-effect module: full scene + pane boot
+  const { MaterialAppServices } = await import("./components/app/services");
+  const services = new MaterialAppServices();
+  const { mountApp } = await import("./components/app/mount");
+  await mountApp(services);
+  const { bootApp } = await import("./editor/panes/preview/boot");
+  await bootApp(services);
 }

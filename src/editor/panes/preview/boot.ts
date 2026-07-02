@@ -2,20 +2,20 @@ import * as THREE from "three";
 import { WebGPURenderer, PMREMGenerator } from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { MainScene } from "./scene/main";
-import { bakeService } from "@/runtime";
-import { createExport } from "./debug/export";
-import { installBakeDevHandles } from "./debug/bake-setup";
-import { loadRendererConfig, setupTweakpane } from "./debug/tweakpane";
+import { MainScene } from "./MainScene";
+import { bakeService, PBR_SOCKETS, type MaterialValue } from "@/runtime";
+import { createExport } from "@/debug/export";
+import { installBakeDevHandles } from "@/debug/bake-setup";
+import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
+import type { MaterialAppServices } from "@/components/app/services";
 import {
   MATERIAL_DOCUMENT_LOAD_EVENT,
   MATERIAL_GRAPH_REBUILD_EVENT,
   type MaterialDocumentLoadEvent,
-} from "./app-events";
-import { setTexturePreviewReader } from "./texture-preview/preview-bridge";
-import { useWorkspaceStore } from "./store/app";
-import { setTextureExportHandler } from "./texture-export/export-bridge";
+} from "@/app-events";
+import { useWorkspaceStore } from "@/store/app";
 
+export async function bootApp(services: MaterialAppServices): Promise<void> {
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -83,12 +83,16 @@ const { stats, materialEditor, rebuildEditor } = setupTweakpane({
   exporter,
 });
 
-setTexturePreviewReader((channel, size) =>
-  bakeService.readImage(mainScene.materialController, channel, size),
-);
-setTextureExportHandler(({ channels, size }) =>
-  exporter.exportTextureZip({ channels, size }),
-);
+services.setTextureApi({
+  exportTextureZip: ({ channels, size }) => exporter.exportTextureZip({ channels, size }),
+  readConnectedTextureChannels: () => {
+    const { bundle } = mainScene.materialController.compileBundle({ backend: "offline" });
+    const present = bundle as Partial<Record<string, MaterialValue>>;
+    return PBR_SOCKETS.filter((socket) => present[socket] !== undefined);
+  },
+  readTexturePreview: (channel, size) =>
+    bakeService.readImage(mainScene.materialController, channel, size),
+});
 
 window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
   const { document: doc, filename } = (event as MaterialDocumentLoadEvent).detail;
@@ -178,4 +182,5 @@ if (import.meta.env.DEV) {
     },
   });
   installBakeDevHandles({ mainScene, exporter });
+}
 }

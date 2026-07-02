@@ -4,7 +4,7 @@ import { RenderTarget, PMREMGenerator, type WebGPURenderer } from "three/webgpu"
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { bakeService } from "@/runtime";
 import { readOutputResolution } from "@/runtime";
-import { MaterialGraphController } from "../scene/material/graph/controller";
+import { MaterialGraphController } from "@/editor/panes/graph/controller";
 import type { NodeRegistry } from "@/runtime";
 import { TexturedSurface } from "@/runtime";
 import {
@@ -12,6 +12,7 @@ import {
   type PbrSocket,
   type MaterialGraphDocument,
 } from "@/runtime";
+import { textureChannelForSocket } from "@/editor/panes/textures/channels";
 
 // Dev-only: bake a PBR channel and POST it to the bake server (scripts/bake-server.mjs,
 // `npm run bake:server`), which writes it to ./bake/<channel>.png. Lets a node configuration be saved
@@ -24,12 +25,6 @@ const MATERIAL_TASK_CHANNELS: PbrSocket[] = [
   "metallic",
   "ambientOcclusion",
 ];
-const TEXTURE_EXPORT_FILENAMES: Partial<Record<PbrSocket, string>> = {
-  ambientOcclusion: "ao.png",
-  baseColor: "basecolor.png",
-  normal: "normal.png",
-  roughness: "roughness.png",
-};
 
 export interface ExportDeps {
   renderer: WebGPURenderer;
@@ -311,7 +306,7 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
       }
       const blob = await canvasToPngBlob(imageDataToCanvas(image));
       if (!blob) throw new Error(`Could not encode ${channel} as PNG.`);
-      files[TEXTURE_EXPORT_FILENAMES[channel] ?? `${channel}.png`] = await blobToUint8Array(blob);
+      files[textureChannelForSocket(channel).filename] = await blobToUint8Array(blob);
     }
 
     if (missing.length > 0) {

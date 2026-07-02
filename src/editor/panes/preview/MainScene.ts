@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { MaterialGraphController } from "./material/graph/controller";
+import { MaterialGraphController } from "@/editor/panes/graph/controller";
 import { TexturedSurface } from "@/runtime";
 import { bakeService } from "@/runtime";
 

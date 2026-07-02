@@ -2,10 +2,9 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
-  type CSSProperties,
+  useSyncExternalStore,
   type PointerEvent,
   type RefObject,
   type WheelEvent,
@@ -13,30 +12,24 @@ import {
 import { ImageIcon, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/primitives/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/primitives/select";
-import { Slider } from "@/components/ui/primitives/slider";
-import { Switch } from "@/components/ui/primitives/switch";
 import { cn } from "@/lib/utils";
-import {
-  TEXTURE_PREVIEW_CHANNELS,
-  useTexturePreviewStore,
-  type TexturePreviewChannelId,
-  type TexturePreviewColumns,
-} from "@/store/texture-preview";
+import { useTexturePreviewStore } from "@/editor/panes/textures/store";
 import { useWorkspaceStore } from "@/store/app";
 import {
-  getTexturePreviewReader,
-  TEXTURE_PREVIEW_READER_EVENT,
-} from "@/texture-preview/preview-bridge";
+  TEXTURE_CHANNELS,
+  sortedTextureSockets,
+  type TextureChannelInfo,
+} from "@/editor/panes/textures/channels";
+import type { MaterialAppServices } from "@/components/app/services";
+import type { PbrSocket } from "@/runtime";
 
 const PREVIEW_READ_SIZE = 256;
-const COLUMN_OPTIONS: TexturePreviewColumns[] = [2, 3, 4];
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+const WHEEL_LINE_DELTA_PX = 16;
+const WHEEL_PAGE_DELTA_PX = 100;
+const WHEEL_ZOOM_BASE = 0.95;
+const WHEEL_ZOOM_SPEED = 1;
 
 type CanvasSize = {
   height: number;
@@ -48,203 +41,132 @@ type PanOffset = {
   y: number;
 };
 
-export function TexturePreviewPane() {
-  const columns = useTexturePreviewStore((state) => state.columns);
+export function TexturePreviewPane({ services }: { services: MaterialAppServices }) {
+  const servicesSnapshot = useSyncExternalStore(
+    (listener) => services.subscribe(listener),
+    () => services.getSnapshot(),
+    () => services.getSnapshot(),
+  );
   const images = useTexturePreviewStore((state) => state.images);
-  const selectedChannel = useTexturePreviewStore((state) => state.selectedChannel);
   const seams = useTexturePreviewStore((state) => state.seams);
   const tileSize = useTexturePreviewStore((state) => state.tileSize);
   const zoom = useTexturePreviewStore((state) => state.zoom);
-  const setColumns = useTexturePreviewStore((state) => state.setColumns);
   const setImageError = useTexturePreviewStore((state) => state.setImageError);
   const setImageLoading = useTexturePreviewStore((state) => state.setImageLoading);
   const setImageReady = useTexturePreviewStore((state) => state.setImageReady);
-  const setSeams = useTexturePreviewStore((state) => state.setSeams);
-  const setSelectedChannel = useTexturePreviewStore((state) => state.setSelectedChannel);
-  const setTileSize = useTexturePreviewStore((state) => state.setTileSize);
   const setZoom = useTexturePreviewStore((state) => state.setZoom);
   const materialGraphEvent = useWorkspaceStore((state) => state.materialGraphEvent);
-  const [readerVersion, setReaderVersion] = useState(0);
-  const readerReady = getTexturePreviewReader() !== null;
-  const selectedImageState = images[selectedChannel];
-
-  const selectedChannelConfig = useMemo(
-    () => TEXTURE_PREVIEW_CHANNELS.find((channel) => channel.id === selectedChannel),
-    [selectedChannel],
+  const [connectedSockets, setConnectedSockets] = useState<PbrSocket[]>(() =>
+    readConnectedSockets(services),
   );
+  const [selectedSocket, setSelectedSocket] = useState<PbrSocket | null>(
+    () => readConnectedSockets(services)[0] ?? null,
+  );
+  const readerReady = servicesSnapshot.textureReady;
 
-  const refreshImages = useCallback(() => {
-    const reader = getTexturePreviewReader();
-    if (!reader) return;
+  const refreshImages = useCallback((channels: readonly TextureChannelInfo[]) => {
+    if (!services.getSnapshot().textureReady) return;
 
     const currentImages = useTexturePreviewStore.getState().images;
-    for (const channel of TEXTURE_PREVIEW_CHANNELS) {
-      const requestId = currentImages[channel.id].requestId + 1;
-      setImageLoading(channel.id, requestId);
-      void reader(channel.socket, PREVIEW_READ_SIZE)
-        .then((image) => setImageReady(channel.id, requestId, image))
+    for (const channel of channels) {
+      const requestId = currentImages[channel.socket].requestId + 1;
+      setImageLoading(channel.socket, requestId);
+      void services.readTexturePreview(channel.socket, PREVIEW_READ_SIZE)
+        .then((image) => setImageReady(channel.socket, requestId, image))
         .catch((error: unknown) => {
           setImageError(
-            channel.id,
+            channel.socket,
             requestId,
             error instanceof Error ? error.message : String(error),
           );
         });
     }
-  }, [setImageError, setImageLoading, setImageReady]);
+  }, [services, setImageError, setImageLoading, setImageReady]);
+
+  const refreshConnectedImages = useCallback(() => {
+    const nextSockets = readConnectedSockets(services);
+    const channels = textureChannelsForSockets(nextSockets);
+    setConnectedSockets(nextSockets);
+    refreshImages(channels);
+  }, [refreshImages, services]);
 
   useEffect(() => {
-    const handleReader = () => setReaderVersion((version) => version + 1);
-    window.addEventListener(TEXTURE_PREVIEW_READER_EVENT, handleReader);
-
-    return () => window.removeEventListener(TEXTURE_PREVIEW_READER_EVENT, handleReader);
-  }, []);
-
-  useEffect(() => {
-    refreshImages();
-  }, [readerVersion, refreshImages]);
+    refreshConnectedImages();
+  }, [refreshConnectedImages, servicesSnapshot.textureReady]);
 
   useEffect(() => {
     if (!materialGraphEvent || materialGraphEvent.change.kind === "layout") return;
-    refreshImages();
-  }, [materialGraphEvent, refreshImages]);
+    refreshConnectedImages();
+  }, [materialGraphEvent, refreshConnectedImages]);
+
+  const channels = textureChannelsForSockets(connectedSockets);
+  const selectedChannel = channels.find((channel) => channel.socket === selectedSocket) ?? channels[0];
+  const selectedImageState = selectedChannel ? images[selectedChannel.socket] : null;
+
+  useEffect(() => {
+    if (channels.length === 0) {
+      setSelectedSocket(null);
+      return;
+    }
+    if (!selectedSocket || !channels.some((channel) => channel.socket === selectedSocket)) {
+      setSelectedSocket(channels[0].socket);
+    }
+  }, [channels, selectedSocket]);
 
   return (
     <div className="texture-preview-pane">
-      <div className="texture-preview-toolbar">
-        <div className="texture-preview-toolbar__group">
-          <Select
-            value={selectedChannel}
-            onValueChange={(value) => setSelectedChannel(value as TexturePreviewChannelId)}
-          >
-            <SelectTrigger
-              aria-label="Texture channel"
-              className="texture-preview-select"
-              size="xs"
-            >
-              <SelectValue placeholder="Channel" />
-            </SelectTrigger>
-            <SelectContent>
-              {TEXTURE_PREVIEW_CHANNELS.map((channel) => (
-                <SelectItem key={channel.id} value={channel.id}>
-                  {channel.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={String(columns)}
-            onValueChange={(value) => setColumns(Number(value) as TexturePreviewColumns)}
-          >
-            <SelectTrigger aria-label="Thumbnail columns" className="w-[5rem]" size="xs">
-              <SelectValue placeholder="Cols" />
-            </SelectTrigger>
-            <SelectContent>
-              {COLUMN_OPTIONS.map((value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {value} cols
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <LabeledSlider
-          label="Zoom"
-          max={4}
-          min={0.5}
-          step={0.05}
-          value={zoom}
-          onChange={setZoom}
-        />
-        <LabeledSlider
-          label="Tile"
-          max={320}
-          min={64}
-          step={4}
-          value={tileSize}
-          onChange={setTileSize}
-        />
-        <label className="texture-preview-switch">
-          <Switch checked={seams} size="sm" onCheckedChange={setSeams} />
-          <span>Seams</span>
-        </label>
-      </div>
       <div className="texture-preview-grid">
-        <div className="texture-preview-main">
-          {readerReady ? (
-            <InteractiveTextureCanvas
-              image={selectedImageState.image}
-              imageLabel={selectedChannelConfig?.label ?? "Texture"}
-              loading={selectedImageState.loading}
-              seams={seams}
-              tileSize={tileSize}
-              zoom={zoom}
-            />
-          ) : (
-            <TexturePlaceholder label="Preview unavailable" loading />
-          )}
-        </div>
-        <div
-          className="texture-preview-thumbnails"
-          style={{ "--texture-preview-columns": columns } as CSSProperties}
-        >
-          {TEXTURE_PREVIEW_CHANNELS.map((channel) => {
-            const state = images[channel.id];
+        {readerReady && selectedChannel && selectedImageState ? (
+          <>
+            <div className="texture-preview-main">
+              <InteractiveTextureCanvas
+                image={selectedImageState.image}
+                imageLabel={selectedChannel.label}
+                loading={selectedImageState.loading}
+                seams={seams}
+                tileSize={tileSize}
+                zoom={zoom}
+                onZoom={setZoom}
+              />
+            </div>
+            <div className="texture-preview-thumbnails">
+              {channels.map((channel) => {
+                const state = images[channel.socket];
 
-            return (
-              <Button
-                key={channel.id}
-                className={cn(
-                  "texture-preview-thumb",
-                  selectedChannel === channel.id && "texture-preview-thumb--selected",
-                )}
-                title={channel.label}
-                type="button"
-                variant="ghost"
-                onClick={() => setSelectedChannel(channel.id)}
-              >
-                <StaticTextureCanvas
-                  image={state.image}
-                  label={channel.label}
-                  loading={state.loading}
-                />
-                <span>{channel.label}</span>
-              </Button>
-            );
-          })}
-        </div>
+                return (
+                  <Button
+                    key={channel.id}
+                    className={cn(
+                      "texture-preview-thumb",
+                      selectedChannel.socket === channel.socket && "texture-preview-thumb--selected",
+                    )}
+                    title={channel.label}
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setSelectedSocket(channel.socket)}
+                  >
+                    <StaticTextureCanvas
+                      image={state.image}
+                      label={channel.label}
+                      loading={state.loading}
+                    />
+                    <span>{channel.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="texture-preview-empty">
+            <TexturePlaceholder
+              label={readerReady ? "No connected texture outputs" : "Preview unavailable"}
+              loading={!readerReady}
+            />
+          </div>
+        )}
       </div>
     </div>
-  );
-}
-
-function LabeledSlider({
-  label,
-  max,
-  min,
-  step,
-  value,
-  onChange,
-}: {
-  label: string;
-  max: number;
-  min: number;
-  step: number;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="texture-preview-slider">
-      <span>{label}</span>
-      <Slider
-        max={max}
-        min={min}
-        step={step}
-        value={[value]}
-        onValueChange={(nextValue) => onChange(nextValue[0] ?? value)}
-      />
-      <output>{formatNumber(value)}</output>
-    </label>
   );
 }
 
@@ -254,11 +176,13 @@ function InteractiveTextureCanvas({
   loading,
   seams,
   tileSize,
+  onZoom,
   zoom,
 }: {
   image: ImageData | null;
   imageLabel: string;
   loading: boolean;
+  onZoom: (zoom: number) => void;
   seams: boolean;
   tileSize: number;
   zoom: number;
@@ -306,10 +230,23 @@ function InteractiveTextureCanvas({
 
   const handleWheel = (event: WheelEvent<HTMLCanvasElement>) => {
     if (!image) return;
+    const deltaY = normalizedWheelDelta(event.deltaY, event.deltaMode);
+    if (event.altKey || event.metaKey || !Number.isFinite(deltaY) || deltaY === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const scale = wheelZoomScale(deltaY);
+    const nextZoom = deltaY > 0 ? zoom * scale : zoom / scale;
+    const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+    if (clampedZoom === zoom) return;
+    const currentTile = tileSize * zoom;
+    const nextTile = tileSize * clampedZoom;
+    const center = { x: size.width * 0.5, y: size.height * 0.5 };
+    const ratio = nextTile / currentTile;
     setPan((current) => ({
-      x: current.x - event.deltaX,
-      y: current.y - event.deltaY,
+      x: center.x - (center.x - current.x) * ratio,
+      y: center.y - (center.y - current.y) * ratio,
     }));
+    onZoom(clampedZoom);
   };
 
   return (
@@ -450,31 +387,48 @@ function drawTexturePreview(
   if (!sourceCtx) return;
   sourceCtx.putImageData(image, 0, 0);
 
-  const tile = Math.max(8, tileSize);
+  const tile = Math.max(8, Math.round(tileSize));
   const offsetX = modulo(pan.x, tile) - tile;
   const offsetY = modulo(pan.y, tile) - tile;
 
   ctx.imageSmoothingEnabled = false;
   for (let y = offsetY; y < size.height + tile; y += tile) {
     for (let x = offsetX; x < size.width + tile; x += tile) {
-      ctx.drawImage(source, x, y, tile, tile);
+      ctx.drawImage(source, Math.round(x), Math.round(y), tile, tile);
     }
   }
 
   if (!seams) return;
 
-  ctx.strokeStyle = "rgba(255,255,255,0.34)";
   ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0,0,0,0.72)";
   for (let x = offsetX; x < size.width + tile; x += tile) {
+    const px = Math.round(x) + 0.5;
     ctx.beginPath();
-    ctx.moveTo(Math.round(x) + 0.5, 0);
-    ctx.lineTo(Math.round(x) + 0.5, size.height);
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, size.height);
     ctx.stroke();
   }
   for (let y = offsetY; y < size.height + tile; y += tile) {
+    const py = Math.round(y) + 0.5;
     ctx.beginPath();
-    ctx.moveTo(0, Math.round(y) + 0.5);
-    ctx.lineTo(size.width, Math.round(y) + 0.5);
+    ctx.moveTo(0, py);
+    ctx.lineTo(size.width, py);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(255,255,255,0.86)";
+  for (let x = offsetX; x < size.width + tile; x += tile) {
+    const px = Math.round(x + 1) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, size.height);
+    ctx.stroke();
+  }
+  for (let y = offsetY; y < size.height + tile; y += tile) {
+    const py = Math.round(y + 1) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, py);
+    ctx.lineTo(size.width, py);
     ctx.stroke();
   }
 }
@@ -495,6 +449,30 @@ function modulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor;
 }
 
-function formatNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+function readConnectedSockets(services: MaterialAppServices): PbrSocket[] {
+  try {
+    return sortedTextureSockets(services.readConnectedTextureChannels());
+  } catch (error) {
+    console.warn("[texture-preview] Could not read connected channels.", error);
+    return [];
+  }
+}
+
+function textureChannelsForSockets(sockets: readonly PbrSocket[]): TextureChannelInfo[] {
+  const selected = new Set(sockets);
+  return TEXTURE_CHANNELS.filter((channel) => selected.has(channel.socket));
+}
+
+function normalizedWheelDelta(delta: number, deltaMode: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_DELTA_PX;
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * WHEEL_PAGE_DELTA_PX;
+  return delta;
+}
+
+function wheelZoomScale(deltaY: number): number {
+  return Math.pow(WHEEL_ZOOM_BASE, WHEEL_ZOOM_SPEED * Math.abs(deltaY * 0.01));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

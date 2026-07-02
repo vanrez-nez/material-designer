@@ -3,8 +3,32 @@ import type { StateCreator } from "zustand";
 import { persist } from "zustand/middleware";
 import type { PersistStorage, StorageValue } from "zustand/middleware";
 
-import type { GraphChange, MaterialGraphDocument } from "@/runtime";
-import { createDefaultDocument } from "@/scene/material/presets";
+import type { MaterialGraphDocument } from "@/runtime";
+import {
+  createMaterialGraphSlice,
+  materialGraphHistoryParticipant,
+  type MaterialGraphSlice,
+} from "@/store/modules/material-graph";
+import {
+  createLayoutTree,
+  createWorkspaceLayoutSlice,
+  type WorkspaceLayoutNode,
+  type WorkspaceLayoutPreset,
+  type WorkspaceLayoutSlice,
+} from "@/store/modules/layout";
+
+export type {
+  MaterialGraphEvent,
+  MaterialGraphPatch,
+  MaterialGraphSlice,
+} from "@/store/modules/material-graph";
+export type {
+  WorkspaceLayoutDirection,
+  WorkspaceLayoutNode,
+  WorkspaceLayoutPreset,
+  WorkspaceLayoutSlice,
+  WorkspacePaneId,
+} from "@/store/modules/layout";
 
 export type HistorySnapshot = Record<string, unknown>;
 
@@ -23,35 +47,6 @@ export type HistoryUpdateOptions = {
   history?: "checkpoint" | "skip";
 };
 
-export type MaterialGraphEvent = {
-  change: GraphChange;
-  revision: number;
-};
-
-export type MaterialGraphPatch = {
-  document?: MaterialGraphDocument;
-  groupPath?: string[];
-  soloNode?: string | null;
-};
-
-export type WorkspacePaneId = "graph" | "scene" | "texture-preview";
-export type WorkspaceLayoutDirection = "horizontal" | "vertical";
-export type WorkspaceLayoutPreset = "graph-left" | "graph-right" | "graph-top" | "graph-bottom";
-
-export type WorkspaceLayoutNode =
-  | {
-      id: string;
-      type: "pane";
-      paneId: WorkspacePaneId;
-    }
-  | {
-      children: WorkspaceLayoutNode[];
-      direction: WorkspaceLayoutDirection;
-      id: string;
-      sizes: number[];
-      type: "split";
-    };
-
 export type HistorySlice = {
   activeHistoryTransaction: HistoryTransaction | null;
   beginHistoryTransaction: (scope?: string) => void;
@@ -68,119 +63,23 @@ export type HistorySlice = {
   undoHistory: () => void;
 };
 
-export type MaterialGraphSlice = {
-  applyMaterialGraphPatch: (
-    patch: MaterialGraphPatch,
-    change: GraphChange,
-    options?: HistoryUpdateOptions,
-  ) => void;
+export type WorkspaceStore = HistorySlice & MaterialGraphSlice & WorkspaceLayoutSlice;
+
+type PersistedWorkspaceState = {
+  layoutPreset: WorkspaceLayoutPreset;
+  layoutTree: WorkspaceLayoutNode;
   materialDocument: MaterialGraphDocument;
-  materialGraphEvent: MaterialGraphEvent | null;
   materialGraphRevision: number;
   materialGroupPath: string[];
   materialSoloNode: string | null;
+  maximizedPaneId: WorkspaceStore["maximizedPaneId"];
 };
-
-export type WorkspaceLayoutSlice = {
-  layoutPreset: WorkspaceLayoutPreset;
-  layoutTree: WorkspaceLayoutNode;
-  maximizedPaneId: WorkspacePaneId | null;
-  resetWorkspaceLayout: () => void;
-  restoreWorkspaceLayout: () => void;
-  setLayoutPreset: (preset: WorkspaceLayoutPreset) => void;
-  setMaximizedPane: (paneId: WorkspacePaneId | null) => void;
-  updateLayoutSplitSizes: (splitId: string, sizes: number[]) => void;
-};
-
-export type WorkspaceStore = HistorySlice & MaterialGraphSlice & WorkspaceLayoutSlice;
-
-type PersistedWorkspaceState = Pick<
-  WorkspaceStore,
-  | "layoutPreset"
-  | "layoutTree"
-  | "materialDocument"
-  | "materialGraphRevision"
-  | "materialGroupPath"
-  | "materialSoloNode"
-  | "maximizedPaneId"
->;
 
 const DEFAULT_HISTORY_TRANSACTION_SCOPE = "global";
 const MAX_HISTORY_OPERATIONS = 50;
 const WORKSPACE_STORAGE_KEY = "material-designer-workspace-session";
-const MATERIAL_GRAPH_STORAGE_KEY = "material-designer:material-graph-document:v1";
-const LEGACY_MATERIAL_GRAPH_STORAGE_KEY = "material-graph-document:v1";
-const DOC_VERSION = 2;
 
 let isStorageHistoryTransactionActive = false;
-
-function cloneDocument(doc: MaterialGraphDocument): MaterialGraphDocument {
-  return structuredClone(doc);
-}
-
-function createLayoutTree(preset: WorkspaceLayoutPreset): WorkspaceLayoutNode {
-  const graph: WorkspaceLayoutNode = { id: "pane-graph", paneId: "graph", type: "pane" };
-  const scene: WorkspaceLayoutNode = { id: "pane-scene", paneId: "scene", type: "pane" };
-  const texturePreview: WorkspaceLayoutNode = {
-    id: "pane-texture-preview",
-    paneId: "texture-preview",
-    type: "pane",
-  };
-  const horizontal = preset === "graph-left" || preset === "graph-right";
-  const graphFirst = preset === "graph-left" || preset === "graph-top";
-  const previewStack: WorkspaceLayoutNode = {
-    children: [scene, texturePreview],
-    direction: horizontal ? "vertical" : "horizontal",
-    id: "split-scene-preview",
-    sizes: [60, 40],
-    type: "split",
-  };
-
-  return {
-    children: graphFirst ? [graph, previewStack] : [previewStack, graph],
-    direction: horizontal ? "horizontal" : "vertical",
-    id: "root",
-    sizes: graphFirst ? [62, 38] : [38, 62],
-    type: "split",
-  };
-}
-
-function updateSplitSizes(
-  node: WorkspaceLayoutNode,
-  splitId: string,
-  sizes: number[],
-): WorkspaceLayoutNode {
-  if (node.type === "pane") return node;
-  if (node.id === splitId) return { ...node, sizes: [...sizes] };
-
-  return {
-    ...node,
-    children: node.children.map((child) => updateSplitSizes(child, splitId, sizes)),
-  };
-}
-
-function omitNodePositions(doc: MaterialGraphDocument): MaterialGraphDocument {
-  return {
-    ...doc,
-    nodes: doc.nodes.map((node) => ({
-      ...node,
-      position: undefined,
-      subgraph: node.subgraph ? omitNodePositions(node.subgraph) : undefined,
-    })),
-  };
-}
-
-function isLayoutOnlyChange(
-  previous: MaterialGraphHistorySnapshot,
-  next: MaterialGraphHistorySnapshot,
-): boolean {
-  return (
-    previous.soloNode === next.soloNode &&
-    JSON.stringify(previous.groupPath) === JSON.stringify(next.groupPath) &&
-    JSON.stringify(omitNodePositions(previous.document)) ===
-      JSON.stringify(omitNodePositions(next.document))
-  );
-}
 
 function pushHistorySnapshot(
   history: HistorySnapshot[],
@@ -283,24 +182,6 @@ function restoreHistorySnapshot(
 
 function areHistorySnapshotsEqual(firstSnapshot: HistorySnapshot, secondSnapshot: HistorySnapshot) {
   return JSON.stringify(firstSnapshot) === JSON.stringify(secondSnapshot);
-}
-
-function readLegacyMaterialDocument(): MaterialGraphDocument | null {
-  try {
-    const raw =
-      localStorage.getItem(MATERIAL_GRAPH_STORAGE_KEY) ??
-      localStorage.getItem(LEGACY_MATERIAL_GRAPH_STORAGE_KEY) ??
-      sessionStorage.getItem(MATERIAL_GRAPH_STORAGE_KEY) ??
-      sessionStorage.getItem(LEGACY_MATERIAL_GRAPH_STORAGE_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as MaterialGraphDocument;
-    if (parsed.version !== DOC_VERSION || !Array.isArray(parsed.nodes)) return null;
-
-    return parsed;
-  } catch {
-    return null;
-  }
 }
 
 function createHistorySlice(
@@ -412,99 +293,6 @@ function createHistorySlice(
           historyPast: state.historyPast.slice(0, -1),
         };
       }),
-  });
-}
-
-function getHistoryPatch(state: WorkspaceStore, options?: HistoryUpdateOptions) {
-  if (options?.history === "skip" || state.isHistoryTransactionActive()) return {};
-
-  return state.createHistoryCheckpoint(state);
-}
-
-type MaterialGraphHistorySnapshot = {
-  document: MaterialGraphDocument;
-  groupPath: string[];
-  soloNode: string | null;
-};
-
-const materialGraphHistoryParticipant: HistoryParticipant<WorkspaceStore> = {
-  capture: (state): MaterialGraphHistorySnapshot => ({
-    document: cloneDocument(state.materialDocument),
-    groupPath: [...state.materialGroupPath],
-    soloNode: state.materialSoloNode,
-  }),
-  id: "materialGraph",
-  restore: (snapshot, currentState) => {
-    const graphSnapshot = snapshot as MaterialGraphHistorySnapshot;
-    const revision = currentState.materialGraphRevision + 1;
-    const currentSnapshot: MaterialGraphHistorySnapshot = {
-      document: currentState.materialDocument,
-      groupPath: currentState.materialGroupPath,
-      soloNode: currentState.materialSoloNode,
-    };
-
-    return {
-      materialDocument: cloneDocument(graphSnapshot.document),
-      materialGraphEvent: {
-        change: isLayoutOnlyChange(currentSnapshot, graphSnapshot)
-          ? { kind: "layout" }
-          : { kind: "structural" },
-        revision,
-      },
-      materialGraphRevision: revision,
-      materialGroupPath: [...graphSnapshot.groupPath],
-      materialSoloNode: graphSnapshot.soloNode,
-    };
-  },
-};
-
-function createMaterialGraphSlice(): StateCreator<WorkspaceStore, [], [], MaterialGraphSlice> {
-  return (set) => ({
-    applyMaterialGraphPatch: (patch, change, options) =>
-      set((state) => {
-        const revision = state.materialGraphRevision + 1;
-
-        return {
-          ...getHistoryPatch(state, options),
-          materialDocument: patch.document ?? state.materialDocument,
-          materialGraphEvent: { change, revision },
-          materialGraphRevision: revision,
-          materialGroupPath: patch.groupPath ?? state.materialGroupPath,
-          materialSoloNode:
-            "soloNode" in patch ? patch.soloNode ?? null : state.materialSoloNode,
-        };
-      }),
-    materialDocument: readLegacyMaterialDocument() ?? createDefaultDocument(),
-    materialGraphEvent: null,
-    materialGraphRevision: 0,
-    materialGroupPath: [],
-    materialSoloNode: null,
-  });
-}
-
-function createWorkspaceLayoutSlice(): StateCreator<WorkspaceStore, [], [], WorkspaceLayoutSlice> {
-  return (set) => ({
-    layoutPreset: "graph-left",
-    layoutTree: createLayoutTree("graph-left"),
-    maximizedPaneId: null,
-    resetWorkspaceLayout: () =>
-      set({
-        layoutPreset: "graph-left",
-        layoutTree: createLayoutTree("graph-left"),
-        maximizedPaneId: null,
-      }),
-    restoreWorkspaceLayout: () => set({ maximizedPaneId: null }),
-    setLayoutPreset: (preset) =>
-      set({
-        layoutPreset: preset,
-        layoutTree: createLayoutTree(preset),
-        maximizedPaneId: null,
-      }),
-    setMaximizedPane: (paneId) => set({ maximizedPaneId: paneId }),
-    updateLayoutSplitSizes: (splitId, sizes) =>
-      set((state) => ({
-        layoutTree: updateSplitSizes(state.layoutTree, splitId, sizes),
-      })),
   });
 }
 

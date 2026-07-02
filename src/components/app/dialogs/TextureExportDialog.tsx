@@ -19,13 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/primitives/select";
-import { TEXTURE_PREVIEW_CHANNELS } from "@/store/texture-preview";
-import { getTextureExportHandler } from "@/texture-export/export-bridge";
+import { useWorkspaceStore } from "@/store/app";
+import { TEXTURE_CHANNELS, sortedTextureSockets } from "@/editor/panes/textures/channels";
+import type { MaterialAppServices } from "@/components/app/services";
 import type { PbrSocket } from "@/runtime";
 
 type TextureExportDialogProps = {
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  services: MaterialAppServices;
 };
 
 const EXPORT_SIZES = [
@@ -36,46 +38,64 @@ const EXPORT_SIZES = [
   { label: "8K", value: 8192 },
 ] as const;
 
-const defaultChannels = (): PbrSocket[] =>
-  TEXTURE_PREVIEW_CHANNELS.map((channel) => channel.socket);
+const readAvailableChannels = (services: MaterialAppServices): PbrSocket[] => {
+  try {
+    return sortedTextureSockets(services.readConnectedTextureChannels());
+  } catch (error) {
+    console.warn("[texture-export] Could not read connected channels.", error);
+    return [];
+  }
+};
 
-export function TextureExportDialog({ onOpenChange, open }: TextureExportDialogProps) {
-  const [channels, setChannels] = useState<PbrSocket[]>(defaultChannels);
+export function TextureExportDialog({ onOpenChange, open, services }: TextureExportDialogProps) {
+  const materialGraphEvent = useWorkspaceStore((state) => state.materialGraphEvent);
+  const [availableChannels, setAvailableChannels] = useState<PbrSocket[]>([]);
+  const [channels, setChannels] = useState<PbrSocket[]>([]);
   const [size, setSize] = useState(1024);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
-    setChannels(defaultChannels());
+    const nextAvailable = readAvailableChannels(services);
+    setAvailableChannels(nextAvailable);
+    setChannels(nextAvailable);
     setSize(1024);
     setIsExporting(false);
     setError("");
-  }, [open]);
+  }, [open, services]);
+
+  useEffect(() => {
+    if (!open || !materialGraphEvent || materialGraphEvent.change.kind === "layout") return;
+    const nextAvailable = readAvailableChannels(services);
+    const nextAvailableSet = new Set(nextAvailable);
+    setAvailableChannels(nextAvailable);
+    setChannels((current) =>
+      sortedTextureSockets([...current, ...nextAvailable]).filter((channel) =>
+        nextAvailableSet.has(channel),
+      ),
+    );
+  }, [materialGraphEvent, open, services]);
 
   const selected = new Set(channels);
+  const available = new Set(availableChannels);
   const exportDisabled = isExporting || channels.length === 0;
 
   function setChannel(channel: PbrSocket, checked: boolean): void {
+    if (!available.has(channel)) return;
     setChannels((current) => {
       const next = new Set(current);
       if (checked) next.add(channel);
       else next.delete(channel);
-      return defaultChannels().filter((socket) => next.has(socket));
+      return sortedTextureSockets(next).filter((socket) => available.has(socket));
     });
   }
 
   async function handleExport(): Promise<void> {
-    const handler = getTextureExportHandler();
-    if (!handler) {
-      setError("Texture exporter is not ready yet.");
-      return;
-    }
-
     setIsExporting(true);
     setError("");
     try {
-      await handler({ channels, size });
+      await services.exportTextureZip({ channels, size });
       onOpenChange(false);
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : "Texture export failed.");
@@ -121,19 +141,20 @@ export function TextureExportDialog({ onOpenChange, open }: TextureExportDialogP
           <div className="flex flex-col gap-2">
             <span className="text-sm">Channels</span>
             <div className="grid gap-2 rounded-md border bg-muted/20 p-3">
-              {TEXTURE_PREVIEW_CHANNELS.map((channel) => {
+              {TEXTURE_CHANNELS.map((channel) => {
                 const id = `texture-export-${channel.id}`;
+                const connected = available.has(channel.socket);
 
                 return (
                   <label
                     key={channel.id}
-                    className="flex cursor-pointer items-center justify-between gap-3 rounded-sm py-1 text-sm"
+                    className="flex cursor-pointer items-center justify-between gap-3 rounded-sm py-1 text-sm has-disabled:cursor-not-allowed has-disabled:text-muted-foreground"
                     htmlFor={id}
                   >
                     <span>{channel.label}</span>
                     <Checkbox
                       checked={selected.has(channel.socket)}
-                      disabled={isExporting}
+                      disabled={isExporting || !connected}
                       id={id}
                       onCheckedChange={(checked) => setChannel(channel.socket, checked === true)}
                     />
