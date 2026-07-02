@@ -1,4 +1,4 @@
-import "./style.css";
+import "./styles.css";
 
 // Entry dispatcher. `/export-bake` boots an isolated headless bake (no preview scene, no Tweakpane);
 // every other path boots the full app. Dynamic imports keep the two graphs apart — the export route never
@@ -8,5 +8,7 @@ if (path === "/export-bake") {
   const { runExportBake } = await import("./debug/bake-setup");
   await runExportBake();
 } else {
+  const { mountAppMenu } = await import("./menu-root");
+  mountAppMenu();
   await import("./app"); // side-effect module: full scene + pane boot
 }

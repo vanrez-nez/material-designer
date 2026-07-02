@@ -9,9 +9,11 @@
     "moduleResolution": "bundler",
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
+    "jsx": "react-jsx",
     "paths": {
       "@/runtime": ["./src/runtime/src/index.ts"],
-      "@/runtime/*": ["./src/runtime/src/*"]
+      "@/runtime/*": ["./src/runtime/src/*"],
+      "@/*": ["./src/*"]
     },
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,

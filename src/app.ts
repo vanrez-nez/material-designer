@@ -1,4 +1,3 @@
-import "./style.css";
 import * as THREE from "three";
 import { WebGPURenderer, PMREMGenerator } from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -8,6 +7,7 @@ import { bakeService } from "@/runtime";
 import { createExport } from "./debug/export";
 import { installBakeDevHandles } from "./debug/bake-setup";
 import { loadRendererConfig, setupTweakpane } from "./debug/tweakpane";
+import { MATERIAL_DOCUMENT_LOAD_EVENT, type MaterialDocumentLoadEvent } from "./app-events";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -65,6 +65,20 @@ const { stats, refreshTexturePreview, materialEditor, rebuildEditor } = setupTwe
   rendererConfig,
   resize,
   exporter,
+});
+
+window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
+  const { document: doc, filename } = (event as MaterialDocumentLoadEvent).detail;
+  try {
+    mainScene.materialController.loadDocument(doc);
+    void mainScene.materialSurface.refresh().then(() => {
+      rebuildEditor();
+      resize();
+      if (filename) console.info(`[material] Loaded ${filename}`);
+    });
+  } catch (err) {
+    console.warn("[material] Failed to load document", err);
+  }
 });
 
 const timer = new THREE.Timer();
