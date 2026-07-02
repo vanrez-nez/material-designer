@@ -97,8 +97,6 @@ export type EditorGraphConfig = {
   editorViewState?: EditorViewState
   /** Persist editor canvas pan/zoom/layout state in the owner document. */
   onEditorViewStateChange?: (state: EditorViewState, options?: EditorHistoryUpdateOptions) => void
-  /** Export the current graph (e.g. download it as JSON). Provide to surface the header's export button. */
-  onExport?: () => void
   /** Navigation trail (root → current group). Rendered as a clickable breadcrumb; omit/empty at root. */
   breadcrumb?: { label: string; onClick: () => void }[]
   /** Exit one navigation level (bound to Esc). Omit at the root. */

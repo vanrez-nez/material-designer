@@ -20,7 +20,6 @@ import {
   ArrowRight,
   ArrowUp,
   createElement as createLucideElement,
-  Download,
   PanelBottom,
   PanelLeft,
   PanelTop,
@@ -109,8 +108,6 @@ export class EditorPanel {
   private readonly paletteMenu: HTMLDivElement
   // Group navigation trail (root → current group); hidden at the root.
   private readonly breadcrumb: HTMLDivElement
-  // Export-graph button; shown only when the active config provides an onExport hook.
-  private readonly exportBtn: HTMLButtonElement
 
   private editor: NodeEditor<Schemes> | null = null
   private area: AreaPlugin<Schemes, AreaExtra> | null = null
@@ -184,17 +181,6 @@ export class EditorPanel {
     })
     this.paletteWrap.append(paletteBtn, this.paletteMenu)
     header.appendChild(this.paletteWrap)
-
-    // Export button: download the current graph as JSON (delegated to the config's onExport hook).
-    // Hidden until a config that supplies onExport is loaded (toggled in `rebuild`).
-    this.exportBtn = document.createElement('button')
-    this.exportBtn.className = 'ne-dock__btn ne-export__btn'
-    this.exportBtn.title = 'Export JSON'
-    this.exportBtn.setAttribute('aria-label', 'Export JSON')
-    this.exportBtn.hidden = true
-    appendLucideIcon(this.exportBtn, Download)
-    this.exportBtn.addEventListener('click', () => this.config?.onExport?.())
-    header.appendChild(this.exportBtn)
 
     // Zoom controls: out / fit / in (plain wheel pans; Shift + wheel zooms — see `ensureEditor`).
     const zoom = document.createElement('div')
@@ -581,7 +567,6 @@ export class EditorPanel {
     }
     this.populatePalette(config)
     this.populateBreadcrumb(config)
-    this.exportBtn.hidden = !config.onExport
 
     for (const c of config.connections) {
       const from = byId.get(c.from) as ClassicPreset.Node | undefined

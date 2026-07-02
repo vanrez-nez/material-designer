@@ -68,6 +68,10 @@ const exporter = createExport({
   liveDocument: () => mainScene.materialController.document,
 });
 
+const timer = new THREE.Timer();
+timer.connect(document);
+let sceneRenderable = false;
+
 const { stats, materialEditor, rebuildEditor } = setupTweakpane({
   app,
   graphHost,
@@ -103,10 +107,6 @@ window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
 window.addEventListener(MATERIAL_GRAPH_REBUILD_EVENT, () => {
   rebuildEditor();
 });
-
-const timer = new THREE.Timer();
-timer.connect(document);
-let sceneRenderable = false;
 
 function resize(): boolean {
   const { clientWidth, clientHeight } = sceneCanvas;
