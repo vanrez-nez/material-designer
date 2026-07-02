@@ -63,32 +63,58 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
     () => readConnectedSockets(services)[0] ?? null,
   );
   const readerReady = servicesSnapshot.textureReady;
+  // Single-flight coalescing (mirrors TexturedSurface.pump): at most one refresh round bakes at a
+  // time, and every event that arrives mid-round collapses into ONE trailing round. Without this the
+  // pane fired a fresh readImage bake per event onto the shared serial bake queue, flooding it during
+  // a slider drag so the preview lagged far behind the graph.
+  const pumpRef = useRef({ inFlight: false, pending: false });
 
-  const refreshImages = useCallback((channels: readonly TextureChannelInfo[]) => {
+  const bakeConnectedChannels = useCallback(async () => {
     if (!services.getSnapshot().textureReady) return;
 
+    const nextSockets = readConnectedSockets(services);
+    setConnectedSockets(nextSockets);
+    const channels = textureChannelsForSockets(nextSockets);
     const currentImages = useTexturePreviewStore.getState().images;
-    for (const channel of channels) {
-      const requestId = currentImages[channel.socket].requestId + 1;
-      setImageLoading(channel.socket, requestId);
-      void services.readTexturePreview(channel.socket, PREVIEW_READ_SIZE)
-        .then((image) => setImageReady(channel.socket, requestId, image))
-        .catch((error: unknown) => {
+
+    // readImage awaits GPU completion, so awaiting the whole round gives real back-pressure — the next
+    // round can't enqueue until this one's GPU work drains.
+    await Promise.all(
+      channels.map(async (channel) => {
+        const requestId = currentImages[channel.socket].requestId + 1;
+        setImageLoading(channel.socket, requestId);
+        try {
+          const image = await services.readTexturePreview(channel.socket, PREVIEW_READ_SIZE);
+          setImageReady(channel.socket, requestId, image);
+        } catch (error: unknown) {
           setImageError(
             channel.socket,
             requestId,
             error instanceof Error ? error.message : String(error),
           );
-        });
-    }
+        }
+      }),
+    );
   }, [services, setImageError, setImageLoading, setImageReady]);
 
   const refreshConnectedImages = useCallback(() => {
-    const nextSockets = readConnectedSockets(services);
-    const channels = textureChannelsForSockets(nextSockets);
-    setConnectedSockets(nextSockets);
-    refreshImages(channels);
-  }, [refreshImages, services]);
+    const pump = pumpRef.current;
+    if (pump.inFlight) {
+      pump.pending = true;
+      return;
+    }
+    pump.inFlight = true;
+    void (async () => {
+      try {
+        do {
+          pump.pending = false;
+          await bakeConnectedChannels();
+        } while (pump.pending);
+      } finally {
+        pump.inFlight = false;
+      }
+    })();
+  }, [bakeConnectedChannels]);
 
   useEffect(() => {
     refreshConnectedImages();
@@ -100,6 +126,7 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
   }, [materialGraphEvent, refreshConnectedImages]);
 
   const channels = textureChannelsForSockets(connectedSockets);
+  const generated = new Set(connectedSockets);
   const selectedChannel = channels.find((channel) => channel.socket === selectedSocket) ?? channels[0];
   const selectedImageState = selectedChannel ? images[selectedChannel.socket] : null;
 
@@ -130,8 +157,9 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
               />
             </div>
             <div className="texture-preview-thumbnails">
-              {channels.map((channel) => {
+              {TEXTURE_CHANNELS.map((channel) => {
                 const state = images[channel.socket];
+                const isGenerated = generated.has(channel.socket);
 
                 return (
                   <Button
@@ -139,12 +167,16 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
                     className={cn(
                       "texture-preview-thumb",
                       selectedChannel.socket === channel.socket && "texture-preview-thumb--selected",
+                      !isGenerated && "texture-preview-thumb--disabled",
                     )}
-                    title={channel.label}
+                    title={isGenerated ? channel.label : `${channel.label} (not generated)`}
                     type="button"
                     size="icon"
                     variant="ghost"
-                    onClick={() => setSelectedSocket(channel.socket)}
+                    disabled={!isGenerated}
+                    onClick={() => {
+                      if (isGenerated) setSelectedSocket(channel.socket);
+                    }}
                   >
                     <StaticTextureCanvas
                       image={state.image}

@@ -327,10 +327,21 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       migrate: (persisted): PersistedWorkspaceState => {
         const previousState = persisted as PersistedWorkspaceState;
 
+        // The alignment presets were reduced to two: fold the retired presets onto the nearest
+        // survivor (right→left, bottom→top) and regenerate the tree so the toolbar highlight and the
+        // rendered layout stay consistent for existing sessions.
+        const legacyPreset = (previousState.layoutPreset ?? "graph-left") as string;
+        const layoutPreset: WorkspaceLayoutPreset =
+          legacyPreset === "graph-top" || legacyPreset === "graph-bottom" ? "graph-top" : "graph-left";
+        const presetChanged = legacyPreset !== layoutPreset;
+
         return {
           ...previousState,
-          layoutPreset: previousState.layoutPreset ?? "graph-left",
-          layoutTree: previousState.layoutTree ?? createLayoutTree("graph-left"),
+          layoutPreset,
+          layoutTree:
+            presetChanged || !previousState.layoutTree
+              ? createLayoutTree(layoutPreset)
+              : previousState.layoutTree,
           maximizedPaneId: previousState.maximizedPaneId ?? null,
           visiblePanes: {
             ...DEFAULT_VISIBLE_PANES,
@@ -338,7 +349,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           },
         };
       },
-      version: 4,
+      version: 5,
     },
   ),
 );

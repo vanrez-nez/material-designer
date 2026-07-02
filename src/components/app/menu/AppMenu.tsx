@@ -5,7 +5,6 @@ import { useWorkspaceStore } from "@/store/app";
 import { Kbd, KbdGroup } from "@/components/ui/primitives/kbd";
 import {
   Menubar,
-  MenubarCheckboxItem,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -15,12 +14,6 @@ import {
   MenubarSubTrigger,
   MenubarTrigger,
 } from "@/components/ui/primitives/menubar";
-
-const viewPaneItems = [
-  { id: "scene", label: "Scene" },
-  { id: "graph", label: "Graph" },
-  { id: "texture-preview", label: "Textures" },
-] as const;
 
 function isMaterialGraphDocument(value: unknown): value is MaterialGraphDocument {
   return (
@@ -65,10 +58,7 @@ export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
   const redoHistory = useWorkspaceStore((state) => state.redoHistory);
   const canUndo = useWorkspaceStore((state) => state.historyPast.length > 0);
   const canRedo = useWorkspaceStore((state) => state.historyFuture.length > 0);
-  const visiblePanes = useWorkspaceStore((state) => state.visiblePanes);
-  const setPaneVisible = useWorkspaceStore((state) => state.setPaneVisible);
   const modifierKeyLabel = getModifierKeyLabel();
-  const visiblePaneCount = Object.values(visiblePanes).filter(Boolean).length;
 
   async function loadFile(file: File): Promise<void> {
     try {
@@ -221,27 +211,6 @@ export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
               <span>Redo</span>
               <Shortcut keys={[modifierKeyLabel, "⇧", "Z"]} />
             </MenubarItem>
-          </MenubarContent>
-        </MenubarMenu>
-        <MenubarMenu value="view">
-          <MenubarTrigger>View</MenubarTrigger>
-          <MenubarContent align="start">
-            {viewPaneItems.map((item) => {
-              const checked = visiblePanes[item.id];
-
-              return (
-                <MenubarCheckboxItem
-                  key={item.id}
-                  checked={checked}
-                  disabled={checked && visiblePaneCount <= 1}
-                  onCheckedChange={(nextChecked) => {
-                    setPaneVisible(item.id, nextChecked === true);
-                  }}
-                >
-                  {item.label}
-                </MenubarCheckboxItem>
-              );
-            })}
           </MenubarContent>
         </MenubarMenu>
       </Menubar>

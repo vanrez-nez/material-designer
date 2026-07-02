@@ -99,17 +99,6 @@ function attachGraphHost(nextGraphHost: HTMLDivElement): void {
   rebuildEditor();
 }
 
-services.setTextureApi({
-  exportTextureZip: ({ channels, size }) => exporter.exportTextureZip({ channels, size }),
-  readConnectedTextureChannels: () => {
-    const { bundle } = mainScene.materialController.compileBundle({ backend: "offline" });
-    const present = bundle as Partial<Record<string, MaterialValue>>;
-    return PBR_SOCKETS.filter((socket) => present[socket] !== undefined);
-  },
-  readTexturePreview: (channel, size) =>
-    bakeService.readImage(mainScene.materialController, channel, size),
-});
-
 window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
   const { document: doc, filename } = (event as MaterialDocumentLoadEvent).detail;
   try {
@@ -175,6 +164,21 @@ await renderer.init();
 // it swaps from the live startup fallback to the baked offline material.
 bakeService.attachRenderer(renderer);
 await mainScene.materialSurface.refresh();
+
+// Expose the texture API only now — with the renderer attached and the first bake done. This flips the
+// preview pane's `textureReady` signal, and its initial refresh reads are guaranteed a live renderer
+// (before this, readImage would have resolved null and the empty result would have stuck until the next
+// graph edit).
+services.setTextureApi({
+  exportTextureZip: ({ channels, size }) => exporter.exportTextureZip({ channels, size }),
+  readConnectedTextureChannels: () => {
+    const { bundle } = mainScene.materialController.compileBundle({ backend: "offline" });
+    const present = bundle as Partial<Record<string, MaterialValue>>;
+    return PBR_SOCKETS.filter((socket) => present[socket] !== undefined);
+  },
+  readTexturePreview: (channel, size) =>
+    bakeService.readImage(mainScene.materialController, channel, size),
+});
 
 // Shared IBL environment: one RoomEnvironment PMREM cubemap gives the preview soft fill and reflections.
 try {

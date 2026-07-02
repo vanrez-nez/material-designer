@@ -701,6 +701,14 @@ body {
   color: var(--foreground);
 }
 
+/* A channel the current graph doesn't output: shown for context but greyed and non-interactive. */
+.texture-preview-thumb--disabled,
+.texture-preview-thumb--disabled:hover {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--border);
+}
+
 .texture-preview-thumb > span {
   position: absolute;
   right: 0.375rem;

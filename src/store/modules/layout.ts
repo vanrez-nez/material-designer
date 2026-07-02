@@ -4,7 +4,7 @@ import type { WorkspaceStore } from "@/store/app";
 
 export type WorkspacePaneId = "graph" | "scene" | "texture-preview";
 export type WorkspaceLayoutDirection = "horizontal" | "vertical";
-export type WorkspaceLayoutPreset = "graph-left" | "graph-right" | "graph-top" | "graph-bottom";
+export type WorkspaceLayoutPreset = "graph-left" | "graph-top";
 export type WorkspacePaneVisibility = Record<WorkspacePaneId, boolean>;
 
 export type WorkspaceLayoutNode =
@@ -48,8 +48,10 @@ export function createLayoutTree(preset: WorkspaceLayoutPreset): WorkspaceLayout
     paneId: "texture-preview",
     type: "pane",
   };
-  const horizontal = preset === "graph-left" || preset === "graph-right";
-  const graphFirst = preset === "graph-left" || preset === "graph-top";
+  // graph-left = graph on the left with the scene/texture stack on the right (horizontal root);
+  // graph-top = graph on top with the scene/texture row underneath (vertical root). The graph is
+  // always the first child.
+  const horizontal = preset === "graph-left";
   const previewStack: WorkspaceLayoutNode = {
     children: [scene, texturePreview],
     direction: horizontal ? "vertical" : "horizontal",
@@ -59,10 +61,10 @@ export function createLayoutTree(preset: WorkspaceLayoutPreset): WorkspaceLayout
   };
 
   return {
-    children: graphFirst ? [graph, previewStack] : [previewStack, graph],
+    children: [graph, previewStack],
     direction: horizontal ? "horizontal" : "vertical",
     id: "root",
-    sizes: graphFirst ? [62, 38] : [38, 62],
+    sizes: [62, 38],
     type: "split",
   };
 }
