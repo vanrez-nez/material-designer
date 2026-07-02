@@ -86,20 +86,24 @@ window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
 });
 
 window.addEventListener(MATERIAL_GRAPH_REBUILD_EVENT, () => {
-  void mainScene.materialSurface.refresh().then(() => {
-    rebuildEditor();
-    resize();
-  });
+  rebuildEditor();
 });
 
 const timer = new THREE.Timer();
 timer.connect(document);
+let sceneRenderable = false;
 
-function resize(): void {
+function resize(): boolean {
   const { clientWidth, clientHeight } = sceneCanvas;
+  if (clientWidth <= 0 || clientHeight <= 0 || !sceneCanvas.isConnected) {
+    sceneRenderable = false;
+    return false;
+  }
   renderer.setSize(clientWidth, clientHeight, false);
   camera.aspect = clientWidth / Math.max(clientHeight, 1);
   camera.updateProjectionMatrix();
+  sceneRenderable = true;
+  return true;
 }
 
 function animate(timestamp?: number): void {
@@ -112,11 +116,13 @@ function animate(timestamp?: number): void {
   // Skip the frame render while a bake is compiling pipelines: `renderer.compileAsync` mutates shared
   // renderer state, so rendering during its await window corrupts the output (black screen / broken
   // geometry). The canvas holds its last frame for the ~sub-second compile; the DOM UI stays responsive.
-  if (!bakeService.rendererBusy) renderer.render(mainScene.scene, camera);
+  if (sceneRenderable && !bakeService.rendererBusy) renderer.render(mainScene.scene, camera);
   stats.end();
 }
 
 window.addEventListener("resize", () => resize());
+const sceneResizeObserver = new ResizeObserver(() => resize());
+sceneResizeObserver.observe(sceneCanvas);
 
 // WebGPURenderer initialises its backend asynchronously (unlike WebGLRenderer). Wait for it before
 // the first render, then drive the loop via setAnimationLoop (the WebGPU-friendly RAF).
@@ -154,7 +160,7 @@ if (import.meta.env.DEV) {
     __openEditor: rebuildEditor,
     __frame: () => {
       mainScene.update();
-      renderer.render(mainScene.scene, camera);
+      if (resize()) renderer.render(mainScene.scene, camera);
     },
   });
   installBakeDevHandles({ mainScene, exporter });

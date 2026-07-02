@@ -382,7 +382,6 @@ export function setupTweakpane({
     host: graphHost,
     appElement: app,
     embedded: true,
-    onLayoutChange: () => resize(),
   });
   const bakeWidget = new BakeProgressWidget({
     mount: materialEditor.overlayHost,

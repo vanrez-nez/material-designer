@@ -1,13 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { AppMenu } from "@/components/app/menu/AppMenu";
+import { Layout } from "@/components/app/layout";
 
-export function mountAppMenu(): void {
-  const root = document.getElementById("menu-root");
-  if (!root) throw new Error("Missing #menu-root element");
+export async function mountAppMenu(): Promise<void> {
+  const root = document.getElementById("root");
+  if (!root) throw new Error("Missing #root element");
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <AppMenu />
+      <Layout />
     </React.StrictMode>,
   );
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }

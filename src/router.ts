@@ -9,6 +9,6 @@ if (path === "/export-bake") {
   await runExportBake();
 } else {
   const { mountAppMenu } = await import("./menu-root");
-  mountAppMenu();
+  await mountAppMenu();
   await import("./app"); // side-effect module: full scene + pane boot
 }

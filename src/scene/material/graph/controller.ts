@@ -405,7 +405,7 @@ export class MaterialGraphController implements MaterialGraphSource {
     const node = this.active().nodes.find((n) => n.id === id);
     if (!node) return;
     node.position = position;
-    this.emit({ kind: "structural" }, options);
+    this.emit({ kind: "layout" }, options);
   }
 
   setNodePositions(
@@ -421,7 +421,7 @@ export class MaterialGraphController implements MaterialGraphSource {
       node.position = position;
       changed = true;
     }
-    if (changed) this.emit({ kind: "structural" }, options);
+    if (changed) this.emit({ kind: "layout" }, options);
   }
 
   // Rename a node's display label. Empty/blank clears it (falls back to the registry def.label). Cosmetic:
@@ -431,7 +431,7 @@ export class MaterialGraphController implements MaterialGraphSource {
     const node = this.active().nodes.find((n) => n.id === id);
     if (!node) return;
     node.label = label.trim() || undefined;
-    this.emit({ kind: "structural" });
+    this.emit({ kind: "layout" });
   }
 
   // Returns false (and makes no change) if the port kinds are incompatible.

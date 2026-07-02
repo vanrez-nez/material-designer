@@ -363,7 +363,7 @@
 
 html,
 body,
-#menu-root,
+#root,
 #app {
   margin: 0;
 }
@@ -375,36 +375,134 @@ body {
   overflow: hidden;
 }
 
+body,
+#root {
+  height: 100%;
+}
+
 body {
   min-width: 320px;
 }
 
-#menu-root {
-  height: 40px;
-}
-
-#app {
-  display: grid;
-  width: 100%;
-  height: calc(100% - 40px);
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 38vw);
-  grid-template-rows: 100%;
+.workspace-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--background);
   color: var(--foreground);
 }
 
-.app-menubar {
+.workspace-header {
   display: flex;
   align-items: center;
   height: 40px;
   border-bottom: 1px solid var(--border);
   background: var(--background);
   padding: 4px 8px;
+  flex: none;
+  gap: 8px;
+}
+
+#app {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.app-menubar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-layout-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.workspace-body,
+.workspace-layout {
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-layout {
+  width: 100%;
+  height: 100%;
+}
+
+.workspace-layout--maximized [data-slot="resizable-handle"] {
+  display: none;
+}
+
+.workspace-layout--maximized [data-panel] {
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+.workspace-layout--maximized [data-panel]:has(.workspace-pane--hidden-by-maximize) {
+  flex: 0 0 0 !important;
+  overflow: hidden !important;
+}
+
+.workspace-layout--maximized [data-panel]:has(.workspace-pane--maximized) {
+  flex: 1 1 100% !important;
+}
+
+.workspace-pane {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--background) 92%, white 3%);
+}
+
+.workspace-pane--hidden-by-maximize {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.workspace-pane__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--background) 88%, white 6%);
+  padding: 0 6px 0 10px;
+  flex: none;
+}
+
+.workspace-pane__title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.workspace-pane__body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .graph-host {
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--border);
   background: color-mix(in oklab, var(--background) 86%, white 4%);
 }
 
@@ -412,6 +510,8 @@ body {
   position: relative;
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   background: #181818;
 }
 
@@ -435,16 +535,4 @@ body {
 .pane-host > .tp-rotv {
   position: static !important;
   width: min(23rem, calc(100vw - 32px)) !important;
-}
-
-@media (max-width: 900px) {
-  #app {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(360px, 58vh) minmax(240px, 42vh);
-  }
-
-  .graph-host {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
 }

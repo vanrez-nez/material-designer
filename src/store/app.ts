@@ -34,6 +34,24 @@ export type MaterialGraphPatch = {
   soloNode?: string | null;
 };
 
+export type WorkspacePaneId = "graph" | "scene";
+export type WorkspaceLayoutDirection = "horizontal" | "vertical";
+export type WorkspaceLayoutPreset = "graph-left" | "graph-right" | "graph-top" | "graph-bottom";
+
+export type WorkspaceLayoutNode =
+  | {
+      id: string;
+      type: "pane";
+      paneId: WorkspacePaneId;
+    }
+  | {
+      children: WorkspaceLayoutNode[];
+      direction: WorkspaceLayoutDirection;
+      id: string;
+      sizes: number[];
+      type: "split";
+    };
+
 export type HistorySlice = {
   activeHistoryTransaction: HistoryTransaction | null;
   beginHistoryTransaction: (scope?: string) => void;
@@ -63,11 +81,28 @@ export type MaterialGraphSlice = {
   materialSoloNode: string | null;
 };
 
-export type WorkspaceStore = HistorySlice & MaterialGraphSlice;
+export type WorkspaceLayoutSlice = {
+  layoutPreset: WorkspaceLayoutPreset;
+  layoutTree: WorkspaceLayoutNode;
+  maximizedPaneId: WorkspacePaneId | null;
+  resetWorkspaceLayout: () => void;
+  restoreWorkspaceLayout: () => void;
+  setLayoutPreset: (preset: WorkspaceLayoutPreset) => void;
+  setMaximizedPane: (paneId: WorkspacePaneId | null) => void;
+  updateLayoutSplitSizes: (splitId: string, sizes: number[]) => void;
+};
+
+export type WorkspaceStore = HistorySlice & MaterialGraphSlice & WorkspaceLayoutSlice;
 
 type PersistedWorkspaceState = Pick<
   WorkspaceStore,
-  "materialDocument" | "materialGraphRevision" | "materialGroupPath" | "materialSoloNode"
+  | "layoutPreset"
+  | "layoutTree"
+  | "materialDocument"
+  | "materialGraphRevision"
+  | "materialGroupPath"
+  | "materialSoloNode"
+  | "maximizedPaneId"
 >;
 
 const DEFAULT_HISTORY_TRANSACTION_SCOPE = "global";
@@ -81,6 +116,58 @@ let isStorageHistoryTransactionActive = false;
 
 function cloneDocument(doc: MaterialGraphDocument): MaterialGraphDocument {
   return structuredClone(doc);
+}
+
+function createLayoutTree(preset: WorkspaceLayoutPreset): WorkspaceLayoutNode {
+  const graph: WorkspaceLayoutNode = { id: "pane-graph", paneId: "graph", type: "pane" };
+  const scene: WorkspaceLayoutNode = { id: "pane-scene", paneId: "scene", type: "pane" };
+  const horizontal = preset === "graph-left" || preset === "graph-right";
+  const graphFirst = preset === "graph-left" || preset === "graph-top";
+
+  return {
+    children: graphFirst ? [graph, scene] : [scene, graph],
+    direction: horizontal ? "horizontal" : "vertical",
+    id: "root",
+    sizes: graphFirst ? [62, 38] : [38, 62],
+    type: "split",
+  };
+}
+
+function updateSplitSizes(
+  node: WorkspaceLayoutNode,
+  splitId: string,
+  sizes: number[],
+): WorkspaceLayoutNode {
+  if (node.type === "pane") return node;
+  if (node.id === splitId) return { ...node, sizes: [...sizes] };
+
+  return {
+    ...node,
+    children: node.children.map((child) => updateSplitSizes(child, splitId, sizes)),
+  };
+}
+
+function omitNodePositions(doc: MaterialGraphDocument): MaterialGraphDocument {
+  return {
+    ...doc,
+    nodes: doc.nodes.map((node) => ({
+      ...node,
+      position: { x: 0, y: 0 },
+      subgraph: node.subgraph ? omitNodePositions(node.subgraph) : undefined,
+    })),
+  };
+}
+
+function isLayoutOnlyChange(
+  previous: MaterialGraphHistorySnapshot,
+  next: MaterialGraphHistorySnapshot,
+): boolean {
+  return (
+    previous.soloNode === next.soloNode &&
+    JSON.stringify(previous.groupPath) === JSON.stringify(next.groupPath) &&
+    JSON.stringify(omitNodePositions(previous.document)) ===
+      JSON.stringify(omitNodePositions(next.document))
+  );
 }
 
 function pushHistorySnapshot(
@@ -308,11 +395,18 @@ const materialGraphHistoryParticipant: HistoryParticipant<WorkspaceStore> = {
   restore: (snapshot, currentState) => {
     const graphSnapshot = snapshot as MaterialGraphHistorySnapshot;
     const revision = currentState.materialGraphRevision + 1;
+    const currentSnapshot: MaterialGraphHistorySnapshot = {
+      document: currentState.materialDocument,
+      groupPath: currentState.materialGroupPath,
+      soloNode: currentState.materialSoloNode,
+    };
 
     return {
       materialDocument: cloneDocument(graphSnapshot.document),
       materialGraphEvent: {
-        change: { kind: "structural" },
+        change: isLayoutOnlyChange(currentSnapshot, graphSnapshot)
+          ? { kind: "layout" }
+          : { kind: "structural" },
         revision,
       },
       materialGraphRevision: revision,
@@ -346,6 +440,32 @@ function createMaterialGraphSlice(): StateCreator<WorkspaceStore, [], [], Materi
   });
 }
 
+function createWorkspaceLayoutSlice(): StateCreator<WorkspaceStore, [], [], WorkspaceLayoutSlice> {
+  return (set) => ({
+    layoutPreset: "graph-left",
+    layoutTree: createLayoutTree("graph-left"),
+    maximizedPaneId: null,
+    resetWorkspaceLayout: () =>
+      set({
+        layoutPreset: "graph-left",
+        layoutTree: createLayoutTree("graph-left"),
+        maximizedPaneId: null,
+      }),
+    restoreWorkspaceLayout: () => set({ maximizedPaneId: null }),
+    setLayoutPreset: (preset) =>
+      set({
+        layoutPreset: preset,
+        layoutTree: createLayoutTree(preset),
+        maximizedPaneId: null,
+      }),
+    setMaximizedPane: (paneId) => set({ maximizedPaneId: paneId }),
+    updateLayoutSplitSizes: (splitId, sizes) =>
+      set((state) => ({
+        layoutTree: updateSplitSizes(state.layoutTree, splitId, sizes),
+      })),
+  });
+}
+
 const historyParticipants: Array<HistoryParticipant<WorkspaceStore>> = [
   materialGraphHistoryParticipant,
 ];
@@ -355,6 +475,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     (...storeApi) => ({
       ...createHistorySlice(historyParticipants)(...storeApi),
       ...createMaterialGraphSlice()(...storeApi),
+      ...createWorkspaceLayoutSlice()(...storeApi),
     }),
     {
       name: WORKSPACE_STORAGE_KEY,
@@ -363,6 +484,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         materialGraphRevision: state.materialGraphRevision,
         materialGroupPath: state.materialGroupPath,
         materialSoloNode: state.materialSoloNode,
+        layoutPreset: state.layoutPreset,
+        layoutTree: state.layoutTree,
+        maximizedPaneId: state.maximizedPaneId,
       }),
       storage: createTransactionAwareSessionStorage<PersistedWorkspaceState>(),
       version: 1,
