@@ -164,7 +164,7 @@ function omitNodePositions(doc: MaterialGraphDocument): MaterialGraphDocument {
     ...doc,
     nodes: doc.nodes.map((node) => ({
       ...node,
-      position: { x: 0, y: 0 },
+      position: undefined,
       subgraph: node.subgraph ? omitNodePositions(node.subgraph) : undefined,
     })),
   };
@@ -204,26 +204,54 @@ function endStorageHistoryTransaction() {
   isStorageHistoryTransactionActive = false;
 }
 
-function createTransactionAwareSessionStorage<T>(): PersistStorage<T> {
+function readBrowserStorageItem(name: string): string | null {
+  try {
+    const localValue = localStorage.getItem(name);
+    if (localValue) return localValue;
+
+    const sessionValue = sessionStorage.getItem(name);
+    if (sessionValue) {
+      localStorage.setItem(name, sessionValue);
+      return sessionValue;
+    }
+  } catch {
+    try {
+      return sessionStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function createTransactionAwareBrowserStorage<T>(): PersistStorage<T> {
   return {
     getItem: (name) => {
-      const value = sessionStorage.getItem(name);
+      const value = readBrowserStorageItem(name);
 
       return value ? (JSON.parse(value) as StorageValue<T>) : null;
     },
-    removeItem: (name) => sessionStorage.removeItem(name),
+    removeItem: (name) => {
+      localStorage.removeItem(name);
+      sessionStorage.removeItem(name);
+    },
     setItem: (name, value) => {
       if (isStorageHistoryTransactionActive) return;
 
       try {
-        sessionStorage.setItem(name, JSON.stringify(value));
+        localStorage.setItem(name, JSON.stringify(value));
       } catch (error) {
         if (error instanceof DOMException && error.name === "QuotaExceededError") {
-          sessionStorage.removeItem(name);
+          localStorage.removeItem(name);
           return;
         }
 
-        throw error;
+        try {
+          sessionStorage.setItem(name, JSON.stringify(value));
+        } catch {
+          throw error;
+        }
       }
     },
   };
@@ -260,6 +288,8 @@ function areHistorySnapshotsEqual(firstSnapshot: HistorySnapshot, secondSnapshot
 function readLegacyMaterialDocument(): MaterialGraphDocument | null {
   try {
     const raw =
+      localStorage.getItem(MATERIAL_GRAPH_STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_MATERIAL_GRAPH_STORAGE_KEY) ??
       sessionStorage.getItem(MATERIAL_GRAPH_STORAGE_KEY) ??
       sessionStorage.getItem(LEGACY_MATERIAL_GRAPH_STORAGE_KEY);
     if (!raw) return null;
@@ -500,18 +530,18 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         layoutTree: state.layoutTree,
         maximizedPaneId: state.maximizedPaneId,
       }),
-      storage: createTransactionAwareSessionStorage<PersistedWorkspaceState>(),
+      storage: createTransactionAwareBrowserStorage<PersistedWorkspaceState>(),
       migrate: (persisted): PersistedWorkspaceState => {
         const previousState = persisted as PersistedWorkspaceState;
 
         return {
           ...previousState,
-          layoutPreset: "graph-left",
-          layoutTree: createLayoutTree("graph-left"),
-          maximizedPaneId: null,
+          layoutPreset: previousState.layoutPreset ?? "graph-left",
+          layoutTree: previousState.layoutTree ?? createLayoutTree("graph-left"),
+          maximizedPaneId: previousState.maximizedPaneId ?? null,
         };
       },
-      version: 2,
+      version: 3,
     },
   ),
 );

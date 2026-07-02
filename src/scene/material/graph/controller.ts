@@ -12,7 +12,9 @@ import { createDefaultDocument } from "../presets";
 import type {
   GraphEdge,
   GraphNode,
+  MaterialGraphEditorViewState,
   MaterialGraphDocument,
+  MaterialGraphDocumentUiState,
   PortDef,
   PortKind,
 } from "@/runtime";
@@ -61,7 +63,7 @@ function initStarterGroup(node: GraphNode): void {
 
 // Owns the editable MaterialGraphDocument and the editor mutation API. It does NOT own a renderer, render
 // targets, or a THREE material — baking is the MaterialBakeService's job, and the live on-screen material
-// is a TexturedSurface bound to this graph. Edits persist to sessionStorage and emit a GraphChange so the
+// is a TexturedSurface bound to this graph. Edits persist through the workspace store and emit a GraphChange so the
 // surface(s) react (live-uniform tweak vs re-bake vs rebuild). Splitting these concerns means baking one
 // graph can never knock out another object's material (material-graph-plan.md).
 export class MaterialGraphController implements MaterialGraphSource {
@@ -77,14 +79,25 @@ export class MaterialGraphController implements MaterialGraphSource {
   // or null. Exclusive — soloing one node clears any other. Transient (not persisted to the document).
   private soloNode_: string | null = null;
 
-  // `storageKey` namespaces sessionStorage persistence. The app's material uses the default key; throwaway
+  // `storageKey` namespaces browser persistence. The app's material uses the default key; throwaway
   // graphs used purely for export baking pass null to disable persistence.
   constructor(
     private readonly registry: NodeRegistry = defaultRegistry,
     private readonly storageKey: string | null = STORAGE_KEY,
   ) {
     this.storeBacked = storageKey !== null;
-    this.doc = this.storeBacked ? useWorkspaceStore.getState().materialDocument : this.load() ?? createDefaultDocument();
+    const storeState = useWorkspaceStore.getState();
+    this.doc = this.storeBacked ? storeState.materialDocument : this.load() ?? createDefaultDocument();
+    this.path = this.storeBacked
+      ? [
+          ...(storeState.materialGroupPath.length > 0
+            ? storeState.materialGroupPath
+            : this.doc.ui?.editor?.activeGroupPath ?? []),
+        ]
+      : [...(this.doc.ui?.editor?.activeGroupPath ?? [])];
+    this.soloNode_ = this.storeBacked
+      ? storeState.materialSoloNode ?? this.doc.ui?.editor?.soloNode ?? null
+      : this.doc.ui?.editor?.soloNode ?? null;
     // A persisted graph can reference a node type/port that no longer exists (a removed/refactored node) —
     // that must not crash boot, so validate by compiling once and fall back to the default if it won't.
     try {
@@ -131,6 +144,10 @@ export class MaterialGraphController implements MaterialGraphSource {
   }
   // Persist the document and notify subscribers of the change. Every doc mutation routes through here.
   private emit(change: GraphChange, options?: HistoryUpdateOptions): void {
+    if (this.storeBacked && this.doc === useWorkspaceStore.getState().materialDocument) {
+      this.doc = structuredClone(this.doc);
+    }
+    this.writeRootEditorUi();
     if (this.storeBacked) {
       useWorkspaceStore.getState().applyMaterialGraphPatch(
         { document: this.doc, groupPath: this.path, soloNode: this.soloNode_ },
@@ -188,19 +205,73 @@ export class MaterialGraphController implements MaterialGraphSource {
     this.doc = structuredClone(useWorkspaceStore.getState().materialDocument);
   }
 
+  private ensureUi(doc: MaterialGraphDocument): MaterialGraphDocumentUiState {
+    return (doc.ui ??= {});
+  }
+
+  private writeRootEditorUi(): void {
+    const ui = this.ensureUi(this.doc);
+    ui.editor = {
+      ...ui.editor,
+      activeGroupPath: [...this.path],
+      soloNode: this.soloNode_,
+    };
+  }
+
+  private emitUiLayout(options: HistoryUpdateOptions = { history: "skip" }): void {
+    this.emit({ kind: "layout" }, options);
+  }
+
+  getEditorViewState(): MaterialGraphEditorViewState | undefined {
+    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
+    return structuredClone(this.active().ui?.editor?.view);
+  }
+
+  setEditorViewState(view: MaterialGraphEditorViewState, options?: HistoryUpdateOptions): void {
+    this.beginEdit();
+    const active = this.active();
+    const ui = this.ensureUi(active);
+    ui.editor = {
+      ...ui.editor,
+      view: structuredClone(view),
+    };
+    this.emitUiLayout(options);
+  }
+
+  getUiSettings<TSettings extends Record<string, unknown>>(): Partial<TSettings> {
+    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
+    return structuredClone((this.doc.ui?.settings ?? {}) as Partial<TSettings>);
+  }
+
+  setUiSettings(settings: Record<string, unknown>, options?: HistoryUpdateOptions): void {
+    this.beginEdit();
+    const ui = this.ensureUi(this.doc);
+    ui.settings = {
+      ...(ui.settings ?? {}),
+      ...structuredClone(settings),
+    };
+    this.emitUiLayout(options);
+  }
+
   // --- group navigation (no recompile; the editor re-renders from activeDocument) ------------------
   enterGroup(nodeId: string): boolean {
     if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
     const node = this.active().nodes.find((n) => n.id === nodeId && n.type === GROUP_TYPE);
     if (!node?.subgraph) return false;
     this.path.push(nodeId);
+    this.beginEdit();
+    this.emitUiLayout();
     return true;
   }
   exitGroup(): void {
     this.path.pop();
+    this.beginEdit();
+    this.emitUiLayout();
   }
   exitToDepth(depth: number): void {
     this.path.length = Math.max(0, Math.min(depth, this.path.length));
+    this.beginEdit();
+    this.emitUiLayout();
   }
 
   // --- group interface editing (Phase 5) ---------------------------------------------------------
@@ -373,14 +444,14 @@ export class MaterialGraphController implements MaterialGraphSource {
   // Toggle solo/preview for a node (exclusive): routes its first output to the surface, or clears it if it
   // was already soloed. Recompiles so the surface swaps to/from the preview.
   toggleSolo(id: string): void {
-    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
+    this.beginEdit();
     this.soloNode_ = this.soloNode_ === id ? null : id;
     this.emit({ kind: "structural" });
   }
 
   // Clear any active solo (e.g. before a structural change). Recompiles only if something was soloed.
   clearSolo(): void {
-    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
+    this.beginEdit();
     if (this.soloNode_ === null) return;
     this.soloNode_ = null;
     this.emit({ kind: "structural" });
@@ -417,7 +488,7 @@ export class MaterialGraphController implements MaterialGraphSource {
     for (const node of this.active().nodes) {
       const position = positions[node.id];
       if (!position) continue;
-      if (node.position.x === position.x && node.position.y === position.y) continue;
+      if (node.position?.x === position.x && node.position?.y === position.y) continue;
       node.position = position;
       changed = true;
     }
@@ -498,11 +569,11 @@ export class MaterialGraphController implements MaterialGraphSource {
   // surface rebuilds. (A null-storageKey controller never persists regardless of this flag.)
   loadDocument(doc: MaterialGraphDocument, { persist = true }: { persist?: boolean } = {}): void {
     this.doc = structuredClone(doc);
-    this.path = [];
-    this.soloNode_ = null;
+    this.path = [...(this.doc.ui?.editor?.activeGroupPath ?? [])];
+    this.soloNode_ = this.doc.ui?.editor?.soloNode ?? null;
     if (this.storeBacked) {
       useWorkspaceStore.getState().applyMaterialGraphPatch(
-        { document: this.doc, groupPath: [], soloNode: null },
+        { document: this.doc, groupPath: this.path, soloNode: this.soloNode_ },
         { kind: "structural" },
         persist ? undefined : { history: "skip" },
       );
@@ -524,10 +595,13 @@ export class MaterialGraphController implements MaterialGraphSource {
   private load(): MaterialGraphDocument | null {
     if (this.storageKey === null) return null;
     try {
-      let raw = sessionStorage.getItem(this.storageKey);
+      let raw = localStorage.getItem(this.storageKey) ?? sessionStorage.getItem(this.storageKey);
       if (!raw && this.storageKey === STORAGE_KEY) {
-        raw = sessionStorage.getItem(LEGACY_STORAGE_KEY);
-        if (raw) sessionStorage.setItem(STORAGE_KEY, raw);
+        raw =
+          localStorage.getItem(STORAGE_KEY) ??
+          localStorage.getItem(LEGACY_STORAGE_KEY) ??
+          sessionStorage.getItem(LEGACY_STORAGE_KEY);
+        if (raw) localStorage.setItem(STORAGE_KEY, raw);
       }
       if (!raw) return null;
       const parsed = JSON.parse(raw) as MaterialGraphDocument;

@@ -63,6 +63,18 @@ const PREVIEW_SOCKET: Record<PreviewChannel, PbrSocket> = {
   roughness: "roughness",
 };
 
+function mergeSetting<T extends Record<string, unknown>>(
+  settings: Record<string, unknown>,
+  key: string,
+  defaults: T,
+): T {
+  const saved = settings[key];
+  return {
+    ...defaults,
+    ...(saved && typeof saved === "object" ? (saved as Partial<T>) : {}),
+  };
+}
+
 export function setupTweakpane({
   app,
   graphHost,
@@ -75,6 +87,7 @@ export function setupTweakpane({
 }: TweakpaneDeps): TweakpaneHandles {
   const saveRendererConfig = (): void =>
     localStorage.setItem(RENDERER_CONFIG_KEY, JSON.stringify(rendererConfig));
+  const savedSettings = mainScene.materialController.getUiSettings<Record<string, unknown>>();
 
   const pane = new Pane({ container: paneHost, title: "Material" });
   pane.registerPlugin(EssentialsPlugin);
@@ -82,13 +95,19 @@ export function setupTweakpane({
 
   const stats = pane.addBlade({ view: "stats" }) as StatsBladeApi;
 
-  const materialState = {
+  const materialState = mergeSetting(savedSettings, "materialState", {
     backend: "offline" as "live" | "offline",
     preset: DEFAULT_PRESET,
     debugNormals: false,
-  };
-  const projectionState = { tiling: 1, triplanar: false, worldPerTile: 1.2, sharpness: 8, parallax: 0 };
-  const surfaceMaterialState = {
+  });
+  const projectionState = mergeSetting(savedSettings, "projectionState", {
+    tiling: 1,
+    triplanar: false,
+    worldPerTile: 1.2,
+    sharpness: 8,
+    parallax: 0,
+  });
+  const surfaceMaterialState = mergeSetting(savedSettings, "surfaceMaterialState", {
     envMapIntensity: 1,
     flatShading: false,
     baseColorTint: "#ffffff",
@@ -104,7 +123,7 @@ export function setupTweakpane({
     ior: 1.5,
     iridescence: 0,
     iridescenceIOR: 1.3,
-  };
+  });
 
   function applySurfaceMaterialState(): void {
     const m = mainScene.materialSurface.material as MeshPhysicalNodeMaterial;
@@ -142,7 +161,7 @@ export function setupTweakpane({
     Reinhard: THREE.ReinhardToneMapping,
     Cineon: THREE.CineonToneMapping,
   };
-  const sceneState = {
+  const sceneState = mergeSetting(savedSettings, "sceneState", {
     toneMapping: renderer.toneMapping as THREE.ToneMapping,
     exposure: renderer.toneMappingExposure,
     dirIntensity: mainScene.directionalLight.intensity,
@@ -153,7 +172,7 @@ export function setupTweakpane({
     envIntensity: 0.1,
     shadowSoftness: mainScene.directionalLight.shadow.radius,
     shadowDarkness: mainScene.directionalLight.shadow.intensity,
-  };
+  });
 
   function setToneMapping(mode: THREE.ToneMapping): void {
     renderer.toneMapping = mode;
@@ -167,6 +186,46 @@ export function setupTweakpane({
   function applyTransparentBg(on: boolean): void {
     mainScene.scene.background = on ? null : new THREE.Color(0x181818);
     renderer.setClearAlpha(on ? 0 : 1);
+  }
+
+  function saveDocumentSettings(): void {
+    mainScene.materialController.setUiSettings(
+      {
+        materialState,
+        projectionState,
+        surfaceMaterialState,
+        sceneState,
+        rendererConfig,
+      },
+      { history: "skip" },
+    );
+  }
+
+  function applyDocumentSettings(): void {
+    mainScene.materialSurface.setBackend(materialState.backend);
+    mainScene.materialSurface.setNormalDebug(materialState.debugNormals);
+    mainScene.setDemoTiling(projectionState.tiling);
+    mainScene.materialSurface.setTriplanar(projectionState.triplanar);
+    mainScene.materialSurface.setScale(projectionState.worldPerTile);
+    mainScene.materialSurface.setSharpness(projectionState.sharpness);
+    mainScene.materialSurface.setParallaxScale(projectionState.parallax);
+    applySurfaceMaterialState();
+    mainScene.materialSurface.setColorTint(surfaceMaterialState.baseColorTint);
+    mainScene.materialSurface.setRoughnessFactor(surfaceMaterialState.roughnessFactor);
+    mainScene.materialSurface.setMetalnessFactor(surfaceMaterialState.metalnessFactor);
+    setToneMapping(sceneState.toneMapping);
+    renderer.toneMappingExposure = sceneState.exposure;
+    mainScene.directionalLight.intensity = sceneState.dirIntensity;
+    mainScene.directionalLight.color.set(sceneState.dirColor);
+    mainScene.directionalLight.position.set(sceneState.dirPosition.x, sceneState.dirPosition.y, sceneState.dirPosition.z);
+    mainScene.directionalLight.shadow.radius = sceneState.shadowSoftness;
+    mainScene.directionalLight.shadow.intensity = sceneState.shadowDarkness;
+    mainScene.ambientLight.intensity = sceneState.ambIntensity;
+    mainScene.ambientLight.color.set(sceneState.ambColor);
+    mainScene.scene.environmentIntensity = sceneState.envIntensity;
+    renderer.setPixelRatio(rendererConfig.pixelRatio);
+    applyTransparentBg(rendererConfig.transparentBg);
+    resize();
   }
 
   function buildMaterialControls(container: ContainerApi): void {
@@ -330,7 +389,8 @@ export function setupTweakpane({
   buildExportControls(pane);
   buildSceneControls(pane);
   buildRenderControls(pane);
-  applyTransparentBg(rendererConfig.transparentBg);
+  pane.on("change", () => saveDocumentSettings());
+  applyDocumentSettings();
 
   const materialEditor = new EditorPanel({
     host: graphHost,

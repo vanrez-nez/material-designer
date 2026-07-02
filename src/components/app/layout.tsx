@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Columns2,
   Maximize2,
@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 
 import { AppMenu } from "@/components/app/menu/AppMenu";
+import { DocumentExportDialog } from "@/components/app/dialogs/DocumentExportDialog";
+import { TextureExportDialog } from "@/components/app/dialogs/TextureExportDialog";
 import { TexturePreviewPane } from "@/components/app/texture-preview-pane";
 import { Button } from "@/components/ui/primitives/button";
 import {
@@ -49,27 +51,37 @@ const presetLabels: Record<WorkspaceLayoutPreset, string> = {
 };
 
 export function Layout() {
+  const [isDocumentExportOpen, setIsDocumentExportOpen] = useState(false);
+  const [isTextureExportOpen, setIsTextureExportOpen] = useState(false);
+
   return (
-    <div className="workspace-shell">
-      <header className="workspace-header">
-        <AppMenu />
-        <LayoutToolbar />
-      </header>
-      <main id="app" className="workspace-body">
-        <WorkspaceLayout
-          panes={{
-            graph: <div className="graph-host" />,
-            scene: (
-              <div className="preview-host">
-                <canvas className="scene" />
-                <div className="pane-host" />
-              </div>
-            ),
-            "texture-preview": <TexturePreviewPane />,
-          }}
-        />
-      </main>
-    </div>
+    <>
+      <div className="workspace-shell">
+        <header className="workspace-header">
+          <AppMenu
+            onExportDocument={() => setIsDocumentExportOpen(true)}
+            onExportTextures={() => setIsTextureExportOpen(true)}
+          />
+          <LayoutToolbar />
+        </header>
+        <main id="app" className="workspace-body">
+          <WorkspaceLayout
+            panes={{
+              graph: <div className="graph-host" />,
+              scene: (
+                <div className="preview-host">
+                  <canvas className="scene" />
+                  <div className="pane-host" />
+                </div>
+              ),
+              "texture-preview": <TexturePreviewPane />,
+            }}
+          />
+        </main>
+      </div>
+      <DocumentExportDialog open={isDocumentExportOpen} onOpenChange={setIsDocumentExportOpen} />
+      <TextureExportDialog open={isTextureExportOpen} onOpenChange={setIsTextureExportOpen} />
+    </>
   );
 }
 

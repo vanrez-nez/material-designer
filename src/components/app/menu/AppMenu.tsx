@@ -1,15 +1,18 @@
-import { useEffect, useRef } from "react";
-import { Download, FileJson, Redo2, Undo2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { MaterialGraphDocument } from "@/runtime";
 import { dispatchMaterialDocumentLoad, MATERIAL_GRAPH_REBUILD_EVENT } from "@/app-events";
 import { useMenuStore } from "@/store/menu";
 import { useWorkspaceStore } from "@/store/app";
+import { Kbd, KbdGroup } from "@/components/ui/primitives/kbd";
 import {
   Menubar,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
   MenubarSeparator,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
   MenubarTrigger,
 } from "@/components/ui/primitives/menubar";
 
@@ -22,8 +25,34 @@ function isMaterialGraphDocument(value: unknown): value is MaterialGraphDocument
   );
 }
 
-export function AppMenu() {
+function isMacPlatform() {
+  if (typeof navigator === "undefined") return false;
+
+  return /Mac|iPhone|iPad/.test(navigator.platform);
+}
+
+function getModifierKeyLabel() {
+  return isMacPlatform() ? "⌘" : "Ctrl";
+}
+
+function Shortcut({ keys }: { keys: string[] }) {
+  return (
+    <KbdGroup className="ml-auto pl-8">
+      {keys.map((key) => (
+        <Kbd key={key}>{key}</Kbd>
+      ))}
+    </KbdGroup>
+  );
+}
+
+type AppMenuProps = {
+  onExportDocument?: () => void;
+  onExportTextures?: () => void;
+};
+
+export function AppMenu({ onExportDocument, onExportTextures }: AppMenuProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [openMenu, setOpenMenu] = useState("");
   const undoHistory = useWorkspaceStore((state) => state.undoHistory);
   const redoHistory = useWorkspaceStore((state) => state.redoHistory);
   const canUndo = useWorkspaceStore((state) => state.historyPast.length > 0);
@@ -32,6 +61,7 @@ export function AppMenu() {
   const loadError = useMenuStore((state) => state.loadError);
   const setLoadError = useMenuStore((state) => state.setLoadError);
   const setLoadedFile = useMenuStore((state) => state.setLoadedFile);
+  const modifierKeyLabel = getModifierKeyLabel();
 
   async function loadFile(file: File): Promise<void> {
     try {
@@ -62,6 +92,10 @@ export function AppMenu() {
     rebuildGraphEditor();
   }
 
+  function closeMenu(): void {
+    setOpenMenu("");
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -85,33 +119,99 @@ export function AppMenu() {
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [undoHistory, redoHistory]);
 
+  useEffect(() => {
+    const isInsideMenu = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element)) return false;
+
+      return Boolean(
+        target.closest("[data-app-menu-root]") || target.closest("[data-slot='menubar-content']"),
+      );
+    };
+
+    const onOutsidePointer = (event: PointerEvent) => {
+      if (!openMenu || isInsideMenu(event.target)) return;
+      closeMenu();
+    };
+
+    const onOutsideFocus = (event: FocusEvent) => {
+      if (!openMenu || isInsideMenu(event.target)) return;
+      closeMenu();
+    };
+
+    window.addEventListener("pointerdown", onOutsidePointer, { capture: true });
+    window.addEventListener("focusin", onOutsideFocus, { capture: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", onOutsidePointer, { capture: true });
+      window.removeEventListener("focusin", onOutsideFocus, { capture: true });
+    };
+  }, [openMenu]);
+
   return (
-    <div className="app-menubar">
-      <Menubar className="h-8 border-0 bg-transparent p-0 shadow-none">
-        <MenubarMenu>
+    <div className="app-menubar" data-app-menu-root>
+      <Menubar
+        aria-label="Application menu"
+        className="h-8 border-0 bg-transparent p-0 shadow-none"
+        value={openMenu}
+        onValueChange={setOpenMenu}
+      >
+        <MenubarMenu value="file">
           <MenubarTrigger>File</MenubarTrigger>
           <MenubarContent align="start">
-            <MenubarItem onSelect={() => inputRef.current?.click()}>
-              <FileJson className="size-4" />
-              Load
-            </MenubarItem>
+            <MenubarSub>
+              <MenubarSubTrigger>Export</MenubarSubTrigger>
+              <MenubarSubContent>
+                <MenubarItem
+                  onSelect={() => {
+                    closeMenu();
+                    onExportDocument?.();
+                  }}
+                >
+                  <span>Document</span>
+                </MenubarItem>
+                <MenubarItem
+                  onSelect={() => {
+                    closeMenu();
+                    onExportTextures?.();
+                  }}
+                >
+                  <span>Textures</span>
+                </MenubarItem>
+              </MenubarSubContent>
+            </MenubarSub>
             <MenubarSeparator />
-            <MenubarItem onSelect={() => undefined}>
-              <Download className="size-4" />
-              Export
+            <MenubarItem
+              onSelect={() => {
+                closeMenu();
+                inputRef.current?.click();
+              }}
+            >
+              <span>Load</span>
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
-        <MenubarMenu>
+        <MenubarMenu value="edit">
           <MenubarTrigger>Edit</MenubarTrigger>
           <MenubarContent align="start">
-            <MenubarItem disabled={!canUndo} onSelect={handleUndo}>
-              <Undo2 className="size-4" />
-              Undo
+            <MenubarItem
+              disabled={!canUndo}
+              onSelect={() => {
+                closeMenu();
+                handleUndo();
+              }}
+            >
+              <span>Undo</span>
+              <Shortcut keys={[modifierKeyLabel, "Z"]} />
             </MenubarItem>
-            <MenubarItem disabled={!canRedo} onSelect={handleRedo}>
-              <Redo2 className="size-4" />
-              Redo
+            <MenubarItem
+              disabled={!canRedo}
+              onSelect={() => {
+                closeMenu();
+                handleRedo();
+              }}
+            >
+              <span>Redo</span>
+              <Shortcut keys={[modifierKeyLabel, "⇧", "Z"]} />
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>

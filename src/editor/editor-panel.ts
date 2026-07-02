@@ -121,6 +121,7 @@ export class EditorPanel {
   private graphSignature: string | null = null
   private nodePositionTransactionActive = false
   private nodeIdsByRuntimeId = new Map<string, string>()
+  private restoringViewState = false
   // The active config, so the connection pipe can call its onConnect/onDisconnect hooks.
   private config: EditorGraphConfig | null = null
   // One Socket instance per port kind (typed ports), reused across rebuilds.
@@ -315,6 +316,7 @@ export class EditorPanel {
   setLayoutArrangement(arrangement: LayoutArrangement): void {
     this.layoutArrangement = arrangement
     this.updateLayoutButtons()
+    this.saveEditorViewState()
     requestAnimationFrame(() => void this.arrangeGraph())
   }
 
@@ -512,7 +514,10 @@ export class EditorPanel {
         this.saveNodePositions({ history: 'skip' })
       }
       // Keep the dot-grid aligned with the content so the background pans + scales with the nodes.
-      if (context.type === 'translated' || context.type === 'zoomed') this.syncBackground()
+      if (context.type === 'translated' || context.type === 'zoomed') {
+        this.syncBackground()
+        if (!this.restoringViewState) this.saveEditorViewState()
+      }
       return context
     })
 
@@ -555,8 +560,13 @@ export class EditorPanel {
     // is reassigned below.
     const prevKey = this.graphSignature
     const prevTransform = this.area ? { ...this.area.area.transform } : null
+    const hasMissingPositions = config.nodes.some((node) => !node.position)
 
     this.config = config
+    if (config.editorViewState?.layoutArrangement) {
+      this.layoutArrangement = config.editorViewState.layoutArrangement
+      this.updateLayoutButtons()
+    }
     this.building = true
     // Clear any previous graph.
     for (const conn of [...editor.getConnections()]) await editor.removeConnection(conn.id)
@@ -584,7 +594,9 @@ export class EditorPanel {
     this.building = false
 
     requestAnimationFrame(() => {
-      if (prevTransform && prevKey === this.graphSignature) void this.restoreTransform(prevTransform)
+      const savedTransform = config.editorViewState?.transform
+      if (savedTransform && !hasMissingPositions) void this.restoreTransform(savedTransform)
+      else if (prevTransform && prevKey === this.graphSignature && !hasMissingPositions) void this.restoreTransform(prevTransform)
       else void this.arrangeGraph({ history: 'skip' })
     })
   }
@@ -595,8 +607,11 @@ export class EditorPanel {
   private async restoreTransform(t: { k: number; x: number; y: number }): Promise<void> {
     const area = this.area
     if (!area) return
+    this.restoringViewState = true
     await area.area.zoom(t.k, 0, 0)
     await area.area.translate(t.x, t.y)
+    this.restoringViewState = false
+    this.syncBackground()
   }
 
   // One reusable Socket per port kind (typed ports). Distinct instances let the UI/connection layer
@@ -805,6 +820,7 @@ export class EditorPanel {
     this.saveNodePositions(options)
     await this.zoomToFit()
     this.clampPan()
+    this.saveEditorViewState(options)
   }
 
   private measureNodeSizes(): void {
@@ -1048,6 +1064,18 @@ export class EditorPanel {
       positions[graphId] = { x: view.position.x, y: view.position.y }
     }
     this.config?.onNodePositionsChange?.(positions, options)
+  }
+
+  private saveEditorViewState(options: EditorHistoryUpdateOptions = { history: 'skip' }): void {
+    if (!this.area || this.building || this.restoringViewState) return
+    const { x, y, k } = this.area.area.transform
+    this.config?.onEditorViewStateChange?.(
+      {
+        layoutArrangement: this.layoutArrangement,
+        transform: { x, y, k },
+      },
+      options,
+    )
   }
 }
 

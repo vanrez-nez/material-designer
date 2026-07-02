@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { zipSync } from "fflate";
 import { RenderTarget, PMREMGenerator, type WebGPURenderer } from "three/webgpu";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { bakeService } from "@/runtime";
@@ -23,6 +24,12 @@ const MATERIAL_TASK_CHANNELS: PbrSocket[] = [
   "metallic",
   "ambientOcclusion",
 ];
+const TEXTURE_EXPORT_FILENAMES: Partial<Record<PbrSocket, string>> = {
+  ambientOcclusion: "ao.png",
+  baseColor: "basecolor.png",
+  normal: "normal.png",
+  roughness: "roughness.png",
+};
 
 export interface ExportDeps {
   renderer: WebGPURenderer;
@@ -150,6 +157,12 @@ export interface ExportApi {
     size?: number,
     doc?: MaterialGraphDocument,
   ): Promise<void>;
+  exportTextureZip(options: {
+    channels: PbrSocket[];
+    filename?: string;
+    size: number;
+    doc?: MaterialGraphDocument;
+  }): Promise<void>;
   bakeConfigToBake(doc: MaterialGraphDocument, name?: string, size?: number): Promise<void>;
   bakeMaterialTask(
     doc: MaterialGraphDocument,
@@ -193,6 +206,19 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     canvas.height = image.height;
     canvas.getContext("2d")?.putImageData(image, 0, 0);
     return canvas;
+  }
+
+  async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  function downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   async function postBakeFile(file: string, body: BodyInit): Promise<boolean> {
@@ -257,12 +283,46 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     if (!image) return;
     const blob = await canvasToPngBlob(imageDataToCanvas(image));
     if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadBlob(blob, filename);
+  }
+
+  async function exportTextureZip({
+    channels,
+    doc = liveDoc(),
+    filename,
+    size,
+  }: {
+    channels: PbrSocket[];
+    filename?: string;
+    size: number;
+    doc?: MaterialGraphDocument;
+  }): Promise<void> {
+    if (channels.length === 0) throw new Error("Select at least one texture channel.");
+
+    const graph = exportGraph(doc);
+    const files: Record<string, Uint8Array> = {};
+    const missing: PbrSocket[] = [];
+
+    for (const channel of channels) {
+      const image = await bakeService.readImage(graph, channel, size);
+      if (!image) {
+        missing.push(channel);
+        continue;
+      }
+      const blob = await canvasToPngBlob(imageDataToCanvas(image));
+      if (!blob) throw new Error(`Could not encode ${channel} as PNG.`);
+      files[TEXTURE_EXPORT_FILENAMES[channel] ?? `${channel}.png`] = await blobToUint8Array(blob);
+    }
+
+    if (missing.length > 0) {
+      throw new Error(`Selected channel not connected: ${missing.join(", ")}.`);
+    }
+
+    const zipped = zipSync(files, { level: 6 });
+    downloadBlob(
+      new Blob([zipped], { type: "application/zip" }),
+      filename ?? `material-textures-${size}px.zip`,
+    );
   }
 
   function makeTileabilityProof(channelImages: Map<PbrSocket, ImageData>): HTMLCanvasElement | null {
@@ -512,6 +572,7 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
   return {
     saveChannelToBake,
     downloadChannelPng,
+    exportTextureZip,
     bakeConfigToBake,
     bakeMaterialTask,
     saveTilingComposite,

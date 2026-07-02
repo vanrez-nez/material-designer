@@ -13,6 +13,8 @@ import {
   type MaterialDocumentLoadEvent,
 } from "./app-events";
 import { setTexturePreviewReader } from "./texture-preview/preview-bridge";
+import { useWorkspaceStore } from "./store/app";
+import { setTextureExportHandler } from "./texture-export/export-bridge";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -35,6 +37,11 @@ camera.position.set(0, 1.35, 7.2);
 // Renderer config lives in the debug/tweakpane module (the Render tab owns it), but the renderer must be
 // constructed with it before the pane exists — so load it here and hand the object to setupTweakpane.
 const rendererConfig = loadRendererConfig();
+const savedRendererConfig =
+  useWorkspaceStore.getState().materialDocument.ui?.settings?.rendererConfig;
+if (savedRendererConfig && typeof savedRendererConfig === "object") {
+  Object.assign(rendererConfig, savedRendererConfig);
+}
 
 const renderer = new WebGPURenderer({
   canvas: sceneCanvas,
@@ -74,6 +81,9 @@ const { stats, materialEditor, rebuildEditor } = setupTweakpane({
 
 setTexturePreviewReader((channel, size) =>
   bakeService.readImage(mainScene.materialController, channel, size),
+);
+setTextureExportHandler(({ channels, size }) =>
+  exporter.exportTextureZip({ channels, size }),
 );
 
 window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {

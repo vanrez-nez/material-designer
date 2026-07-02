@@ -272,6 +272,8 @@ export function buildMaterialEditorConfig(
     onNodePositionTransactionStart: () => controller.beginHistoryTransaction("node-position"),
     onNodePositionTransactionEnd: () => controller.commitHistoryTransaction("node-position"),
     onNodePositionsChange: (positions, options) => controller.setNodePositions(positions, options),
+    editorViewState: controller.getEditorViewState(),
+    onEditorViewStateChange: (state, options) => controller.setEditorViewState(state, options),
   };
 }
 
