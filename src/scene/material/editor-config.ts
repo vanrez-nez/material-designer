@@ -77,7 +77,29 @@ function bindParam(
     if ((param.type === "int" || param.type === "float") && !Number.isFinite(Number(value))) {
       value = param.default;
     }
-    controller.setParam(nodeId, param.key, value);
+    const transactionScope = `param:${nodeId}:${param.key}`;
+    const continuous =
+      param.type === "float" ||
+      param.type === "int" ||
+      param.type === "color" ||
+      param.type === "vec3";
+    const last = ev.last;
+    const transactionActive = controller.isHistoryTransactionActive(transactionScope);
+
+    if (continuous && last === false && !transactionActive) {
+      controller.beginHistoryTransaction(transactionScope);
+    }
+
+    controller.setParam(
+      nodeId,
+      param.key,
+      value,
+      continuous && (last === false || transactionActive) ? { history: "skip" } : undefined,
+    );
+
+    if (continuous && last === true && transactionActive) {
+      controller.commitHistoryTransaction(transactionScope);
+    }
     // Only `select` / `bool` params can change a node's ports (every declare() keys off a select: noiseType,
     // op, feature, operation). Rebuilding the whole editor on numeric edits (int/float) is unnecessary AND
     // disruptive — it disposes the live Tweakpane mid-edit, snapping sliders (e.g. `scale`) back. Restrict
@@ -247,6 +269,9 @@ export function buildMaterialEditorConfig(
       return node ? nodeToConfig(controller, node, rerender) : null;
     },
     onDeleteNode: (id) => controller.removeNode(id),
+    onNodePositionTransactionStart: () => controller.beginHistoryTransaction("node-position"),
+    onNodePositionTransactionEnd: () => controller.commitHistoryTransaction("node-position"),
+    onNodePositionsChange: (positions, options) => controller.setNodePositions(positions, options),
   };
 }
 

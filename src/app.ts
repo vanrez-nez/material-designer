@@ -7,7 +7,11 @@ import { bakeService } from "@/runtime";
 import { createExport } from "./debug/export";
 import { installBakeDevHandles } from "./debug/bake-setup";
 import { loadRendererConfig, setupTweakpane } from "./debug/tweakpane";
-import { MATERIAL_DOCUMENT_LOAD_EVENT, type MaterialDocumentLoadEvent } from "./app-events";
+import {
+  MATERIAL_DOCUMENT_LOAD_EVENT,
+  MATERIAL_GRAPH_REBUILD_EVENT,
+  type MaterialDocumentLoadEvent,
+} from "./app-events";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -79,6 +83,13 @@ window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
   } catch (err) {
     console.warn("[material] Failed to load document", err);
   }
+});
+
+window.addEventListener(MATERIAL_GRAPH_REBUILD_EVENT, () => {
+  void mainScene.materialSurface.refresh().then(() => {
+    rebuildEditor();
+    resize();
+  });
 });
 
 const timer = new THREE.Timer();

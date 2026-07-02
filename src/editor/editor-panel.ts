@@ -37,7 +37,13 @@ import {
   type Schemes,
   defineEditorElements,
 } from './rete-elements'
-import type { DockMode, EditorConnectionConfig, EditorGraphConfig, EditorNodeConfig } from './types'
+import type {
+  DockMode,
+  EditorConnectionConfig,
+  EditorGraphConfig,
+  EditorHistoryUpdateOptions,
+  EditorNodeConfig,
+} from './types'
 import './editor.css'
 
 type AreaExtra = LitArea2D<Schemes>
@@ -49,7 +55,7 @@ type ArrangeNode = ClassicPreset.Node & {
 type ArrangeConnection = ClassicPreset.Connection<ClassicPreset.Node, ClassicPreset.Node>
 type ArrangeSchemes = GetSchemes<ArrangeNode, ArrangeConnection>
 type LayoutArrangement = 'down' | 'right' | 'up' | 'left'
-type StoredPositions = Record<string, { x: number; y: number }>
+type NodePositions = Record<string, { x: number; y: number }>
 
 export type EditorPanelOptions = {
   /** Where the panel attaches; defaults to `document.body`. */
@@ -91,8 +97,6 @@ const CONTENT_PADDING_REM = 5
 const CONTENT_KEEP_PX = 96
 const NODE_FALLBACK_SIZE = 288 // node element size fallback when offsetWidth/Height isn't measured yet
 const FIT_SCALE = 0.8 // zoomAt gap to the viewport border on "fit" (lower = more margin)
-const STORAGE_PREFIX = 'material-designer:editor:positions:v1'
-
 export class EditorPanel {
   private readonly root: HTMLDivElement
   private readonly canvasHost: HTMLDivElement
@@ -114,7 +118,8 @@ export class EditorPanel {
   private building = false
   private open_ = false
   private layoutArrangement: LayoutArrangement = 'down'
-  private storageKey: string | null = null
+  private graphSignature: string | null = null
+  private nodePositionTransactionActive = false
   private nodeIdsByRuntimeId = new Map<string, string>()
   // The active config, so the connection pipe can call its onConnect/onDisconnect hooks.
   private config: EditorGraphConfig | null = null
@@ -319,6 +324,10 @@ export class EditorPanel {
       capture: true,
     } as EventListenerOptions)
     window.removeEventListener('mousedown', this.onTitleDblClick, { capture: true } as EventListenerOptions)
+    window.removeEventListener('pointerup', this.onNodePositionPointerEnd, { capture: true } as EventListenerOptions)
+    window.removeEventListener('pointercancel', this.onNodePositionPointerEnd, {
+      capture: true,
+    } as EventListenerOptions)
     this.area?.destroy()
     this.area = null
     this.arrange = null
@@ -479,6 +488,8 @@ export class EditorPanel {
     // on a title = an OS double-click. Window + capture so nothing upstream can stop it.
     window.addEventListener('pointerdown', this.onTitlePointerDown, { capture: true })
     window.addEventListener('mousedown', this.onTitleDblClick, { capture: true })
+    window.addEventListener('pointerup', this.onNodePositionPointerEnd, { capture: true })
+    window.addEventListener('pointercancel', this.onNodePositionPointerEnd, { capture: true })
 
     // Clamp zoom to range, and keep any pan (wheel or background drag) within the content
     // bounds. The wheel handler pre-clamps, so this mainly catches drag-pan; the `clamping` flag
@@ -498,7 +509,7 @@ export class EditorPanel {
         }
       }
       if (context.type === 'nodetranslated' && !this.building) {
-        this.saveNodePositions()
+        this.saveNodePositions({ history: 'skip' })
       }
       // Keep the dot-grid aligned with the content so the background pans + scales with the nodes.
       if (context.type === 'translated' || context.type === 'zoomed') this.syncBackground()
@@ -539,10 +550,10 @@ export class EditorPanel {
     const editor = this.editor!
 
     // A same-graph rebuild (e.g. a declare-driven param change adding/removing sockets) keeps the same
-    // node ids → same storage key. In that case preserve the user's pan/zoom instead of refitting; only a
-    // genuinely different graph (preset load, group navigation) should refit. Captured before storageKey
+    // node ids → same signature. In that case preserve the user's pan/zoom instead of refitting; only a
+    // genuinely different graph (preset load, group navigation) should refit. Captured before graphSignature
     // is reassigned below.
-    const prevKey = this.storageKey
+    const prevKey = this.graphSignature
     const prevTransform = this.area ? { ...this.area.area.transform } : null
 
     this.config = config
@@ -552,11 +563,10 @@ export class EditorPanel {
     for (const node of [...editor.getNodes()]) await editor.removeNode(node.id)
 
     const byId = new Map<string, EditorNode>()
-    this.storageKey = this.getStorageKey(config)
+    this.graphSignature = this.getGraphSignature(config)
     this.nodeIdsByRuntimeId.clear()
-    const stored = this.loadStoredPositions()
     for (const def of config.nodes) {
-      const node = await this.createNode(def, stored?.[def.id] ?? def.position)
+      const node = await this.createNode(def, def.position)
       byId.set(def.id, node)
     }
     this.populatePalette(config)
@@ -574,9 +584,8 @@ export class EditorPanel {
     this.building = false
 
     requestAnimationFrame(() => {
-      if (prevTransform && prevKey === this.storageKey) void this.restoreTransform(prevTransform)
-      else if (stored) void this.zoomToFit()
-      else void this.arrangeGraph()
+      if (prevTransform && prevKey === this.graphSignature) void this.restoreTransform(prevTransform)
+      else void this.arrangeGraph({ history: 'skip' })
     })
   }
 
@@ -675,7 +684,7 @@ export class EditorPanel {
     this.building = true
     await this.createNode(def, def.position ?? position)
     this.building = false
-    this.saveNodePositions()
+    this.saveNodePositions({ history: 'skip' })
   }
 
   // Remove a node: tell the owner, then drop the node + its connections from the canvas.
@@ -690,7 +699,6 @@ export class EditorPanel {
     await editor.removeNode(runtimeId)
     this.nodeIdsByRuntimeId.delete(runtimeId)
     this.building = false
-    this.saveNodePositions()
   }
 
   // The graph-space coordinate at the centre of the visible canvas (so new nodes land in view).
@@ -788,13 +796,13 @@ export class EditorPanel {
     await AreaExtensions.zoomAt(this.area, this.editor.getNodes(), { scale: FIT_SCALE })
   }
 
-  private async arrangeGraph(): Promise<void> {
+  private async arrangeGraph(options?: EditorHistoryUpdateOptions): Promise<void> {
     if (!this.arrange || !this.area || !this.editor) return
     await nextFrame()
     this.measureNodeSizes()
     await this.arrange.layout({ options: this.getLayoutOptions() })
     await nextFrame()
-    this.saveNodePositions()
+    this.saveNodePositions(options)
     await this.zoomToFit()
     this.clampPan()
   }
@@ -906,9 +914,20 @@ export class EditorPanel {
     for (const [runtimeId, view] of area.nodeViews) {
       if (view.element.contains(title)) {
         this.dblTitleNode = runtimeId
+        if (!this.nodePositionTransactionActive) {
+          this.nodePositionTransactionActive = true
+          this.config?.onNodePositionTransactionStart?.()
+        }
         return
       }
     }
+  }
+
+  private readonly onNodePositionPointerEnd = (): void => {
+    if (!this.nodePositionTransactionActive) return
+    this.saveNodePositions({ history: 'skip' })
+    this.nodePositionTransactionActive = false
+    this.config?.onNodePositionTransactionEnd?.()
   }
 
   // Second press of an OS double-click (mousedown.detail === 2) on a title: groups enter their subgraph,
@@ -1016,36 +1035,19 @@ export class EditorPanel {
       .forEach((b) => b.classList.toggle('is-active', b.dataset.arrangement === this.layoutArrangement))
   }
 
-  private getStorageKey(config: EditorGraphConfig): string {
-    const signature = config.nodes.map((node) => node.id).join('|')
-    return `${STORAGE_PREFIX}:${signature}`
+  private getGraphSignature(config: EditorGraphConfig): string {
+    return config.nodes.map((node) => node.id).join('|')
   }
 
-  private loadStoredPositions(): StoredPositions | null {
-    if (!this.storageKey) return null
-    try {
-      const raw = sessionStorage.getItem(this.storageKey)
-      if (!raw) return null
-      const parsed = JSON.parse(raw) as StoredPositions
-      return parsed && typeof parsed === 'object' ? parsed : null
-    } catch {
-      return null
-    }
-  }
-
-  private saveNodePositions(): void {
-    if (!this.storageKey || !this.area) return
-    const positions: StoredPositions = {}
+  private saveNodePositions(options?: EditorHistoryUpdateOptions): void {
+    if (!this.area) return
+    const positions: NodePositions = {}
     for (const [runtimeId, graphId] of this.nodeIdsByRuntimeId) {
       const view = this.area.nodeViews.get(runtimeId)
       if (!view) continue
       positions[graphId] = { x: view.position.x, y: view.position.y }
     }
-    try {
-      sessionStorage.setItem(this.storageKey, JSON.stringify(positions))
-    } catch {
-      // Storage can fail in private browsing or quota-constrained contexts; the editor still works.
-    }
+    this.config?.onNodePositionsChange?.(positions, options)
   }
 }
 

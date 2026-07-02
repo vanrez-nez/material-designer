@@ -86,6 +86,7 @@ export class MainScene {
     this.sphere.geometry.dispose();
     this.plane.geometry.dispose();
     this.materialSurface.dispose();
+    this.materialController.dispose();
   }
 
   private configureShadow(): void {

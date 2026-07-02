@@ -17,6 +17,7 @@ import type {
   PortKind,
 } from "@/runtime";
 import { coercionFor, GROUP_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE } from "@/runtime";
+import { useWorkspaceStore, type HistoryUpdateOptions } from "@/store/app";
 
 const STORAGE_KEY = "material-designer:material-graph-document:v1";
 const LEGACY_STORAGE_KEY = "material-graph-document:v1";
@@ -67,6 +68,8 @@ export class MaterialGraphController implements MaterialGraphSource {
   private doc: MaterialGraphDocument;
   private lastError_: string | null = null;
   private readonly changeListeners = new Set<(change: GraphChange) => void>();
+  private readonly storeBacked: boolean;
+  private readonly unsubscribeStore?: () => void;
   // Group navigation: the chain of group node ids from the root to the document currently being edited.
   // Edits target the active (sub)document; compile/persist always run on the root.
   private path: string[] = [];
@@ -80,7 +83,8 @@ export class MaterialGraphController implements MaterialGraphSource {
     private readonly registry: NodeRegistry = defaultRegistry,
     private readonly storageKey: string | null = STORAGE_KEY,
   ) {
-    this.doc = this.load() ?? createDefaultDocument();
+    this.storeBacked = storageKey !== null;
+    this.doc = this.storeBacked ? useWorkspaceStore.getState().materialDocument : this.load() ?? createDefaultDocument();
     // A persisted graph can reference a node type/port that no longer exists (a removed/refactored node) —
     // that must not crash boot, so validate by compiling once and fall back to the default if it won't.
     try {
@@ -88,6 +92,22 @@ export class MaterialGraphController implements MaterialGraphSource {
     } catch (err) {
       console.warn("[material] persisted graph failed to compile; resetting to default", err);
       this.doc = createDefaultDocument();
+      if (this.storeBacked) {
+        useWorkspaceStore.getState().applyMaterialGraphPatch(
+          { document: this.doc, groupPath: [], soloNode: null },
+          { kind: "structural" },
+          { history: "skip" },
+        );
+      }
+    }
+
+    if (this.storeBacked) {
+      this.unsubscribeStore = useWorkspaceStore.subscribe((state, previousState) => {
+        if (state.materialGraphEvent === previousState.materialGraphEvent) return;
+        const event = state.materialGraphEvent;
+        if (!event) return;
+        for (const fn of this.changeListeners) fn(event.change);
+      });
     }
   }
 
@@ -95,7 +115,7 @@ export class MaterialGraphController implements MaterialGraphSource {
   // the bake service (offline channels) and the TexturedSurface (live material). Records lastError on throw.
   compileBundle(opts: CompileOptions): CompiledSockets {
     try {
-      const result = compileSockets(this.doc, this.registry, opts);
+      const result = compileSockets(this.document, this.registry, opts);
       this.lastError_ = null;
       return result;
     } catch (err) {
@@ -110,15 +130,24 @@ export class MaterialGraphController implements MaterialGraphSource {
     return () => this.changeListeners.delete(fn);
   }
   // Persist the document and notify subscribers of the change. Every doc mutation routes through here.
-  private emit(change: GraphChange): void {
+  private emit(change: GraphChange, options?: HistoryUpdateOptions): void {
+    if (this.storeBacked) {
+      useWorkspaceStore.getState().applyMaterialGraphPatch(
+        { document: this.doc, groupPath: this.path, soloNode: this.soloNode_ },
+        change,
+        options,
+      );
+      return;
+    }
     this.persist();
     for (const fn of this.changeListeners) fn(change);
   }
   get document(): MaterialGraphDocument {
-    return this.doc;
+    return this.storeBacked ? useWorkspaceStore.getState().materialDocument : this.doc;
   }
   // The (sub)document currently being edited — the root, or a group's subgraph when navigated in.
   get activeDocument(): MaterialGraphDocument {
+    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
     return this.active();
   }
   // Breadcrumb: the group node ids from root to the active document (empty at the root).
@@ -130,7 +159,7 @@ export class MaterialGraphController implements MaterialGraphSource {
   // root → active. Walks the same path as active(); self-heals to empty if the path is stale.
   groupTrail(): { id: string; label: string }[] {
     const trail: { id: string; label: string }[] = [];
-    let doc = this.doc;
+    let doc = this.storeBacked ? useWorkspaceStore.getState().materialDocument : this.doc;
     for (const id of this.path) {
       const g = doc.nodes.find((n) => n.id === id && n.type === GROUP_TYPE);
       if (!g?.subgraph) return [];
@@ -154,8 +183,14 @@ export class MaterialGraphController implements MaterialGraphSource {
     return doc;
   }
 
+  private beginEdit(): void {
+    if (!this.storeBacked) return;
+    this.doc = structuredClone(useWorkspaceStore.getState().materialDocument);
+  }
+
   // --- group navigation (no recompile; the editor re-renders from activeDocument) ------------------
   enterGroup(nodeId: string): boolean {
+    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
     const node = this.active().nodes.find((n) => n.id === nodeId && n.type === GROUP_TYPE);
     if (!node?.subgraph) return false;
     this.path.push(nodeId);
@@ -203,6 +238,7 @@ export class MaterialGraphController implements MaterialGraphSource {
   // Add an exposed socket to the current group. Returns the generated key (stable; rename only changes the
   // label so existing wires survive).
   addGroupSocket(side: "input" | "output", label: string, kind: PortKind): string | null {
+    this.beginEdit();
     const cur = this.currentGroup();
     const b = cur && this.boundary(cur.group, side);
     if (!cur || !b) return null;
@@ -219,6 +255,7 @@ export class MaterialGraphController implements MaterialGraphSource {
 
   // Rename an exposed socket (label only — the key/identifier stays put, so wires are preserved).
   renameGroupSocket(side: "input" | "output", key: string, label: string): void {
+    this.beginEdit();
     const cur = this.currentGroup();
     const b = cur && this.boundary(cur.group, side);
     if (!cur || !b) return;
@@ -235,6 +272,7 @@ export class MaterialGraphController implements MaterialGraphSource {
   // Remove an exposed socket and prune the wires it leaves dangling — both in the parent (edges on the
   // group node) and inside the subgraph (edges on the boundary node).
   removeGroupSocket(side: "input" | "output", key: string): void {
+    this.beginEdit();
     const cur = this.currentGroup();
     const b = cur && this.boundary(cur.group, side);
     if (!cur || !b) return;
@@ -262,7 +300,8 @@ export class MaterialGraphController implements MaterialGraphSource {
   }
 
   // --- param edits -------------------------------------------------------------------------------
-  setParam(nodeId: string, key: string, value: unknown): void {
+  setParam(nodeId: string, key: string, value: unknown, options?: HistoryUpdateOptions): void {
+    this.beginEdit();
     const node = this.active().nodes.find((n) => n.id === nodeId);
     if (!node) return;
     node.params[key] = value;
@@ -273,15 +312,15 @@ export class MaterialGraphController implements MaterialGraphSource {
     // Declare-driven select/bool can add/remove ports → prune now-dangling edges, then it's structural.
     if (def.declare && (paramType === "select" || paramType === "bool")) {
       this.pruneDanglingEdges(node);
-      this.emit({ kind: "structural" });
+      this.emit({ kind: "structural" }, options);
       return;
     }
     // float/colour/vec3/curve are live-tweakable values (the surface updates a uniform live, or folds the
     // value into a re-bake). Everything else (int loop counts, plain bool/select) needs a structural rebuild.
     if (paramType === "float" || paramType === "color" || paramType === "vec3" || paramType === "curve") {
-      this.emit({ kind: "param", nodeId, key, paramType, value, bakeStructural: paramDef?.bakeStructural });
+      this.emit({ kind: "param", nodeId, key, paramType, value, bakeStructural: paramDef?.bakeStructural }, options);
     } else {
-      this.emit({ kind: "structural" });
+      this.emit({ kind: "structural" }, options);
     }
   }
 
@@ -300,6 +339,7 @@ export class MaterialGraphController implements MaterialGraphSource {
 
   // --- topology edits ----------------------------------------------------------------------------
   addNode(type: string, position: { x: number; y: number }): string {
+    this.beginEdit();
     const def = this.registry.get(type);
     const params: Record<string, unknown> = {};
     for (const p of def.params) params[p.key] = p.default;
@@ -315,6 +355,7 @@ export class MaterialGraphController implements MaterialGraphSource {
   private static readonly UNDELETABLE = new Set(["material-output", "group-output", "group-input"]);
 
   removeNode(id: string): void {
+    this.beginEdit();
     const doc = this.active();
     const node = doc.nodes.find((n) => n.id === id);
     if (!node || MaterialGraphController.UNDELETABLE.has(node.type)) return;
@@ -332,35 +373,70 @@ export class MaterialGraphController implements MaterialGraphSource {
   // Toggle solo/preview for a node (exclusive): routes its first output to the surface, or clears it if it
   // was already soloed. Recompiles so the surface swaps to/from the preview.
   toggleSolo(id: string): void {
+    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
     this.soloNode_ = this.soloNode_ === id ? null : id;
     this.emit({ kind: "structural" });
   }
 
   // Clear any active solo (e.g. before a structural change). Recompiles only if something was soloed.
   clearSolo(): void {
+    if (this.storeBacked) this.doc = useWorkspaceStore.getState().materialDocument;
     if (this.soloNode_ === null) return;
     this.soloNode_ = null;
     this.emit({ kind: "structural" });
   }
 
-  setNodePosition(id: string, position: { x: number; y: number }): void {
+  beginHistoryTransaction(scope?: string): void {
+    if (!this.storeBacked) return;
+    useWorkspaceStore.getState().beginHistoryTransaction(scope);
+  }
+
+  commitHistoryTransaction(scope?: string): void {
+    if (!this.storeBacked) return;
+    useWorkspaceStore.getState().commitHistoryTransaction(scope);
+  }
+
+  isHistoryTransactionActive(scope?: string): boolean {
+    return this.storeBacked ? useWorkspaceStore.getState().isHistoryTransactionActive(scope) : false;
+  }
+
+  setNodePosition(id: string, position: { x: number; y: number }, options?: HistoryUpdateOptions): void {
+    this.beginEdit();
     const node = this.active().nodes.find((n) => n.id === id);
     if (!node) return;
     node.position = position;
-    this.persist(); // layout only, no recompile
+    this.emit({ kind: "structural" }, options);
+  }
+
+  setNodePositions(
+    positions: Record<string, { x: number; y: number }>,
+    options?: HistoryUpdateOptions,
+  ): void {
+    this.beginEdit();
+    let changed = false;
+    for (const node of this.active().nodes) {
+      const position = positions[node.id];
+      if (!position) continue;
+      if (node.position.x === position.x && node.position.y === position.y) continue;
+      node.position = position;
+      changed = true;
+    }
+    if (changed) this.emit({ kind: "structural" }, options);
   }
 
   // Rename a node's display label. Empty/blank clears it (falls back to the registry def.label). Cosmetic:
   // the compiler ignores `label`, so this persists only — no recompile, no layout disturbance.
   setNodeLabel(id: string, label: string): void {
+    this.beginEdit();
     const node = this.active().nodes.find((n) => n.id === id);
     if (!node) return;
     node.label = label.trim() || undefined;
-    this.persist();
+    this.emit({ kind: "structural" });
   }
 
   // Returns false (and makes no change) if the port kinds are incompatible.
   connect(edge: GraphEdge): boolean {
+    this.beginEdit();
     if (!this.portKindsMatch(edge)) return false;
     const doc = this.active();
     // One connection per single-input socket: drop any existing edge into the same input.
@@ -371,6 +447,7 @@ export class MaterialGraphController implements MaterialGraphSource {
   }
 
   disconnect(edge: GraphEdge): void {
+    this.beginEdit();
     const doc = this.active();
     doc.edges = doc.edges.filter(
       (e) =>
@@ -420,9 +497,17 @@ export class MaterialGraphController implements MaterialGraphSource {
   // inspecting a material never clobbers the saved graph. Listeners are always notified so any bound
   // surface rebuilds. (A null-storageKey controller never persists regardless of this flag.)
   loadDocument(doc: MaterialGraphDocument, { persist = true }: { persist?: boolean } = {}): void {
-    this.doc = doc;
+    this.doc = structuredClone(doc);
     this.path = [];
     this.soloNode_ = null;
+    if (this.storeBacked) {
+      useWorkspaceStore.getState().applyMaterialGraphPatch(
+        { document: this.doc, groupPath: [], soloNode: null },
+        { kind: "structural" },
+        persist ? undefined : { history: "skip" },
+      );
+      return;
+    }
     if (persist) this.persist();
     for (const fn of this.changeListeners) fn({ kind: "structural" });
   }
@@ -451,5 +536,10 @@ export class MaterialGraphController implements MaterialGraphSource {
     } catch {
       return null;
     }
+  }
+
+  dispose(): void {
+    this.unsubscribeStore?.();
+    this.changeListeners.clear();
   }
 }

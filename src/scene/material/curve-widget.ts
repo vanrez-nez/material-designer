@@ -10,6 +10,7 @@ const W = 220;
 const H = 150;
 const PAD = 12;
 const CH_COLOR: Record<string, string> = { C: "#d8d8d8", R: "#e25555", G: "#5fd25f", B: "#5b8be2" };
+const CURVE_TRANSACTION_SCOPE = "curve-param";
 
 // JS twin of tsl/curve.ts curve5 — uniform-x Catmull-Rom with clamped ends. Used to draw the spline.
 function evalCurve(t: number, p: number[]): number {
@@ -140,6 +141,7 @@ export function mountCurveWidget(
     const i = hitPoint(mx, my);
     if (i < 0) return;
     dragging = i;
+    controller.beginHistoryTransaction(`${CURVE_TRANSACTION_SCOPE}:${nodeId}:${paramKey}`);
     canvas.setPointerCapture(e.pointerId);
     draw();
   });
@@ -147,12 +149,13 @@ export function mountCurveWidget(
     if (dragging < 0) return;
     const [, my] = localXY(e);
     pts(active)[dragging] = yFromPx(my);
-    controller.setParam(nodeId, paramKey, value);
+    controller.setParam(nodeId, paramKey, value, { history: "skip" });
     draw();
   });
   const endDrag = () => {
     if (dragging < 0) return;
     dragging = -1;
+    controller.commitHistoryTransaction(`${CURVE_TRANSACTION_SCOPE}:${nodeId}:${paramKey}`);
     draw();
   };
   canvas.addEventListener("pointerup", endDrag);

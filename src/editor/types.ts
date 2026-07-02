@@ -56,6 +56,10 @@ export type EditorConnectionConfig = {
   toInput: string
 }
 
+export type EditorHistoryUpdateOptions = {
+  history?: 'checkpoint' | 'skip'
+}
+
 export type EditorGraphConfig = {
   nodes: EditorNodeConfig[]
   connections: EditorConnectionConfig[]
@@ -75,6 +79,15 @@ export type EditorGraphConfig = {
   onAddNode?: (type: string, position: { x: number; y: number }) => EditorNodeConfig | null
   /** Remove a node from the owner. The canvas removal is handled by the panel. */
   onDeleteNode?: (id: string) => void
+  /** Called when a user starts dragging graph nodes. */
+  onNodePositionTransactionStart?: () => void
+  /** Called when a node drag finishes/cancels. */
+  onNodePositionTransactionEnd?: () => void
+  /** Persist canvas positions in the owner graph. */
+  onNodePositionsChange?: (
+    positions: Record<string, { x: number; y: number }>,
+    options?: EditorHistoryUpdateOptions,
+  ) => void
   /** Export the current graph (e.g. download it as JSON). Provide to surface the header's export button. */
   onExport?: () => void
   /** Navigation trail (root → current group). Rendered as a clickable breadcrumb; omit/empty at root. */
