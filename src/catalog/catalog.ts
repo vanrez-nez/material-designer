@@ -25,7 +25,7 @@ let cache: Promise<Catalog> | null = null;
 
 export function loadCatalog(): Promise<Catalog> {
   if (!cache) {
-    cache = fetch("/catalog/catalog.json").then((response) => {
+    cache = fetch(`${import.meta.env.BASE_URL}catalog/catalog.json`).then((response) => {
       if (!response.ok) throw new Error(`Failed to load catalog: ${response.status}`);
       return response.json() as Promise<Catalog>;
     });

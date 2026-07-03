@@ -107,7 +107,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
                   onDoubleClick={() => onOpen(material)}
                 >
                   <img
-                    src={material.thumbnail}
+                    src={`${import.meta.env.BASE_URL}${material.thumbnail}`}
                     alt={material.name}
                     className="aspect-square w-full object-cover"
                     draggable={false}

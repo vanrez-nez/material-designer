@@ -153,7 +153,7 @@ const materials = MATERIALS.map((material) => {
       name: material.name,
       category: material.category,
       preset: material.preset,
-      thumbnail: `/catalog/${material.id}.png`,
+      thumbnail: `catalog/${material.id}.png`,
       nodeCount,
       textures: material.textures,
     },

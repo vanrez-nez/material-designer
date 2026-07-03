@@ -23,7 +23,7 @@
       "name": "Cracked Clay",
       "category": "ground",
       "preset": "cracked-clay",
-      "thumbnail": "/catalog/cracked-clay.png",
+      "thumbnail": "catalog/cracked-clay.png",
       "nodeCount": 90,
       "textures": [
         "Base Color",
@@ -37,7 +37,7 @@
       "name": "Rock",
       "category": "ground",
       "preset": "rock",
-      "thumbnail": "/catalog/rock.png",
+      "thumbnail": "catalog/rock.png",
       "nodeCount": 47,
       "textures": [
         "Base Color",
@@ -51,7 +51,7 @@
       "name": "Asphalt",
       "category": "ground",
       "preset": "asphalt",
-      "thumbnail": "/catalog/asphalt.png",
+      "thumbnail": "catalog/asphalt.png",
       "nodeCount": 12,
       "textures": [
         "Base Color",
@@ -64,7 +64,7 @@
       "name": "Zinc",
       "category": "metal",
       "preset": "zinc",
-      "thumbnail": "/catalog/zinc.png",
+      "thumbnail": "catalog/zinc.png",
       "nodeCount": 7,
       "textures": [
         "Base Color",
@@ -77,7 +77,7 @@
       "name": "Rusty Metal",
       "category": "metal",
       "preset": "rusty-metal",
-      "thumbnail": "/catalog/rusty-metal.png",
+      "thumbnail": "catalog/rusty-metal.png",
       "nodeCount": 28,
       "textures": [
         "Base Color",
@@ -91,7 +91,7 @@
       "name": "Bark",
       "category": "wood",
       "preset": "bark",
-      "thumbnail": "/catalog/bark.png",
+      "thumbnail": "catalog/bark.png",
       "nodeCount": 14,
       "textures": [
         "Base Color",
@@ -104,7 +104,7 @@
       "name": "Wood Planks",
       "category": "wood",
       "preset": "wood-planks",
-      "thumbnail": "/catalog/wood-planks.png",
+      "thumbnail": "catalog/wood-planks.png",
       "nodeCount": 15,
       "textures": [
         "Base Color",
@@ -117,7 +117,7 @@
       "name": "Parquet",
       "category": "wood",
       "preset": "parquet",
-      "thumbnail": "/catalog/parquet.png",
+      "thumbnail": "catalog/parquet.png",
       "nodeCount": 11,
       "textures": [
         "Base Color",
@@ -130,7 +130,7 @@
       "name": "Chinese Hackberry Bark",
       "category": "wood",
       "preset": "chinese-hackberry-bark",
-      "thumbnail": "/catalog/chinese-hackberry-bark.png",
+      "thumbnail": "catalog/chinese-hackberry-bark.png",
       "nodeCount": 19,
       "textures": [
         "Base Color",
@@ -144,7 +144,7 @@
       "name": "Checkers",
       "category": "tile",
       "preset": "checkers",
-      "thumbnail": "/catalog/checkers.png",
+      "thumbnail": "catalog/checkers.png",
       "nodeCount": 4,
       "textures": [
         "Base Color",
@@ -156,7 +156,7 @@
       "name": "Tile Test",
       "category": "tile",
       "preset": "tile-test",
-      "thumbnail": "/catalog/tile-test.png",
+      "thumbnail": "catalog/tile-test.png",
       "nodeCount": 3,
       "textures": [
         "Base Color"
@@ -167,7 +167,7 @@
       "name": "Voronoi Cells",
       "category": "tile",
       "preset": "voronoi-cells",
-      "thumbnail": "/catalog/voronoi-cells.png",
+      "thumbnail": "catalog/voronoi-cells.png",
       "nodeCount": 9,
       "textures": [
         "Base Color",

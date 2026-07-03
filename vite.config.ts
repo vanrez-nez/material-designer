@@ -10,6 +10,10 @@ const threeTsl = fileURLToPath(new URL("./node_modules/three/build/three.tsl.js"
 const threeExamples = fileURLToPath(new URL("./node_modules/three/examples/jsm", import.meta.url));
 
 export default defineConfig({
+  // Relative base so the build works whether GitHub Pages serves it at a domain root or a project
+  // subpath (…/material-designer/). All asset URLs become relative to index.html; runtime asset paths
+  // use import.meta.env.BASE_URL.
+  base: "./",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: [
