@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/primitives/popover";
 import { formatCompactRelativeTime } from "@/lib/datetime";
+import { useWorkspaceStore } from "@/store/app";
 import { openDocument, renameActiveDocument } from "@/store/document-actions";
 import { listDocuments, useDocumentLibraryStore } from "@/store/document-library";
 
@@ -21,7 +22,10 @@ function truncateTitle(title: string): string {
 export function DocumentTitle({ onShowAll }: { onShowAll: () => void }) {
   const documents = useDocumentLibraryStore((state) => state.documents);
   const activeId = useDocumentLibraryStore((state) => state.activeId);
-  const activeTitle = (activeId && documents[activeId]?.title) || "Untitled";
+  // A transient catalog material has no library entry yet — fall back to its document metadata title so
+  // the header still shows the material name.
+  const transientTitle = useWorkspaceStore((state) => state.materialDocument.metadata?.title);
+  const activeTitle = (activeId && documents[activeId]?.title) || transientTitle || "Untitled";
   const recent = useMemo(() => listDocuments(documents).slice(0, RECENT_COUNT), [documents]);
 
   const [editing, setEditing] = useState(false);

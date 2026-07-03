@@ -17,9 +17,18 @@ export type DocumentEntry = {
 export type DocumentLibraryStore = {
   documents: Record<string, DocumentEntry>;
   activeId: string | null;
+  // Set when the active document is a "transient" catalog material — loaded into the editor but not yet
+  // saved as a library entry. Holds the workspace revision it was loaded at; it becomes a real entry only
+  // once the graph revision advances past this (i.e. the user modified it). `null` = a normal document.
+  transientBaseline: number | null;
   // Upsert the active document. Self-seeding: with no active entry it creates one and makes it active,
   // so the very first edit/session is captured without any explicit "new" step.
   saveActive: (document: MaterialGraphDocument) => DocumentEntry;
+  // Autosave the active document, but skip an UNMODIFIED transient (catalog material browsed but not
+  // edited): don't create an entry for it, so it never appears in Open > Document.
+  autosaveActive: (document: MaterialGraphDocument, currentRevision: number) => void;
+  // Mark the active document as a transient catalog load at the given workspace revision.
+  markTransient: (baselineRevision: number) => void;
   // Create a fresh default document, make it active, and return its entry.
   createDocument: () => DocumentEntry;
   // Create an entry from a supplied document (e.g. a loaded file), make it active, and return it.
@@ -58,6 +67,7 @@ export const useDocumentLibraryStore = create<DocumentLibraryStore>()(
     (set, get) => ({
       documents: {},
       activeId: null,
+      transientBaseline: null,
       saveActive: (document) => {
         const state = get();
         const activeEntry = state.activeId ? state.documents[state.activeId] : undefined;
@@ -70,7 +80,11 @@ export const useDocumentLibraryStore = create<DocumentLibraryStore>()(
             updatedAt: Date.now(),
             document: withTitle(document, title),
           };
-          set({ documents: { ...state.documents, [entry.id]: entry }, activeId: entry.id });
+          set({
+            documents: { ...state.documents, [entry.id]: entry },
+            activeId: entry.id,
+            transientBaseline: null,
+          });
           return entry;
         }
 
@@ -83,6 +97,19 @@ export const useDocumentLibraryStore = create<DocumentLibraryStore>()(
         set({ documents: { ...state.documents, [entry.id]: entry } });
         return entry;
       },
+      autosaveActive: (document, currentRevision) => {
+        const state = get();
+        // Unmodified transient (catalog material browsed but not edited) → don't persist it.
+        if (
+          state.activeId === null &&
+          state.transientBaseline !== null &&
+          currentRevision <= state.transientBaseline
+        ) {
+          return;
+        }
+        get().saveActive(document);
+      },
+      markTransient: (baselineRevision) => set({ activeId: null, transientBaseline: baselineRevision }),
       createDocument: () => {
         const state = get();
         const title = nextUntitledTitle(state.documents);
@@ -92,7 +119,11 @@ export const useDocumentLibraryStore = create<DocumentLibraryStore>()(
           updatedAt: Date.now(),
           document: withTitle(createDefaultDocument(), title),
         };
-        set({ documents: { ...state.documents, [entry.id]: entry }, activeId: entry.id });
+        set({
+          documents: { ...state.documents, [entry.id]: entry },
+          activeId: entry.id,
+          transientBaseline: null,
+        });
         return entry;
       },
       importDocument: (document, title) => {
@@ -104,13 +135,17 @@ export const useDocumentLibraryStore = create<DocumentLibraryStore>()(
           updatedAt: Date.now(),
           document: withTitle(document, resolvedTitle),
         };
-        set({ documents: { ...state.documents, [entry.id]: entry }, activeId: entry.id });
+        set({
+          documents: { ...state.documents, [entry.id]: entry },
+          activeId: entry.id,
+          transientBaseline: null,
+        });
         return entry;
       },
       setActive: (id) => {
         const entry = get().documents[id];
         if (!entry) return null;
-        set({ activeId: id });
+        set({ activeId: id, transientBaseline: null });
         return entry;
       },
       renameActive: (title) => {

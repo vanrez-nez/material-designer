@@ -83,7 +83,6 @@ const { stats, materialEditor, paneElement, rebuildEditor } = setupTweakpane({
   mainScene,
   rendererConfig,
   resize,
-  exporter,
 });
 
 function attachPreviewHosts(nextSceneHost: HTMLDivElement, nextPaneHost: HTMLDivElement): void {

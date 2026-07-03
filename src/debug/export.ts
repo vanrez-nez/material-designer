@@ -31,8 +31,8 @@ export interface ExportDeps {
   // The node registry every throwaway export controller is built from. Decoupled from MainScene so the
   // isolated /export-bake worker can reuse this tooling with `defaultRegistry`.
   registry: NodeRegistry;
-  // The live document to bake when `saveChannelToBake`/`downloadChannelPng` are called without an explicit
-  // `doc`. Optional: the worker never uses those paths.
+  // The live document `exportTextureZip` bakes when called without an explicit `doc`. Optional: the
+  // isolated /export-bake worker always passes an explicit document, so it never needs this.
   liveDocument?: () => MaterialGraphDocument;
 }
 
@@ -145,13 +145,6 @@ function resolveProfiles(render: DemoRenderOptions = {}): ResolvedProfile[] {
 }
 
 export interface ExportApi {
-  saveChannelToBake(channel: PbrSocket, size?: number, doc?: MaterialGraphDocument): Promise<void>;
-  downloadChannelPng(
-    channel: PbrSocket,
-    filename: string,
-    size?: number,
-    doc?: MaterialGraphDocument,
-  ): Promise<void>;
   exportTextureZip(options: {
     channels: PbrSocket[];
     filename?: string;
@@ -184,8 +177,8 @@ export function isValidDocument(doc: unknown): doc is MaterialGraphDocument {
 // non-persisting controller (exportGraph), so inspecting or exporting a channel never reads, mutates,
 // or persists any on-screen material. Bound once to the renderer + registry it renders against.
 export function createExport({ renderer, registry, liveDocument }: ExportDeps): ExportApi {
-  // The live document to fall back on for saveChannelToBake/downloadChannelPng (throws if the caller wired
-  // no liveDocument — only relevant to the app, which always provides one).
+  // The live document `exportTextureZip` falls back on when called without an explicit doc (throws if the
+  // caller wired no liveDocument — only relevant to the app, which always provides one).
   function liveDoc(): MaterialGraphDocument {
     if (!liveDocument) throw new Error("createExport: no liveDocument provided for the default doc");
     return structuredClone(liveDocument());
@@ -247,38 +240,6 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     graph.loadDocument(doc, { persist: false });
     if (graph.lastError) console.warn(`[bake] config compiled with error: ${graph.lastError}`);
     return graph;
-  }
-
-  // Bake-to-disk is an ephemeral PREVIEW tool: it compiles the document on a throwaway, non-persisting
-  // controller (exportGraph) so inspecting a channel never reads, mutates, or persists any on-screen
-  // material. `doc` defaults to a clone of the current material graph (loadDocument mutates its input, so the
-  // live doc must never be passed directly); pass any document to bake something off-screen.
-  async function saveChannelToBake(
-    channel: PbrSocket,
-    size = 1024,
-    doc: MaterialGraphDocument = liveDoc(),
-  ): Promise<void> {
-    const image = await bakeService.readImage(exportGraph(doc), channel, size);
-    if (!image) return;
-    const blob = await canvasToPngBlob(imageDataToCanvas(image));
-    if (!blob) return;
-    await postBakeFile(`${channel}.png`, blob);
-  }
-
-  // Bake a channel of a graph (via the service) and trigger a browser download. Replaces the old
-  // ChannelBaker.downloadPng; uses a transient object URL + synthetic anchor (revoked next tick). Like
-  // saveChannelToBake, this is ephemeral — it bakes a throwaway clone, never the live material.
-  async function downloadChannelPng(
-    channel: PbrSocket,
-    filename: string,
-    size = 1024,
-    doc: MaterialGraphDocument = liveDoc(),
-  ): Promise<void> {
-    const image = await bakeService.readImage(exportGraph(doc), channel, size);
-    if (!image) return;
-    const blob = await canvasToPngBlob(imageDataToCanvas(image));
-    if (!blob) return;
-    downloadBlob(blob, filename);
   }
 
   async function exportTextureZip({
@@ -565,8 +526,6 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
   }
 
   return {
-    saveChannelToBake,
-    downloadChannelPng,
     exportTextureZip,
     bakeConfigToBake,
     bakeMaterialTask,

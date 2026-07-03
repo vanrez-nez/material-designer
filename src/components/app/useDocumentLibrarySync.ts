@@ -11,7 +11,10 @@ const AUTOSAVE_DEBOUNCE_MS = 800;
 export function useDocumentLibrarySync(): void {
   useEffect(() => {
     const library = useDocumentLibraryStore.getState();
-    if (!library.activeId) {
+    // Seed the current document as the first library entry on a fresh install — but NOT when the active
+    // document is a transient catalog load (activeId null with a baseline set), which must stay unsaved
+    // until edited.
+    if (!library.activeId && library.transientBaseline === null) {
       library.saveActive(useWorkspaceStore.getState().materialDocument);
     }
 
@@ -25,7 +28,10 @@ export function useDocumentLibrarySync(): void {
 
       clearTimeout(timer);
       timer = setTimeout(() => {
-        useDocumentLibraryStore.getState().saveActive(useWorkspaceStore.getState().materialDocument);
+        const workspace = useWorkspaceStore.getState();
+        useDocumentLibraryStore
+          .getState()
+          .autosaveActive(workspace.materialDocument, workspace.materialGraphRevision);
       }, AUTOSAVE_DEBOUNCE_MS);
     });
 

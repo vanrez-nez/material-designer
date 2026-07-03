@@ -10,9 +10,6 @@ import { buildMaterialEditorConfig } from "@/editor/panes/graph/material-editor-
 import { bakeService } from "@/runtime";
 import { countGraphNodes } from "@/runtime";
 import { BakeProgressWidget } from "./bake-progress-widget";
-import { MATERIAL_PRESETS, makePreset, DEFAULT_PRESET } from "@/presets";
-import type { PbrSocket } from "@/runtime";
-import type { ExportApi } from "./export";
 
 export interface RendererConfig {
   antialias: boolean;
@@ -45,7 +42,6 @@ export interface TweakpaneDeps {
   mainScene: MainScene;
   rendererConfig: RendererConfig;
   resize: () => void;
-  exporter: ExportApi;
 }
 
 export interface TweakpaneHandles {
@@ -54,15 +50,6 @@ export interface TweakpaneHandles {
   paneElement: HTMLElement;
   rebuildEditor: () => void;
 }
-
-type PreviewChannel = "basecolor" | "normal" | "ao" | "roughness";
-
-const PREVIEW_SOCKET: Record<PreviewChannel, PbrSocket> = {
-  basecolor: "baseColor",
-  normal: "normal",
-  ao: "ambientOcclusion",
-  roughness: "roughness",
-};
 
 function mergeSetting<T extends Record<string, unknown>>(
   settings: Record<string, unknown>,
@@ -84,7 +71,6 @@ export function setupTweakpane({
   mainScene,
   rendererConfig,
   resize,
-  exporter,
 }: TweakpaneDeps): TweakpaneHandles {
   const saveRendererConfig = (): void =>
     localStorage.setItem(RENDERER_CONFIG_KEY, JSON.stringify(rendererConfig));
@@ -97,8 +83,6 @@ export function setupTweakpane({
   const stats = pane.addBlade({ view: "stats" }) as StatsBladeApi;
 
   const materialState = mergeSetting(savedSettings, "materialState", {
-    backend: "offline" as "live" | "offline",
-    preset: DEFAULT_PRESET,
     debugNormals: false,
   });
   const projectionState = mergeSetting(savedSettings, "projectionState", {
@@ -203,7 +187,6 @@ export function setupTweakpane({
   }
 
   function applyDocumentSettings(): void {
-    mainScene.materialSurface.setBackend(materialState.backend);
     mainScene.materialSurface.setNormalDebug(materialState.debugNormals);
     mainScene.setDemoTiling(projectionState.tiling);
     mainScene.materialSurface.setTriplanar(projectionState.triplanar);
@@ -232,21 +215,8 @@ export function setupTweakpane({
   function buildMaterialControls(container: ContainerApi): void {
     const folder = container.addFolder({ title: "Graph", expanded: true });
     folder
-      .addBinding(materialState, "preset", {
-        label: "preset",
-        options: Object.fromEntries(MATERIAL_PRESETS.map((p) => [p.label, p.key])),
-      })
-      .on("change", (event) => {
-        mainScene.materialController.loadDocument(makePreset(event.value));
-        rebuildEditor();
-      });
-    folder
-      .addBinding(materialState, "backend", { options: { Offline: "offline", Live: "live" } })
-      .on("change", (event) => mainScene.materialSurface.setBackend(event.value));
-    folder
       .addBinding(materialState, "debugNormals", { label: "debug normals" })
       .on("change", (event) => mainScene.materialSurface.setNormalDebug(event.value));
-    folder.addButton({ title: "Refresh graph" }).on("click", () => rebuildEditor());
 
     const projection = container.addFolder({ title: "Projection", expanded: true });
     projection
@@ -300,24 +270,6 @@ export function setupTweakpane({
     const irid = surface.addFolder({ title: "Iridescence", expanded: false });
     irid.addBinding(surfaceMaterialState, "iridescence", { label: "weight", min: 0, max: 1, step: 0.01 }).on("change", onSurface);
     irid.addBinding(surfaceMaterialState, "iridescenceIOR", { label: "IOR", min: 1, max: 2.5, step: 0.01 }).on("change", onSurface);
-  }
-
-  function buildExportControls(container: ContainerApi): void {
-    const folder = container.addFolder({ title: "Export PNG", expanded: false });
-    for (const channel of ["basecolor", "normal", "ao", "roughness"] as const) {
-      folder.addButton({ title: `Export ${channel}` }).on("click", () => {
-        void exporter.downloadChannelPng(PREVIEW_SOCKET[channel], `material-${channel}.png`);
-      });
-    }
-
-    if (import.meta.env.DEV) {
-      const bakeFolder = container.addFolder({ title: "Bake to ./bake", expanded: false });
-      for (const channel of ["basecolor", "normal", "ao", "roughness"] as const) {
-        bakeFolder
-          .addButton({ title: `Save ${channel}` })
-          .on("click", () => void exporter.saveChannelToBake(PREVIEW_SOCKET[channel]));
-      }
-    }
   }
 
   function buildSceneControls(container: ContainerApi): void {
@@ -387,7 +339,6 @@ export function setupTweakpane({
 
   buildMaterialControls(pane);
   buildSurfaceControls(pane);
-  buildExportControls(pane);
   buildSceneControls(pane);
   buildRenderControls(pane);
   pane.on("change", () => saveDocumentSettings());

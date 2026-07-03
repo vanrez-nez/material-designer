@@ -30,7 +30,6 @@ export function installBakeDevHandles({ mainScene, exporter }: BakeDevHandleDeps
       readImageData: (_r: unknown, graph: MaterialGraphController, ch: PbrSocket, size?: number) =>
         bakeService.readImage(graph, ch, size),
     },
-    __savePng: exporter.saveChannelToBake,
     __bakeConfig: exporter.bakeConfigToBake,
     __bakeMaterialTask: exporter.bakeMaterialTask,
     // Tiling test for every Tileable Noise type: bakes each, scores the wrap-edge seam, console.tables a

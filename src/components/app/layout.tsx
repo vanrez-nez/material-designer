@@ -1,11 +1,13 @@
 import { useState } from "react";
 
 import { DocumentExportDialog } from "@/components/app/dialogs/DocumentExportDialog";
+import { FromCatalogDialog } from "@/components/app/dialogs/FromCatalogDialog";
 import { OpenDocumentDialog } from "@/components/app/dialogs/OpenDocumentDialog";
 import { TextureExportDialog } from "@/components/app/dialogs/TextureExportDialog";
 import { DocumentTitle } from "@/components/app/DocumentTitle";
 import { useDocumentLibrarySync } from "@/components/app/useDocumentLibrarySync";
-import { newDocument, openDocument } from "@/store/document-actions";
+import { newDocument, openCatalogMaterial, openDocument } from "@/store/document-actions";
+import { makePreset } from "@/presets";
 import { AppMenu } from "@/components/app/menu/AppMenu";
 import { LayoutToolbar } from "@/editor/panes/common/LayoutToolbar";
 import { WorkspaceLayout } from "@/editor/panes/common/WorkspaceLayout";
@@ -20,6 +22,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
   const [isDocumentExportOpen, setIsDocumentExportOpen] = useState(false);
   const [isTextureExportOpen, setIsTextureExportOpen] = useState(false);
   const [isOpenDocumentOpen, setIsOpenDocumentOpen] = useState(false);
+  const [isFromCatalogOpen, setIsFromCatalogOpen] = useState(false);
 
   useDocumentLibrarySync();
 
@@ -32,6 +35,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
             onExportTextures={() => setIsTextureExportOpen(true)}
             onNewDocument={newDocument}
             onOpenDocument={() => setIsOpenDocumentOpen(true)}
+            onOpenCatalog={() => setIsFromCatalogOpen(true)}
           />
           <DocumentTitle onShowAll={() => setIsOpenDocumentOpen(true)} />
           <LayoutToolbar />
@@ -54,6 +58,11 @@ export function Layout({ services }: { services: MaterialAppServices }) {
         open={isOpenDocumentOpen}
         onOpen={openDocument}
         onOpenChange={setIsOpenDocumentOpen}
+      />
+      <FromCatalogDialog
+        open={isFromCatalogOpen}
+        onOpen={(material) => openCatalogMaterial(makePreset(material.preset), material.name)}
+        onOpenChange={setIsFromCatalogOpen}
       />
       <DocumentExportDialog open={isDocumentExportOpen} onOpenChange={setIsDocumentExportOpen} />
       <TextureExportDialog

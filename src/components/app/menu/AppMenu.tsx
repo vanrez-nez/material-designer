@@ -50,6 +50,7 @@ type AppMenuProps = {
   onExportTextures?: () => void;
   onNewDocument?: () => void;
   onOpenDocument?: () => void;
+  onOpenCatalog?: () => void;
 };
 
 export function AppMenu({
@@ -57,6 +58,7 @@ export function AppMenu({
   onExportTextures,
   onNewDocument,
   onOpenDocument,
+  onOpenCatalog,
 }: AppMenuProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [openMenu, setOpenMenu] = useState("");
@@ -173,15 +175,28 @@ export function AppMenu({
               <span>New</span>
               <Shortcut keys={[modifierKeyLabel, "N"]} />
             </MenubarItem>
-            <MenubarItem
-              onSelect={() => {
-                closeMenu();
-                onOpenDocument?.();
-              }}
-            >
-              <span>Open</span>
-              <Shortcut keys={[modifierKeyLabel, "O"]} />
-            </MenubarItem>
+            <MenubarSub>
+              <MenubarSubTrigger>Open</MenubarSubTrigger>
+              <MenubarSubContent>
+                <MenubarItem
+                  onSelect={() => {
+                    closeMenu();
+                    onOpenDocument?.();
+                  }}
+                >
+                  <span>Document</span>
+                  <Shortcut keys={[modifierKeyLabel, "O"]} />
+                </MenubarItem>
+                <MenubarItem
+                  onSelect={() => {
+                    closeMenu();
+                    onOpenCatalog?.();
+                  }}
+                >
+                  <span>From Catalog</span>
+                </MenubarItem>
+              </MenubarSubContent>
+            </MenubarSub>
             <MenubarSeparator />
             <MenubarSub>
               <MenubarSubTrigger>Export</MenubarSubTrigger>
