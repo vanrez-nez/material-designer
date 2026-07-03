@@ -31,9 +31,9 @@
   box-shadow: none;
 }
 
-.ne-panel--embedded .ne-dock,
-.ne-panel--embedded .ne-layout,
-.ne-panel--embedded .ne-header__close,
+/* Embedded in a workspace pane: the pane owns the chrome. The inner header (breadcrumb + dock + layout
+   + close) is dropped entirely — the breadcrumb is surfaced in the pane title instead. */
+.ne-panel--embedded .ne-header,
 .ne-panel--embedded .ne-resize {
   display: none;
 }

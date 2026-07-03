@@ -3,6 +3,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+import appPkg from "./package.json" with { type: "json" };
+import runtimePkg from "./src/runtime/package.json" with { type: "json" };
+
 const threeRoot = fileURLToPath(new URL("./node_modules/three", import.meta.url));
 const threeModule = fileURLToPath(new URL("./node_modules/three/build/three.module.js", import.meta.url));
 const threeWebgpu = fileURLToPath(new URL("./node_modules/three/build/three.webgpu.js", import.meta.url));
@@ -14,6 +17,10 @@ export default defineConfig({
   // subpath (…/material-designer/). All asset URLs become relative to index.html; runtime asset paths
   // use import.meta.env.BASE_URL.
   base: "./",
+  define: {
+    __APP_VERSION__: JSON.stringify(appPkg.version),
+    __RUNTIME_VERSION__: JSON.stringify(runtimePkg.version),
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: [

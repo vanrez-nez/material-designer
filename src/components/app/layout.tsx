@@ -5,6 +5,7 @@ import { FromCatalogDialog } from "@/components/app/dialogs/FromCatalogDialog";
 import { OpenDocumentDialog } from "@/components/app/dialogs/OpenDocumentDialog";
 import { TextureExportDialog } from "@/components/app/dialogs/TextureExportDialog";
 import { DocumentTitle } from "@/components/app/DocumentTitle";
+import { StatusBar } from "@/components/app/StatusBar";
 import { useDocumentLibrarySync } from "@/components/app/useDocumentLibrarySync";
 import { newDocument, openCatalogMaterial, openDocument } from "@/store/document-actions";
 import { makePreset } from "@/presets";
@@ -12,6 +13,7 @@ import { AppMenu } from "@/components/app/menu/AppMenu";
 import { LayoutToolbar } from "@/editor/panes/common/LayoutToolbar";
 import { WorkspaceLayout } from "@/editor/panes/common/WorkspaceLayout";
 import { GraphPane } from "@/editor/panes/graph/GraphPane";
+import { GraphPaneTitle } from "@/editor/panes/graph/GraphPaneTitle";
 import { GraphPaneToolbar } from "@/editor/panes/graph/GraphPaneToolbar";
 import { PreviewPane } from "@/editor/panes/preview/PreviewPane";
 import { TexturePreviewPane } from "@/editor/panes/textures/TexturePreviewPane";
@@ -47,12 +49,16 @@ export function Layout({ services }: { services: MaterialAppServices }) {
               scene: <PreviewPane />,
               "texture-preview": <TexturePreviewPane services={services} />,
             }}
+            titles={{
+              graph: <GraphPaneTitle />,
+            }}
             toolbars={{
               graph: <GraphPaneToolbar />,
               "texture-preview": <TexturePreviewPaneToolbar />,
             }}
           />
         </main>
+        <StatusBar />
       </div>
       <OpenDocumentDialog
         open={isOpenDocumentOpen}

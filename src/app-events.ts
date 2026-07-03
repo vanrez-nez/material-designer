@@ -5,8 +5,13 @@ export const MATERIAL_GRAPH_REBUILD_EVENT = "material-designer:graph-rebuild";
 export const MATERIAL_GRAPH_PANE_MOUNT_EVENT = "material-designer:graph-pane-mount";
 export const MATERIAL_PREVIEW_PANE_MOUNT_EVENT = "material-designer:preview-pane-mount";
 export const GRAPH_AUTO_LAYOUT_EVENT = "material-designer:graph-auto-layout";
+export const GRAPH_NAVIGATE_EVENT = "material-designer:graph-navigate";
 
 export type GraphLayoutArrangement = "down" | "right" | "up" | "left";
+
+// Exit the group-navigation trail to the given depth (0 = root). Bridges the React pane-title
+// breadcrumb to the vanilla graph editor's group navigation.
+export type GraphNavigateEvent = CustomEvent<{ depth: number }>;
 
 export type MaterialDocumentLoadEvent = CustomEvent<{
   document: MaterialGraphDocument;
@@ -40,6 +45,10 @@ export function dispatchGraphAutoLayout(arrangement: GraphLayoutArrangement): vo
       detail: { arrangement },
     }),
   );
+}
+
+export function dispatchGraphNavigate(depth: number): void {
+  window.dispatchEvent(new CustomEvent(GRAPH_NAVIGATE_EVENT, { detail: { depth } }));
 }
 
 export function dispatchMaterialGraphPaneMount(graphHost: HTMLDivElement): void {

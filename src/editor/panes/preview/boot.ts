@@ -9,10 +9,12 @@ import { installBakeDevHandles } from "@/debug/bake-setup";
 import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
 import type { MaterialAppServices } from "@/components/app/services";
 import {
+  GRAPH_NAVIGATE_EVENT,
   MATERIAL_DOCUMENT_LOAD_EVENT,
   MATERIAL_GRAPH_PANE_MOUNT_EVENT,
   MATERIAL_GRAPH_REBUILD_EVENT,
   MATERIAL_PREVIEW_PANE_MOUNT_EVENT,
+  type GraphNavigateEvent,
   type MaterialDocumentLoadEvent,
   type MaterialGraphPaneMountEvent,
   type MaterialPreviewPaneMountEvent,
@@ -113,6 +115,12 @@ window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
 });
 
 window.addEventListener(MATERIAL_GRAPH_REBUILD_EVENT, () => {
+  rebuildEditor();
+});
+
+// Group-navigation from the React pane-title breadcrumb: exit the trail to the requested depth.
+window.addEventListener(GRAPH_NAVIGATE_EVENT, (event) => {
+  mainScene.materialController.exitToDepth((event as GraphNavigateEvent).detail.depth);
   rebuildEditor();
 });
 

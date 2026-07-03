@@ -16,6 +16,7 @@ import {
 
 type PaneRegistry = Record<WorkspacePaneId, ReactNode>;
 type PaneToolbarRegistry = Partial<Record<WorkspacePaneId, ReactNode>>;
+type PaneTitleRegistry = Partial<Record<WorkspacePaneId, ReactNode>>;
 
 const paneTitle: Record<WorkspacePaneId, string> = {
   graph: "Graph",
@@ -26,9 +27,11 @@ const paneTitle: Record<WorkspacePaneId, string> = {
 export function WorkspaceLayout({
   panes,
   toolbars = {},
+  titles = {},
 }: {
   panes: PaneRegistry;
   toolbars?: PaneToolbarRegistry;
+  titles?: PaneTitleRegistry;
 }) {
   const layoutTree = useWorkspaceStore((state) => state.layoutTree);
   const maximizedPaneId = useWorkspaceStore((state) => state.maximizedPaneId);
@@ -39,7 +42,7 @@ export function WorkspaceLayout({
       className={cn("workspace-layout", maximizedPaneId && "workspace-layout--maximized")}
       data-maximized-pane={maximizedPaneId ?? undefined}
     >
-      {renderLayoutNode(layoutTree, panes, toolbars, visiblePanes)}
+      {renderLayoutNode(layoutTree, panes, toolbars, titles, visiblePanes)}
     </div>
   );
 }
@@ -48,13 +51,14 @@ function renderLayoutNode(
   node: WorkspaceLayoutNode,
   panes: PaneRegistry,
   toolbars: PaneToolbarRegistry,
+  titles: PaneTitleRegistry,
   visiblePanes: Record<WorkspacePaneId, boolean>,
 ): ReactNode {
   if (node.type === "pane") {
     if (!visiblePanes[node.paneId]) return null;
 
     return (
-      <PaneFrame paneId={node.paneId} toolbar={toolbars[node.paneId]}>
+      <PaneFrame paneId={node.paneId} title={titles[node.paneId]} toolbar={toolbars[node.paneId]}>
         {panes[node.paneId]}
       </PaneFrame>
     );
@@ -64,7 +68,7 @@ function renderLayoutNode(
 
   if (visibleChildren.length === 0) return null;
   if (visibleChildren.length === 1) {
-    return renderLayoutNode(visibleChildren[0], panes, toolbars, visiblePanes);
+    return renderLayoutNode(visibleChildren[0], panes, toolbars, titles, visiblePanes);
   }
 
   return (
@@ -72,6 +76,7 @@ function renderLayoutNode(
       node={node}
       panes={panes}
       toolbars={toolbars}
+      titles={titles}
       visibleChildren={visibleChildren}
       visiblePanes={visiblePanes}
     />
@@ -82,12 +87,14 @@ function SplitNode({
   node,
   panes,
   toolbars,
+  titles,
   visibleChildren,
   visiblePanes,
 }: {
   node: Extract<WorkspaceLayoutNode, { type: "split" }>;
   panes: PaneRegistry;
   toolbars: PaneToolbarRegistry;
+  titles: PaneTitleRegistry;
   visibleChildren: WorkspaceLayoutNode[];
   visiblePanes: Record<WorkspacePaneId, boolean>;
 }) {
@@ -110,6 +117,7 @@ function SplitNode({
           panes={panes}
           size={node.sizes[node.children.indexOf(child)]}
           toolbars={toolbars}
+          titles={titles}
           visiblePanes={visiblePanes}
         />
       ))}
@@ -132,6 +140,7 @@ function FragmentWithHandle({
   panes,
   size,
   toolbars,
+  titles,
   visiblePanes,
 }: {
   child: WorkspaceLayoutNode;
@@ -139,6 +148,7 @@ function FragmentWithHandle({
   panes: PaneRegistry;
   size: number;
   toolbars: PaneToolbarRegistry;
+  titles: PaneTitleRegistry;
   visiblePanes: Record<WorkspacePaneId, boolean>;
 }) {
   return (
@@ -150,7 +160,7 @@ function FragmentWithHandle({
         id={child.id}
         minSize={18}
       >
-        {renderLayoutNode(child, panes, toolbars, visiblePanes)}
+        {renderLayoutNode(child, panes, toolbars, titles, visiblePanes)}
       </ResizablePanel>
     </>
   );
@@ -159,10 +169,12 @@ function FragmentWithHandle({
 function PaneFrame({
   children,
   paneId,
+  title,
   toolbar,
 }: {
   children: ReactNode;
   paneId: WorkspacePaneId;
+  title?: ReactNode;
   toolbar?: ReactNode;
 }) {
   const maximizedPaneId = useWorkspaceStore((state) => state.maximizedPaneId);
@@ -179,7 +191,7 @@ function PaneFrame({
       )}
     >
       <div className="workspace-pane__header">
-        <div className="workspace-pane__title">{paneTitle[paneId]}</div>
+        <div className="workspace-pane__title">{title ?? paneTitle[paneId]}</div>
         <div className="workspace-pane__toolbar">
           {toolbar}
           <Button
