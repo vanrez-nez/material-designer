@@ -1,18 +1,26 @@
-// Regenerates the material catalog into public/catalog/ — both the placeholder thumbnail PNGs and the
-// index (catalog.json) the app fetches at runtime. This script is the single source of truth for the
-// fixture catalog: edit the AUTHORING data below and re-run. No dependencies (a tiny PNG encoder over
-// node:zlib). `nodeCount` is derived from the referenced preset; `textures` is authored here (deriving
-// the connected PBR channels would need the runtime compiler, out of scope for a plain node script).
+// Regenerates the material catalog into public/catalog/ — optimized JPEG thumbnails plus the index
+// (catalog.json) the app fetches at runtime. This script is the single source of truth for the fixture
+// catalog: edit the AUTHORING data below and re-run. `nodeCount` is derived from the referenced preset;
+// `textures` is authored here (deriving the connected PBR channels would need the runtime compiler, out of
+// scope for a plain node script). Uses `sharp` (a dev-only dependency) to resize + JPEG-encode thumbnails;
+// it is not part of the app bundle or the Pages build, which just consume the committed thumbnails.
 //
 // Usage: node scripts/gen-catalog.mjs   (or: npm run catalog)
-import { deflateSync } from "node:zlib";
-import { mkdirSync, writeFileSync, readFileSync, copyFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import sharp from "sharp";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "public", "catalog");
 const SIZE = 256;
+const JPEG_QUALITY = 80;
+
+// Shared JPEG optimization: square cover crop at SIZE, mozjpeg + progressive for the smallest files.
+const toThumbnail = (image) =>
+  image
+    .resize(SIZE, SIZE, { fit: "cover", position: "centre" })
+    .jpeg({ quality: JPEG_QUALITY, mozjpeg: true, progressive: true });
 
 // --- authoring data (edit me, then re-run) -----------------------------------------------------------
 const CATEGORIES = [
@@ -76,44 +84,6 @@ function renderPixels(id) {
   return buf;
 }
 
-// --- minimal PNG encoder (RGBA, no interlace) --------------------------------------------------------
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c >>> 0;
-  }
-  return t;
-})();
-function crc32(buf) {
-  let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-function chunk(type, data) {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length, 0);
-  const typeBuf = Buffer.from(type, "ascii");
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-  return Buffer.concat([len, typeBuf, data, crc]);
-}
-function encodePng(rgba, size) {
-  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // colour type RGBA
-  const raw = Buffer.alloc(size * (size * 4 + 1));
-  for (let y = 0; y < size; y++) {
-    raw[y * (size * 4 + 1)] = 0; // filter: none
-    rgba.copy(raw, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4);
-  }
-  return Buffer.concat([sig, chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
-}
-
 function countNodes(doc) {
   let n = 0;
   for (const node of doc.nodes ?? []) {
@@ -125,41 +95,47 @@ function countNodes(doc) {
 
 // --- generate ----------------------------------------------------------------------------------------
 // Thumbnails prefer the material's rendered preview (the lit sphere/plane produced by the bake pipeline:
-// bake/<preset>/renders/standard.png, via `npm run bake:server` + bakeMaterialTask). Materials without a
-// render fall back to a deterministic gradient placeholder.
+// bake/<preset>/renders/standard.png, via `npm run bake:server` + bakeMaterialTask), resized + optimized
+// to a JPEG. Materials without a render fall back to a deterministic gradient placeholder.
 mkdirSync(outDir, { recursive: true });
 
-const materials = MATERIALS.map((material) => {
-  const render = join(root, "bake", material.preset, "renders", "standard.png");
-  const dest = join(outDir, `${material.id}.png`);
-  let thumbSource;
-  if (existsSync(render)) {
-    copyFileSync(render, dest);
-    thumbSource = "render";
-  } else {
-    writeFileSync(dest, encodePng(renderPixels(material.id), SIZE));
-    thumbSource = "placeholder";
-  }
+const materials = await Promise.all(
+  MATERIALS.map(async (material) => {
+    const render = join(root, "bake", material.preset, "renders", "standard.png");
+    const dest = join(outDir, `${material.id}.jpg`);
+    let thumbSource;
+    if (existsSync(render)) {
+      await toThumbnail(sharp(render)).toFile(dest);
+      thumbSource = "render";
+    } else {
+      await toThumbnail(
+        sharp(renderPixels(material.id), { raw: { width: SIZE, height: SIZE, channels: 4 } }),
+      ).toFile(dest);
+      thumbSource = "placeholder";
+    }
+    // Drop the legacy PNG thumbnail so stale copies don't linger next to the new JPEG.
+    rmSync(join(outDir, `${material.id}.png`), { force: true });
 
-  let nodeCount = 0;
-  try {
-    nodeCount = countNodes(JSON.parse(readFileSync(join(root, "src", "presets", `${material.preset}.json`), "utf8")));
-  } catch {
-    console.warn(`[catalog] preset not found for "${material.id}" (${material.preset}) — nodeCount 0`);
-  }
-  return {
-    entry: {
-      id: material.id,
-      name: material.name,
-      category: material.category,
-      preset: material.preset,
-      thumbnail: `catalog/${material.id}.png`,
-      nodeCount,
-      textures: material.textures,
-    },
-    thumbSource,
-  };
-});
+    let nodeCount = 0;
+    try {
+      nodeCount = countNodes(JSON.parse(readFileSync(join(root, "src", "presets", `${material.preset}.json`), "utf8")));
+    } catch {
+      console.warn(`[catalog] preset not found for "${material.id}" (${material.preset}) — nodeCount 0`);
+    }
+    return {
+      entry: {
+        id: material.id,
+        name: material.name,
+        category: material.category,
+        preset: material.preset,
+        thumbnail: `catalog/${material.id}.jpg`,
+        nodeCount,
+        textures: material.textures,
+      },
+      thumbSource,
+    };
+  }),
+);
 
 writeFileSync(
   join(outDir, "catalog.json"),
