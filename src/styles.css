@@ -469,9 +469,10 @@ body {
 .workspace-layout-controls {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex: none;
   justify-self: end;
+  margin-right: 4px;
 }
 
 /* Centered, editable document title (its own component — the menu/toolbar are just placeholders). */

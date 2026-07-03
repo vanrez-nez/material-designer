@@ -29,7 +29,8 @@ export function LayoutToolbar() {
           <Button
             key={preset}
             aria-label={presetLabels[preset]}
-            size="icon"
+            className="size-7"
+            size="icon-sm"
             title={presetLabels[preset]}
             variant={layoutPreset === preset && !maximizedPaneId ? "default" : "ghost"}
             onClick={() => setLayoutPreset(preset)}
@@ -41,7 +42,8 @@ export function LayoutToolbar() {
       {maximizedPaneId ? (
         <Button
           aria-label="Restore panes"
-          size="icon"
+          className="size-7"
+          size="icon-sm"
           title="Restore panes"
           variant="secondary"
           onClick={restoreWorkspaceLayout}

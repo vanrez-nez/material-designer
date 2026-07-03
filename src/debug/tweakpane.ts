@@ -213,12 +213,12 @@ export function setupTweakpane({
   }
 
   function buildMaterialControls(container: ContainerApi): void {
-    const folder = container.addFolder({ title: "Graph", expanded: true });
+    const folder = container.addFolder({ title: "Graph", expanded: false });
     folder
       .addBinding(materialState, "debugNormals", { label: "debug normals" })
       .on("change", (event) => mainScene.materialSurface.setNormalDebug(event.value));
 
-    const projection = container.addFolder({ title: "Projection", expanded: true });
+    const projection = container.addFolder({ title: "Projection", expanded: false });
     projection
       .addBinding(projectionState, "tiling", { min: 0.25, max: 8, step: 0.25 })
       .on("change", (event) => mainScene.setDemoTiling(event.value));
