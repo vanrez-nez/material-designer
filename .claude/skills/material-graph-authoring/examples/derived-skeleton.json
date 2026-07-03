@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "metadata": { "title": "Derived skeleton — one field fans into every channel" },
+  "nodes": [
+    { "id": "noise", "type": "tileable-noise", "params": { "noiseType": "perlin-fbm", "scale": 8, "octaves": 5, "gain": 0.5, "tileSize": "256" }, "enabled": true },
+    { "id": "ramp",  "type": "color-ramp",     "params": { "colorA": "#2a2320", "colorB": "#b8a890", "low": 0.30, "high": 0.78 }, "enabled": true },
+    { "id": "rough", "type": "levels",         "params": { "min": 0.45, "max": 0.85, "invert": true }, "enabled": true },
+    { "id": "nfh",   "type": "normal-from-height", "params": { "strength": 0.35 }, "enabled": true },
+    { "id": "pr",    "type": "principled-bsdf", "params": { "metallic": 0, "roughness": 0.6 }, "enabled": true },
+    { "id": "out",   "type": "material-output", "params": { "outputResolution": "1024" }, "enabled": true }
+  ],
+  "edges": [
+    { "fromNode": "noise", "fromOutput": "field", "toNode": "ramp",  "toInput": "field" },
+    { "fromNode": "noise", "fromOutput": "field", "toNode": "rough", "toInput": "field" },
+    { "fromNode": "noise", "fromOutput": "field", "toNode": "nfh",   "toInput": "height" },
+    { "fromNode": "noise", "fromOutput": "field", "toNode": "pr",    "toInput": "height" },
+    { "fromNode": "ramp",  "fromOutput": "color",  "toNode": "pr",   "toInput": "baseColor" },
+    { "fromNode": "rough", "fromOutput": "field",  "toNode": "pr",   "toInput": "roughness" },
+    { "fromNode": "nfh",   "fromOutput": "normal", "toNode": "pr",   "toInput": "normal" },
+    { "fromNode": "pr",    "fromOutput": "bsdf",   "toNode": "out",  "toInput": "surface" }
+  ]
+}
