@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/primitives/dialog";
 import { cn } from "@/lib/utils";
 import {
-  catalog,
   categoryCounts,
+  loadCatalog,
   materialsInCategory,
+  type Catalog,
   type CatalogMaterial,
 } from "@/catalog/catalog";
 
@@ -25,18 +26,35 @@ type FromCatalogDialogProps = {
 };
 
 export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDialogProps) {
-  const counts = useMemo(() => categoryCounts(), []);
-  const [categoryId, setCategoryId] = useState(() => catalog.categories[0]?.id ?? "");
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [categoryId, setCategoryId] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const materials = useMemo(() => materialsInCategory(categoryId), [categoryId]);
-  const selected = selectedId ? catalog.materials.find((m) => m.id === selectedId) ?? null : null;
+  const counts = useMemo(() => (catalog ? categoryCounts(catalog) : {}), [catalog]);
+  const materials = useMemo(
+    () => (catalog ? materialsInCategory(catalog, categoryId) : []),
+    [catalog, categoryId],
+  );
+  const selected = selectedId ? catalog?.materials.find((m) => m.id === selectedId) ?? null : null;
 
+  // Load the catalog (public/catalog/catalog.json) the first time the dialog opens; the loader caches it.
+  useEffect(() => {
+    if (!open || catalog) return;
+    let cancelled = false;
+    void loadCatalog().then((loaded) => {
+      if (!cancelled) setCatalog(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, catalog]);
+
+  // Reset the selection (and default the category) whenever the dialog opens or the catalog arrives.
   useEffect(() => {
     if (!open) return;
-    setCategoryId(catalog.categories[0]?.id ?? "");
+    setCategoryId(catalog?.categories[0]?.id ?? "");
     setSelectedId(null);
-  }, [open]);
+  }, [open, catalog]);
 
   function handleOpen(): void {
     if (!selected) return;
@@ -55,7 +73,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
         <div className="flex h-[60vh] gap-4">
           {/* Left column: category sidebar. */}
           <div className="w-48 shrink-0 overflow-y-auto rounded-md border p-1">
-            {catalog.categories.map((category) => (
+            {(catalog?.categories ?? []).map((category) => (
               <button
                 key={category.id}
                 type="button"
@@ -73,6 +91,9 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
 
           {/* Right column: thumbnail grid for the selected category. */}
           <div className="min-w-0 flex-1 overflow-y-auto rounded-md border p-3">
+            {!catalog ? (
+              <p className="text-sm text-muted-foreground">Loading catalog…</p>
+            ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
               {materials.map((material) => (
                 <button
@@ -95,6 +116,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
                 </button>
               ))}
             </div>
+            )}
           </div>
         </div>
 
