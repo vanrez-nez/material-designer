@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Material Designer Runtime — demo</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f17; }
+      #app { position: fixed; inset: 0; }
+      .toolbar {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 10;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        max-width: calc(100vw - 24px);
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(13, 17, 23, 0.85);
+        color: #e6edf3;
+        font-family: system-ui, sans-serif;
+        font-size: 12px;
+      }
+      .toolbar .group { display: flex; gap: 6px; align-items: center; }
+      .toolbar .label { color: #8b949e; }
+      .toolbar button, .toolbar select {
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 4px 10px;
+        cursor: pointer;
+        font: inherit;
+      }
+      .toolbar button[data-active="true"] { background: #1f6feb; border-color: #1f6feb; }
+      .toolbar .sep { width: 1px; height: 18px; background: #30363d; }
+      .toolbar input[type="range"] { width: 110px; }
+      #scale-group[hidden] { display: none; }
+      #status { color: #f0b429; min-width: 5rem; }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <div class="group">
+        <span class="label">Material</span>
+        <select id="sample" aria-label="Sample material"></select>
+      </div>
+      <span class="sep"></span>
+      <div class="group">
+        <span class="label">Shape</span>
+        <button id="geo-sphere" data-active="true" type="button">Sphere</button>
+        <button id="geo-box" type="button">Box</button>
+        <button id="geo-plane" type="button">Plane</button>
+      </div>
+      <span class="sep"></span>
+      <div class="group">
+        <span class="label">Res</span>
+        <select id="resolution" aria-label="Output resolution">
+          <option value="512">512</option>
+          <option value="1024" selected>1024</option>
+          <option value="2048">2048</option>
+        </select>
+      </div>
+      <span class="sep"></span>
+      <div class="group" id="scale-group" hidden>
+        <span class="label">Scale</span>
+        <input id="scale" type="range" min="1" max="64" step="1" value="8" aria-label="Noise scale" />
+      </div>
+      <span class="sep"></span>
+      <div class="group">
+        <button id="load" type="button">Load .json…</button>
+        <input id="load-input" type="file" accept=".json,application/json" hidden />
+      </div>
+      <span id="status"></span>
+    </div>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
