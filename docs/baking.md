@@ -23,7 +23,6 @@ Contents:
   - [Output layout](#output-layout)
 - [Dev-console handles](#dev-console-handles)
 - [Batch preset generation with an agent](#batch-preset-generation-with-an-agent)
-- [Dual-system testing (ours vs Blender)](#dual-system-testing-ours-vs-blender)
 
 ---
 
@@ -38,8 +37,6 @@ under `<repo>/bake/`.
 | `POST /export-bake` | Submit a bake job (see below). Held open until the worker reports a result (~180 s timeout). |
 | `GET /export-bake/stream` | SSE stream the `/export-bake` worker tab connects to (internal). |
 | `POST /export-bake/result` | Worker reports a finished job (internal). |
-| `GET /` or `/compare` | HTML gallery comparing `bake/<name>/*.ours.png` against `external/renders/<name>.png`. |
-| `GET /img?path=<rel>` | Serve a file under `bake/` or `external/renders/`. |
 
 ---
 
@@ -157,7 +154,6 @@ material graph** (or an explicit document) and POST to the same bake server.
 | Handle | Signature | Writes |
 |---|---|---|
 | `__savePng(channel, size?)` | bake one channel of the live material graph | `bake/<channel>.png` |
-| `__bakeConfig(doc, name?, size?)` | bake every connected channel of a document | `bake/<name>/config.json` + `bake/<name>/<channel>.ours.png` |
 | `__bakeMaterialTask(doc, folder, size?, channels?, render?)` | full task: preset + channels + tiled proof + profile renders | `bake/<folder>/…` (see [output layout](#output-layout)) |
 | `__baker.readImageData(_renderer, controller, channel, size?)` | low-level: returns `ImageData` for a channel | — |
 | `__tilingTest(size?)` | bake every Tileable Noise type, score the wrap seam, console.table a summary | `bake/tiling-<type>.png` |
@@ -225,41 +221,3 @@ The runner verifies these exist under `bake/materials/<catalog-relative-path>/`:
 `channels/{baseColor,roughness,normal,metallic,ambientOcclusion}.png`, `renders/tiled-2x2.png`, and
 `renders/{standard,normals,metallic,ao}.png`. Logs + JSONL summaries land under
 `bake/_material-agent-runs/`.
-
----
-
-## Dual-system testing (ours vs Blender)
-
-While porting Blender's node math (see `blender-node-alignment-plan.md`), a single JSON config — a
-`MaterialGraphDocument` — drives **both** systems, with outputs side by side in `bake/<name>/`:
-
-```txt
-bake/noise/
-  config.json
-  baseColor.ours.png    baseColor.blender.png
-  roughness.ours.png    roughness.blender.png
-```
-
-Configs live in `configs/` (e.g. `configs/noise.json`). Outputs are **not** expected to match
-pixel-for-pixel — our TSL noise and Blender's Perlin/Worley differ by construction; this checks
-structure/behavior as the faithful ports land.
-
-**1. Our side** (browser/WebGPU) — dev + bake servers running, in the app console:
-
-```js
-const cfg = await (await fetch('/configs/noise.json')).json();
-await __bakeConfig(cfg, 'noise', 1024); // → bake/noise/config.json + bake/noise/<channel>.ours.png
-```
-
-**2. Blender side** (headless reference) — in a terminal:
-
-```sh
-npm run bake:blender -- configs/noise.json
-# → bake/noise/<channel>.blender.png  (and a copy of config.json)
-```
-
-`scripts/blender-bake.mjs` spawns Blender (`$BLENDER`, else the standard macOS app path) running
-`scripts/blender_bake.py`, which rebuilds the graph as a Blender shader tree and EMIT-bakes each connected
-PBR channel. Unmapped node types **error loudly** — add a builder to `NODE_BUILDERS` in `blender_bake.py`
-to support a new node. Color management uses the `Standard` view transform; expect a brightness offset on
-color channels vs our raw render-target bytes (structure is preserved).
