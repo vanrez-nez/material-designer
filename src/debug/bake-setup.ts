@@ -185,12 +185,17 @@ async function runPresetOneShot(
 export async function runExportBake(): Promise<void> {
   const log = createStatusLog();
 
-  // The bake needs a canvas-backed WebGPU renderer (init is async on WebGPU). Reuse the .scene canvas from
-  // index.html; nothing is drawn to it — channel bakes render to the service's scratch targets.
-  const canvas = document.querySelector<HTMLCanvasElement>(".scene");
+  // This route boots alone (no app, no MainScene), so the app's dynamically-created `.scene` canvas and the
+  // index.html splash overlay are both irrelevant here. Get the splash out of the way, then provide our own
+  // canvas: the bake needs a canvas-backed WebGPU renderer (init is async on WebGPU), but nothing is drawn to
+  // it — channel bakes render to the service's scratch targets.
+  document.getElementById("splash")?.classList.add("is-hidden");
+  let canvas = document.querySelector<HTMLCanvasElement>(".scene");
   if (!canvas) {
-    log("Missing .scene canvas — cannot create a renderer.");
-    return;
+    canvas = document.createElement("canvas");
+    canvas.className = "scene";
+    canvas.style.display = "none";
+    document.body.appendChild(canvas);
   }
   const renderer = new WebGPURenderer({ canvas, antialias: false });
   await renderer.init();

@@ -9,6 +9,7 @@ import asphaltDoc from "./asphalt.json";
 import barkDoc from "./bark.json";
 import parquetDoc from "./parquet.json";
 import chineseHackberryBarkDoc from "./chinese-hackberry-bark.json";
+import barkWillowDoc from "./bark_willow.json";
 import rockDoc from "./rock.json";
 import crackedClayDoc from "./cracked-clay.json";
 import tileTestDoc from "./tile-test.json";
@@ -32,6 +33,7 @@ export const MATERIAL_PRESETS: Preset[] = [
   { key: "bark", label: "Bark", doc: barkDoc as MaterialGraphDocument },
   { key: "parquet", label: "Parquet", doc: parquetDoc as MaterialGraphDocument },
   { key: "chinese-hackberry-bark", label: "Chinese Hackberry Bark", doc: chineseHackberryBarkDoc as MaterialGraphDocument },
+  { key: "bark-willow", label: "Bark Willow", doc: barkWillowDoc as MaterialGraphDocument },
   { key: "rock", label: "Rock", doc: rockDoc as MaterialGraphDocument },
   { key: "cracked-clay", label: "Cracked Clay", doc: crackedClayDoc as MaterialGraphDocument },
   { key: "tile-test", label: "Tile Test", doc: tileTestDoc as MaterialGraphDocument },
