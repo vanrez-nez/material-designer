@@ -1,0 +1,179 @@
+{
+  "categories": [
+    {
+      "id": "ground",
+      "label": "Ground"
+    },
+    {
+      "id": "metal",
+      "label": "Metal"
+    },
+    {
+      "id": "wood",
+      "label": "Wood"
+    },
+    {
+      "id": "tile",
+      "label": "Tile"
+    }
+  ],
+  "materials": [
+    {
+      "id": "cracked-clay",
+      "name": "Cracked Clay",
+      "category": "ground",
+      "preset": "cracked-clay",
+      "thumbnail": "catalog/cracked-clay.png",
+      "nodeCount": 90,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
+      "id": "rock",
+      "name": "Rock",
+      "category": "ground",
+      "preset": "rock",
+      "thumbnail": "catalog/rock.png",
+      "nodeCount": 47,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
+      "id": "asphalt",
+      "name": "Asphalt",
+      "category": "ground",
+      "preset": "asphalt",
+      "thumbnail": "catalog/asphalt.png",
+      "nodeCount": 12,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal"
+      ]
+    },
+    {
+      "id": "zinc",
+      "name": "Zinc",
+      "category": "metal",
+      "preset": "zinc",
+      "thumbnail": "catalog/zinc.png",
+      "nodeCount": 7,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Metallic"
+      ]
+    },
+    {
+      "id": "rusty-metal",
+      "name": "Rusty Metal",
+      "category": "metal",
+      "preset": "rusty-metal",
+      "thumbnail": "catalog/rusty-metal.png",
+      "nodeCount": 28,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Metallic",
+        "Normal"
+      ]
+    },
+    {
+      "id": "bark",
+      "name": "Bark",
+      "category": "wood",
+      "preset": "bark",
+      "thumbnail": "catalog/bark.png",
+      "nodeCount": 14,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal"
+      ]
+    },
+    {
+      "id": "wood-planks",
+      "name": "Wood Planks",
+      "category": "wood",
+      "preset": "wood-planks",
+      "thumbnail": "catalog/wood-planks.png",
+      "nodeCount": 15,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal"
+      ]
+    },
+    {
+      "id": "parquet",
+      "name": "Parquet",
+      "category": "wood",
+      "preset": "parquet",
+      "thumbnail": "catalog/parquet.png",
+      "nodeCount": 11,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal"
+      ]
+    },
+    {
+      "id": "chinese-hackberry-bark",
+      "name": "Chinese Hackberry Bark",
+      "category": "wood",
+      "preset": "chinese-hackberry-bark",
+      "thumbnail": "catalog/chinese-hackberry-bark.png",
+      "nodeCount": 19,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
+      "id": "checkers",
+      "name": "Checkers",
+      "category": "tile",
+      "preset": "checkers",
+      "thumbnail": "catalog/checkers.png",
+      "nodeCount": 4,
+      "textures": [
+        "Base Color",
+        "Roughness"
+      ]
+    },
+    {
+      "id": "tile-test",
+      "name": "Tile Test",
+      "category": "tile",
+      "preset": "tile-test",
+      "thumbnail": "catalog/tile-test.png",
+      "nodeCount": 3,
+      "textures": [
+        "Base Color"
+      ]
+    },
+    {
+      "id": "voronoi-cells",
+      "name": "Voronoi Cells",
+      "category": "tile",
+      "preset": "voronoi-cells",
+      "thumbnail": "catalog/voronoi-cells.png",
+      "nodeCount": 9,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal"
+      ]
+    }
+  ]
+}

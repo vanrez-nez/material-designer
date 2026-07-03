@@ -1,3 +1,0 @@
-[submodule "src/runtime"]
-	path = src/runtime
-	url = https://github.com/vanrez-nez/material-designer-runtime.git
