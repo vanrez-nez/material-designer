@@ -5,9 +5,97 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Material Designer</title>
+    <!-- Instant pre-JS splash: paints before any vendor/module JS loads. Kept visually in sync with the
+         React SplashScreen loading state (.splash in styles.css) so the handoff is seamless. -->
+    <style>
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(8, 8, 8, 0.55);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+      }
+      #splash.is-hidden {
+        display: none;
+      }
+      #splash-dialog {
+        position: relative;
+        width: 80%;
+        height: 80%;
+        max-width: 1400px;
+        max-height: 1024px;
+        overflow: hidden;
+        border-radius: 12px;
+        background-color: #0a0a0a;
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+      }
+      #splash-bar {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+      }
+      /* Determinate fill: JS sets its width 0–100%. */
+      #splash-bar-fill {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 0%;
+        background: rgba(255, 255, 255, 0.85);
+        transition: width 0.2s ease;
+      }
+      /* Indeterminate fallback (dev / before real progress): a sliding marquee. */
+      #splash-bar.is-indeterminate #splash-bar-fill {
+        width: 40%;
+        transition: none;
+        animation: splash-bar 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes splash-bar {
+        0% {
+          left: -40%;
+        }
+        100% {
+          left: 100%;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="splash">
+      <div id="splash-dialog">
+        <div id="splash-bar" class="is-indeterminate"><div id="splash-bar-fill"></div></div>
+      </div>
+    </div>
+    <script>
+      // Runs synchronously before the module bundle. Picks a random splash image (so React can reuse the
+      // same one via window.__SPLASH_IMG__) and honors the "don't show again" flag with no flash.
+      (function () {
+        var splash = document.getElementById("splash");
+        var dialog = document.getElementById("splash-dialog");
+        if (!splash || !dialog) return;
+        try {
+          if (localStorage.getItem("material-designer-splash-hidden") === "1") {
+            splash.classList.add("is-hidden");
+            return;
+          }
+        } catch (e) {}
+        var img = "./assets/splash_" + (Math.random() < 0.5 ? "1" : "2") + ".jpg";
+        window.__SPLASH_IMG__ = img;
+        dialog.style.backgroundImage = "url('" + img + "')";
+      })();
+    </script>
     <script type="module" src="/src/router.ts"></script>
   </body>
 </html>

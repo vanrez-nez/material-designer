@@ -1020,3 +1020,240 @@ body {
   position: static !important;
   width: min(23rem, calc(100vw - 32px)) !important;
 }
+
+/* ── Splash / loader ─────────────────────────────────────────────────────────
+   React overlay whose loading state matches the inline pre-JS splash in index.html, then eases into a
+   60/40 launcher. --splash-ease drives both the reveal and the fade-out. */
+.splash {
+  --splash-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 8, 8, 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  opacity: 1;
+  transition: opacity 0.25s var(--splash-ease);
+}
+
+.splash--closing {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Centered dialog: 80% of the viewport, capped at 1024px tall so the portrait image is never upscaled
+   past its native resolution. The blurred backdrop reveals the app booting behind it. */
+.splash__dialog {
+  position: relative;
+  width: 80%;
+  height: 80%;
+  max-width: 1400px;
+  max-height: 1024px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0a0a0a;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+/* Static full-bleed backdrop of the dialog. It never animates — the opaque panel slides over its right
+   40% to form the split, so the reveal stays a compositor-only transform (no layout/paint jitter). */
+.splash__image {
+  position: absolute;
+  inset: 0;
+  background-color: #0a0a0a;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 160px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* Launcher panel: parked off the right edge while loading, slides in on expand. Animates only transform
+   + opacity (compositor thread) so it stays smooth even while the app is still doing GPU/main-thread work
+   behind the blurred backdrop. */
+.splash__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 40px 36px;
+  background: var(--background);
+  border-left: 1px solid var(--border);
+  color: var(--foreground);
+  opacity: 0;
+  transform: translateX(100%);
+  will-change: transform, opacity;
+  pointer-events: none;
+  transition:
+    opacity 0.45s var(--splash-ease),
+    transform 0.5s var(--splash-ease);
+}
+
+.splash--expanded .splash__panel {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.splash__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.splash__close:hover {
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.splash__brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.splash__version {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.splash__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.splash__actions > * {
+  justify-content: flex-start;
+}
+
+.splash__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.splash__recent-title {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
+.splash__recent-empty {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+.splash__recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.splash__recent-item:hover {
+  background: var(--secondary);
+}
+
+.splash__recent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.splash__recent-time {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.splash__dontshow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+/* 2px indeterminate loader, pinned full-width to the bottom; fades once loaded. */
+.splash__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.4s var(--splash-ease);
+}
+
+/* Determinate fill: React sets its width 0–100% from the shared load-progress state. */
+.splash__bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.85);
+  transition: width 0.2s ease;
+}
+
+/* Indeterminate fallback (dev / before real progress): a sliding marquee. */
+.splash__bar--indeterminate .splash__bar-fill {
+  width: 40%;
+  transition: none;
+  animation: splash-bar 1.1s var(--splash-ease) infinite;
+}
+
+.splash--expanded .splash__bar {
+  opacity: 0;
+}
+
+@keyframes splash-bar {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}

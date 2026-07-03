@@ -5,8 +5,10 @@ import { FromCatalogDialog } from "@/components/app/dialogs/FromCatalogDialog";
 import { OpenDocumentDialog } from "@/components/app/dialogs/OpenDocumentDialog";
 import { TextureExportDialog } from "@/components/app/dialogs/TextureExportDialog";
 import { DocumentTitle } from "@/components/app/DocumentTitle";
+import { SplashScreen } from "@/components/app/SplashScreen";
 import { StatusBar } from "@/components/app/StatusBar";
 import { useDocumentLibrarySync } from "@/components/app/useDocumentLibrarySync";
+import { splashHidden } from "@/lib/splash-prefs";
 import { newDocument, openCatalogMaterial, openDocument } from "@/store/document-actions";
 import { makePreset } from "@/presets";
 import { AppMenu } from "@/components/app/menu/AppMenu";
@@ -25,6 +27,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
   const [isTextureExportOpen, setIsTextureExportOpen] = useState(false);
   const [isOpenDocumentOpen, setIsOpenDocumentOpen] = useState(false);
   const [isFromCatalogOpen, setIsFromCatalogOpen] = useState(false);
+  const [splashOpen, setSplashOpen] = useState(() => !splashHidden());
 
   useDocumentLibrarySync();
 
@@ -76,6 +79,16 @@ export function Layout({ services }: { services: MaterialAppServices }) {
         services={services}
         onOpenChange={setIsTextureExportOpen}
       />
+      {splashOpen ? (
+        <SplashScreen
+          services={services}
+          onDismiss={() => setSplashOpen(false)}
+          onOpenCatalog={() => {
+            setSplashOpen(false);
+            setIsFromCatalogOpen(true);
+          }}
+        />
+      ) : null}
     </>
   );
 }
