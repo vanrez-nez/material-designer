@@ -56,10 +56,14 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
     setSelectedId(null);
   }, [open, catalog]);
 
+  function openMaterial(material: CatalogMaterial): void {
+    onOpen(material);
+    onOpenChange(false); // close the dialog on selection (Open button or double-click)
+  }
+
   function handleOpen(): void {
     if (!selected) return;
-    onOpen(selected);
-    onOpenChange(false);
+    openMaterial(selected);
   }
 
   return (
@@ -104,7 +108,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
                     selectedId === material.id && "border-primary ring-1 ring-primary",
                   )}
                   onClick={() => setSelectedId(material.id)}
-                  onDoubleClick={() => onOpen(material)}
+                  onDoubleClick={() => openMaterial(material)}
                 >
                   <img
                     src={`${import.meta.env.BASE_URL}${material.thumbnail}`}

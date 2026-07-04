@@ -3,6 +3,8 @@ import { WebGPURenderer, PMREMGenerator } from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { MainScene } from "./MainScene";
+import { SceneControls } from "./scene-controls";
+import { SCENE_LIGHT_PRESETS, matchScenePresetId } from "./scene-presets";
 import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
 import { installBakeDevHandles } from "@/debug/bake-setup";
@@ -37,8 +39,10 @@ const sceneCanvas = document.createElement("canvas");
 sceneCanvas.className = "scene";
 sceneHost.appendChild(sceneCanvas);
 
+// Initial camera framing, captured as a constant so "reset camera" restores exactly this.
+const INITIAL_CAMERA_POS = new THREE.Vector3(0, 1.35, 7.2);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 30);
-camera.position.set(0, 1.35, 7.2);
+camera.position.copy(INITIAL_CAMERA_POS);
 
 // Renderer config lives in the debug/tweakpane module (the Render tab owns it), but the renderer must be
 // constructed with it before the pane exists — so load it here and hand the object to setupTweakpane.
@@ -62,10 +66,27 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const controls = new OrbitControls(camera, sceneCanvas);
 controls.enableDamping = true;
-controls.target.set(-0.6, 0.45, 0);
-controls.update();
 
 const mainScene = new MainScene();
+// Orbit around the sphere's center (which sits over the centered plane) for a symmetric default view.
+controls.target.copy(mainScene.focusPoint);
+controls.update();
+
+// "Lock lights" (default on) = turntable: dragging spins the material sample (sphere + ground) about Y while
+// the lights/camera stay fixed, so the surfaces relight as it turns. Camera orbit is disabled in this mode
+// (a custom left-drag drives the turntable instead). Unlocked = today's behavior: the sample + lights are
+// world-fixed and the camera orbits the whole setup.
+let lightsLocked = true;
+controls.enableRotate = !lightsLocked; // locked → left-drag spins the turntable, not the camera
+
+// Turntable state — a Y-axis (yaw) spin of the sample, driven by a custom left-drag while locked.
+const TURNTABLE_SPEED = 0.01; // radians per pixel of horizontal drag
+const _turnUp = new THREE.Vector3(0, 1, 0);
+const _turnQuat = new THREE.Quaternion();
+let turntableYaw = 0;
+function applyTurntable(): void {
+  mainScene.setTurntable(_turnQuat.setFromAxisAngle(_turnUp, turntableYaw));
+}
 
 // Bake/export tooling (dev), bound to the renderer + material graph it renders against.
 const exporter = createExport({
@@ -101,6 +122,17 @@ function requestRender(): void {
   frameScheduler.request();
 }
 
+// Restore the default framing: initial camera position + orbit around the sphere. `controls.update()` fires
+// a "change" (→ requestRender), and we request once more to be safe.
+function resetCamera(): void {
+  camera.position.copy(INITIAL_CAMERA_POS);
+  controls.target.copy(mainScene.focusPoint);
+  controls.update();
+  turntableYaw = 0; // also restore the sample to its default orientation
+  applyTurntable();
+  requestRender();
+}
+
 // OrbitControls has damping (inertial glide after release), which needs a frame-by-frame render until it
 // settles. Render whenever the controls report the camera moved — this is the canonical on-demand hook and
 // it covers ALL paths, including wheel-zoom: OrbitControls' wheel handler applies the dolly via its own
@@ -127,7 +159,30 @@ controls.addEventListener("end", () => {
   interacting = false; // let the pump run out as damping settles, then stop
 });
 
-const { materialEditor, paneElement, rebuildEditor } = setupTweakpane({
+// Turntable drag (locked mode only): left-drag spins the sample about Y. OrbitControls keeps wheel-zoom
+// and right-drag-pan; its left-drag rotate is disabled while locked, so this owns the left drag.
+let turnDrag: { pointerId: number; lastX: number } | null = null;
+sceneCanvas.addEventListener("pointerdown", (event) => {
+  if (!lightsLocked || event.button !== 0) return;
+  turnDrag = { pointerId: event.pointerId, lastX: event.clientX };
+  sceneCanvas.setPointerCapture(event.pointerId);
+});
+sceneCanvas.addEventListener("pointermove", (event) => {
+  if (!turnDrag || event.pointerId !== turnDrag.pointerId) return;
+  turntableYaw -= (event.clientX - turnDrag.lastX) * TURNTABLE_SPEED;
+  turnDrag.lastX = event.clientX;
+  applyTurntable();
+  requestRender();
+});
+function endTurnDrag(event: PointerEvent): void {
+  if (!turnDrag || event.pointerId !== turnDrag.pointerId) return;
+  sceneCanvas.releasePointerCapture(event.pointerId);
+  turnDrag = null;
+}
+sceneCanvas.addEventListener("pointerup", endTurnDrag);
+sceneCanvas.addEventListener("pointercancel", endTurnDrag);
+
+const { materialEditor, paneElement, rebuildEditor, applyScenePreset } = setupTweakpane({
   app,
   graphHost,
   paneHost,
@@ -138,10 +193,41 @@ const { materialEditor, paneElement, rebuildEditor } = setupTweakpane({
   requestRender,
 });
 
+// Which preset (if any) the current lighting matches — so the overlay checks the right preset on load
+// (the lights already reflect the loaded/default sceneState after setupTweakpane's applyDocumentSettings).
+const dl = mainScene.directionalLight;
+const initialPresetId = matchScenePresetId({
+  toneMapping: renderer.toneMapping,
+  exposure: renderer.toneMappingExposure,
+  dirColor: `#${dl.color.getHexString()}`,
+  dirIntensity: dl.intensity,
+  dirPosition: { x: dl.position.x, y: dl.position.y, z: dl.position.z },
+  ambColor: `#${mainScene.ambientLight.color.getHexString()}`,
+  ambIntensity: mainScene.ambientLight.intensity,
+  envIntensity: mainScene.scene.environmentIntensity,
+});
+
+// Bottom-right overlay cluster over the scene (reuses the graph editor's FloatingWidget): reset camera +
+// lights lock + light presets. Handlers call straight into this closure — no React/event plumbing needed.
+const sceneControls = new SceneControls({
+  mount: sceneHost,
+  onResetCamera: resetCamera,
+  presets: SCENE_LIGHT_PRESETS,
+  onApplyPreset: applyScenePreset,
+  lightsLocked,
+  onToggleLightsLock: (locked) => {
+    lightsLocked = locked;
+    controls.enableRotate = !locked; // locked → left-drag spins the turntable; unlocked → orbits the camera
+    requestRender();
+  },
+  activePresetId: initialPresetId,
+});
+
 function attachPreviewHosts(nextSceneHost: HTMLDivElement, nextPaneHost: HTMLDivElement): void {
   sceneHost = nextSceneHost;
   paneHost = nextPaneHost;
   if (sceneCanvas.parentElement !== sceneHost) sceneHost.appendChild(sceneCanvas);
+  if (sceneControls.root.parentElement !== sceneHost) sceneHost.appendChild(sceneControls.root);
   if (paneElement.parentElement !== paneHost) paneHost.appendChild(paneElement);
   resize();
 }

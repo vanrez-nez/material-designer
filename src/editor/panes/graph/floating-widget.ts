@@ -124,6 +124,14 @@ export class FloatingWidget {
     this.root.classList.toggle("floating-widget--busy", busy);
   }
 
+  // Append a divider into the body to visually group buttons. Orientation (horizontal vs vertical line)
+  // is driven by the body's `--vertical`/`--horizontal` class in CSS — no inline styles.
+  addSeparator(): void {
+    const sep = document.createElement("div");
+    sep.className = "floating-widget__sep";
+    this.body.appendChild(sep);
+  }
+
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
   }

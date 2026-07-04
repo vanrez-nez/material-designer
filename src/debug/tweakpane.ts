@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { WebGPURenderer, MeshPhysicalNodeMaterial } from "three/webgpu";
 import { Pane } from "tweakpane";
 import { MainScene } from "@/editor/panes/preview/MainScene";
+import { SCENE_LIGHT_PRESETS } from "@/editor/panes/preview/scene-presets";
 import { EditorPanel } from "@/editor/panes/graph/editor-panel";
 import { buildMaterialEditorConfig } from "@/editor/panes/graph/material-editor-config";
 import { bakeService } from "@/runtime";
@@ -47,6 +48,9 @@ export interface TweakpaneHandles {
   materialEditor: EditorPanel;
   paneElement: HTMLElement;
   rebuildEditor: () => void;
+  // Apply a named lighting preset (see scene-presets.ts); mutates sceneState, syncs the Scene folder, and
+  // applies + persists. Called from the scene overlay controls.
+  applyScenePreset: (id: string) => void;
 }
 
 function mergeSetting<T extends Record<string, unknown>>(
@@ -207,6 +211,19 @@ export function setupTweakpane({
     resize();
   }
 
+  function applyScenePreset(id: string): void {
+    const preset = SCENE_LIGHT_PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    // Merge into the same sceneState the Scene folder is bound to (fresh dirPosition to avoid aliasing),
+    // then reuse the normal paths so panel, scene, and persistence all stay in sync.
+    Object.assign(sceneState, preset.values, { dirPosition: { ...preset.values.dirPosition } });
+    pane.refresh(); // re-read bindings so the Scene sliders reflect the preset
+    applyDocumentSettings(); // push to lights / renderer / env (also resizes → requestRender)
+    mainScene.requestShadowBake(); // dir position/softness changed
+    saveDocumentSettings();
+    requestRender();
+  }
+
   function buildMaterialControls(container: ContainerApi): void {
     const folder = container.addFolder({ title: "Graph", expanded: false });
     folder
@@ -361,5 +378,5 @@ export function setupTweakpane({
   };
   rebuildEditor();
 
-  return { materialEditor, paneElement: pane.element, rebuildEditor };
+  return { materialEditor, paneElement: pane.element, rebuildEditor, applyScenePreset };
 }

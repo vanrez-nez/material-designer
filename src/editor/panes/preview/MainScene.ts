@@ -30,17 +30,26 @@ export class MainScene {
   readonly directionalLight = new THREE.DirectionalLight(0xffffff, 3);
   readonly ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   readonly demoStats = { textureMs: 0 };
+  // The orbit pivot / default look-at: the sphere's center, sitting over the (origin-centered) plane so the
+  // default view is symmetric. Exposed so boot.ts can target it and reset the camera to it.
+  readonly focusPoint = new THREE.Vector3(0, 0.95, 0);
 
   private readonly sphere: THREE.Mesh<THREE.SphereGeometry, THREE.Material>;
-  private readonly plane: THREE.Mesh<THREE.PlaneGeometry, THREE.Material>;
+  private readonly plane: THREE.Mesh<THREE.CircleGeometry, THREE.Material>;
   private readonly sphereBaseUv: Float32Array;
   private readonly planeBaseUv: Float32Array;
+  // Turntable rig: holds the material sample (sphere + ground plane) so they spin together (lock mode). The
+  // lights + IBL environment stay world-fixed, so spinning the sample makes its surfaces relight (specular /
+  // normals / reflections sweep across it) — a material-inspection turntable. Identity = default pose.
+  private readonly turntable = new THREE.Group();
 
   constructor() {
     this.scene.background = new THREE.Color(0x181818);
 
     const sphereGeometry = new THREE.SphereGeometry(1, 96, 48);
-    const planeGeometry = new THREE.PlaneGeometry(8, 8);
+    // Circular ground disc (radius 4 = the old 8-unit plane's extent). CircleGeometry's UVs are planar
+    // (bounding-box mapped), so material tiling density matches the former square plane.
+    const planeGeometry = new THREE.CircleGeometry(4, 96);
     planeGeometry.rotateX(-Math.PI / 2);
     addFullVertexAo(sphereGeometry);
     addFullVertexAo(planeGeometry);
@@ -49,7 +58,7 @@ export class MainScene {
 
     this.sphere = new THREE.Mesh(sphereGeometry, this.materialSurface.material);
     this.sphere.name = "material-preview-sphere";
-    this.sphere.position.set(-1.15, 0.95, 0);
+    this.sphere.position.copy(this.focusPoint);
     this.sphere.castShadow = true;
     this.sphere.receiveShadow = true;
 
@@ -65,8 +74,17 @@ export class MainScene {
 
     this.directionalLight.position.set(3, 4, 5);
     this.configureShadow();
-    this.scene.add(this.sphere, this.plane, this.directionalLight, this.directionalLight.target, this.ambientLight);
+    // The sample (sphere + ground) spins together under the world-fixed lights, so the surfaces relight as
+    // it turns. Rotating only about Y keeps both centered on the axis. Lights + ambient stay on the scene.
+    this.turntable.add(this.sphere, this.plane);
+    this.scene.add(this.turntable, this.directionalLight, this.directionalLight.target, this.ambientLight);
     this.setDemoTiling(1);
+  }
+
+  // Spin the material sample (sphere + ground). Identity = default pose. Lights/env stay world-fixed, so the
+  // surfaces relight as the sample turns.
+  setTurntable(q: THREE.Quaternion): void {
+    this.turntable.quaternion.copy(q);
   }
 
   setDemoTiling(tiles: number): void {

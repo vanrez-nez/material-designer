@@ -92,6 +92,30 @@
 .fw__btn:active {
   background: #454b54;
 }
+/* Checked/toggled-on state (matches the editor's .ne-dock__btn.is-active accent). */
+.fw__btn--active {
+  background: #5b8fd6;
+  border-color: #5b8fd6;
+  color: #fff;
+}
+.fw__btn--active:hover {
+  background: #6a99da;
+}
+
+/* Divider to group buttons within a widget body; orientation follows the body class. */
+.floating-widget__sep {
+  background: #3a3d44;
+  flex: none;
+  align-self: stretch;
+}
+.floating-widget__body--vertical .floating-widget__sep {
+  height: 1px;
+  margin: 2px 0;
+}
+.floating-widget__body--horizontal .floating-widget__sep {
+  width: 1px;
+  margin: 0 2px;
+}
 .fw__btn .lucide-icon {
   display: block;
   fill: none;
