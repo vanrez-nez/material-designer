@@ -67,6 +67,15 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; // default tone mapping (Sce
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+// three's WebGPURenderer exposes its animation loop and node frame only as internals. On-demand rendering
+// drives both: we stop the always-on internal loop (see renderer.init below) and tick the node frame per
+// render so per-frame node updates (notably the shadow map) run. Typed once here instead of casting inline.
+type RendererInternals = {
+  _animation?: { stop(): void };
+  _nodes?: { nodeFrame?: { update(): void } };
+};
+const rendererInternals = renderer as unknown as RendererInternals;
+
 const controls = new OrbitControls(camera, sceneCanvas);
 controls.enableDamping = true;
 
@@ -105,7 +114,9 @@ let sceneRenderable = false;
 // resize, or a document load. `requestRender` coalesces bursts into a single rAF-timed frame. These are
 // declared before setupTweakpane because it applies saved settings synchronously (→ resize → requestRender).
 let rendererReady = false; // flipped true after renderer.init(); guards early rAFs (resize runs pre-init)
-function renderNow(): void {
+// The single scene-render method — every path renders through this (directly, or debounced via
+// requestRender). Advances the node frame, then renders.
+function renderFrame(): void {
   if (!rendererReady || !sceneRenderable) return;
   // Two gates. `rendererBusy`: `renderer.compileAsync` mutates shared renderer state during its await
   // window, so rendering then corrupts the output. `materialSurface.busy`: an in-place texture resize is
@@ -116,11 +127,17 @@ function renderNow(): void {
     return;
   }
   mainScene.update();
+  // Advance three's node frame ourselves. The WebGPU render path only bumps `frameId` from the internal
+  // setAnimationLoop (which we cancel — we render on demand) and from material bakes. ShadowNode dedups
+  // its re-bake by `frameId`, so without this the ground shadow freezes on the last-baked silhouette until
+  // the next material bake — it wouldn't follow a geometry swap or turntable spin. This mirrors exactly
+  // what setAnimationLoop does each frame.
+  rendererInternals._nodes?.nodeFrame?.update?.();
   renderer.render(mainScene.scene, camera);
 }
 // Shared coalescing scheduler (also used by the texture preview) — collapses a burst of change events into
 // one rAF-timed render instead of a continuous loop.
-const frameScheduler = createFrameScheduler(renderNow);
+const frameScheduler = createFrameScheduler(renderFrame);
 function requestRender(): void {
   frameScheduler.request();
 }
@@ -172,7 +189,7 @@ sceneCanvas.addEventListener("pointerdown", (event) => {
 });
 sceneCanvas.addEventListener("pointermove", (event) => {
   if (!turnDrag || event.pointerId !== turnDrag.pointerId) return;
-  turntableYaw -= (event.clientX - turnDrag.lastX) * TURNTABLE_SPEED;
+  turntableYaw += (event.clientX - turnDrag.lastX) * TURNTABLE_SPEED;
   turnDrag.lastX = event.clientX;
   applyTurntable();
   requestRender();
@@ -244,8 +261,14 @@ const modelControls = new ModelControls({
 async function selectModel(id: string): Promise<void> {
   const preset = MODEL_PRESETS.find((p) => p.id === id);
   if (!preset) return;
-  const token = ++loadToken;
+  const token = ++loadToken; // also cancels any in-flight .obj load if the user switches away
 
+  if (preset.build) {
+    mainScene.setSampleGeometry(preset.build()); // three.js primitive — generated on demand, no fetch
+    lastValidModelId = id;
+    requestRender();
+    return;
+  }
   if (!preset.url) {
     mainScene.setSampleGeometry(null); // built-in sphere
     lastValidModelId = id;
@@ -371,7 +394,7 @@ rendererReady = true;
 // (null)` does NOT stop it; only `dispose()` does. We have no time-based/animated nodes, and `render()` drives
 // node updates per call (via renderId) — baking still ticks the frame through `compileAsync` — so we cancel
 // the internal loop and let our on-demand renders drive everything. Idle = zero rAF.
-(renderer as unknown as { _animation?: { stop(): void } })._animation?.stop();
+rendererInternals._animation?.stop();
 // Offline baking needs the renderer. Hand it to the shared bake service, then refresh the preview surface so
 // it swaps from the live startup fallback to the baked offline material.
 bakeService.attachRenderer(renderer);
@@ -423,7 +446,7 @@ if (import.meta.env.DEV) {
     __editor: materialEditor,
     __openEditor: rebuildEditor,
     __frame: () => {
-      if (resize()) renderNow();
+      if (resize()) renderFrame();
     },
   });
   installBakeDevHandles({ mainScene, exporter });

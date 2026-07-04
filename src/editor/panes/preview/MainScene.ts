@@ -110,8 +110,6 @@ export class MainScene {
     if (next === this.sphere.geometry) return;
 
     const previous = this.sphere.geometry;
-    if (previous !== this.baseSphereGeometry) previous.dispose();
-
     if (!next.getAttribute("vertexAo")) addFullVertexAo(next);
     this.sphere.geometry = next;
     this.sphereBaseUv = copyUv(next);
@@ -122,6 +120,9 @@ export class MainScene {
     // (only IBL still reaches them). Stop the sample from RECEIVING shadows when a model is active; it
     // still CASTS onto the ground. The built-in sphere is convex and keeps shadow receipt.
     this.sphere.receiveShadow = geometry === null;
+
+    // Release the previous geometry's GPU buffers (never the kept base sphere, reused on reset).
+    if (previous !== this.baseSphereGeometry) previous.dispose();
   }
 
   update(): void {
