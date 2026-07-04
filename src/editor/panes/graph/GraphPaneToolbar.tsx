@@ -9,12 +9,14 @@ import { dispatchGraphAutoLayout, type GraphLayoutArrangement } from "@/app-even
 import { Button } from "@/components/ui/primitives/button";
 import { useWorkspaceStore } from "@/store/app";
 
+// The align icon's edge matches the flow direction: bars pushed to the bottom = down, top = up,
+// right = right, left = left.
 const graphArrangementIcons = {
-  down: AlignEndVertical,
-  right: AlignEndHorizontal,
-  up: AlignStartVertical,
-  left: AlignStartHorizontal,
-} satisfies Record<GraphLayoutArrangement, typeof AlignEndVertical>;
+  down: AlignEndHorizontal,
+  up: AlignStartHorizontal,
+  right: AlignEndVertical,
+  left: AlignStartVertical,
+} satisfies Record<GraphLayoutArrangement, typeof AlignEndHorizontal>;
 
 const graphArrangementLabels: Record<GraphLayoutArrangement, string> = {
   down: "Auto layout down",

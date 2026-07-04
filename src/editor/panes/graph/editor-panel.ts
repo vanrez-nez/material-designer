@@ -1074,11 +1074,12 @@ const DOCK_ICON: Record<DockMode, IconNode> = {
   bottom: PanelBottom,
 }
 
+// The align icon's edge matches the flow direction (bottom = down, top = up, right = right, left = left).
 const LAYOUT_ICON: Record<LayoutArrangement, IconNode> = {
-  down: AlignEndVertical,
-  right: AlignEndHorizontal,
-  up: AlignStartVertical,
-  left: AlignStartHorizontal,
+  down: AlignEndHorizontal,
+  right: AlignEndVertical,
+  up: AlignStartHorizontal,
+  left: AlignStartVertical,
 }
 
 function appendLucideIcon(button: HTMLButtonElement, icon: IconNode): void {
