@@ -73,11 +73,50 @@ const exporter = createExport({
   liveDocument: () => mainScene.materialController.document,
 });
 
-const timer = new THREE.Timer();
-timer.connect(document);
 let sceneRenderable = false;
 
-const { stats, materialEditor, paneElement, rebuildEditor } = setupTweakpane({
+// On-demand rendering: the scene is static (no animation), so instead of a continuous rAF loop we render
+// once per meaningful change — camera interaction, a material bake/rebuild, a scene/lighting tweak, a
+// resize, or a document load. `requestRender` coalesces bursts into a single rAF-timed frame. These are
+// declared before setupTweakpane because it applies saved settings synchronously (→ resize → requestRender).
+let renderRaf = 0;
+let rendererReady = false; // flipped true after renderer.init(); guards early rAFs (resize runs pre-init)
+function renderNow(): void {
+  if (!rendererReady || !sceneRenderable) return;
+  // Two gates. `rendererBusy`: `renderer.compileAsync` mutates shared renderer state during its await
+  // window, so rendering then corrupts the output. `materialSurface.busy`: an in-place texture resize is
+  // mid-flight and rendering would submit a destroyed texture. In both cases skip now and re-render once
+  // the surface reports idle — the canvas holds its last frame meanwhile.
+  if (bakeService.rendererBusy || mainScene.materialSurface.busy) {
+    void mainScene.materialSurface.whenIdle().then(requestRender);
+    return;
+  }
+  mainScene.update();
+  renderer.render(mainScene.scene, camera);
+}
+function requestRender(): void {
+  if (renderRaf) return;
+  renderRaf = requestAnimationFrame(() => {
+    renderRaf = 0;
+    renderNow();
+  });
+}
+
+// OrbitControls has damping (inertial glide after release), which needs a frame-by-frame render until it
+// settles. Run a short self-terminating loop for the whole interaction: kicked on `start` (orbit/pan/
+// zoom), it renders each frame and stops as soon as `controls.update()` reports no further motion. Idle
+// between interactions = zero rAF.
+let dampingRaf = 0;
+function dampingTick(): void {
+  const moving = controls.update();
+  renderNow();
+  dampingRaf = moving ? requestAnimationFrame(dampingTick) : 0;
+}
+controls.addEventListener("start", () => {
+  if (!dampingRaf) dampingRaf = requestAnimationFrame(dampingTick);
+});
+
+const { materialEditor, paneElement, rebuildEditor } = setupTweakpane({
   app,
   graphHost,
   paneHost,
@@ -85,6 +124,7 @@ const { stats, materialEditor, paneElement, rebuildEditor } = setupTweakpane({
   mainScene,
   rendererConfig,
   resize,
+  requestRender,
 });
 
 function attachPreviewHosts(nextSceneHost: HTMLDivElement, nextPaneHost: HTMLDivElement): void {
@@ -107,6 +147,7 @@ window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
     void mainScene.materialSurface.refresh().then(() => {
       rebuildEditor();
       resize();
+      requestRender();
       if (filename) console.info(`[material] Loaded ${filename}`);
     });
   } catch (err) {
@@ -122,6 +163,7 @@ window.addEventListener(MATERIAL_GRAPH_REBUILD_EVENT, () => {
 window.addEventListener(GRAPH_NAVIGATE_EVENT, (event) => {
   mainScene.materialController.exitToDepth((event as GraphNavigateEvent).detail.depth);
   rebuildEditor();
+  requestRender();
 });
 
 window.addEventListener(MATERIAL_PREVIEW_PANE_MOUNT_EVENT, (event) => {
@@ -144,20 +186,8 @@ function resize(): boolean {
   camera.aspect = clientWidth / Math.max(clientHeight, 1);
   camera.updateProjectionMatrix();
   sceneRenderable = true;
+  requestRender();
   return true;
-}
-
-function animate(timestamp?: number): void {
-  stats.begin();
-  timer.update(timestamp);
-
-  mainScene.update();
-  controls.update();
-  // Skip the frame render while a bake is compiling pipelines: `renderer.compileAsync` mutates shared
-  // renderer state, so rendering during its await window corrupts the output (black screen / broken
-  // geometry). The canvas holds its last frame for the ~sub-second compile; the DOM UI stays responsive.
-  if (sceneRenderable && !bakeService.rendererBusy) renderer.render(mainScene.scene, camera);
-  stats.end();
 }
 
 window.addEventListener("resize", () => resize());
@@ -165,8 +195,9 @@ const sceneResizeObserver = new ResizeObserver(() => resize());
 sceneResizeObserver.observe(sceneCanvas);
 
 // WebGPURenderer initialises its backend asynchronously (unlike WebGLRenderer). Wait for it before
-// the first render, then drive the loop via setAnimationLoop (the WebGPU-friendly RAF).
+// the first render.
 await renderer.init();
+rendererReady = true;
 // Offline baking needs the renderer. Hand it to the shared bake service, then refresh the preview surface so
 // it swaps from the live startup fallback to the baked offline material.
 bakeService.attachRenderer(renderer);
@@ -198,10 +229,14 @@ try {
   // still lights — surfaced rather than silently flat.
   console.warn("[env] IBL setup failed; falling back to ambient light only", err);
 }
-const hasWebGPU = typeof navigator !== "undefined" && "gpu" in navigator;
-stats.setRenderer(hasWebGPU ? "WebGPU" : "WebGL2");
+
+// On-demand render triggers: a bake/uniform re-render (new baked pixels in the same texture objects) or
+// a material-object swap changes what's on screen with no loop to pick it up, so render on each.
+mainScene.materialSurface.onTexturesUpdated(requestRender);
+mainScene.materialSurface.onRebuilt(requestRender);
+
 resize();
-renderer.setAnimationLoop(animate);
+requestRender(); // initial frame
 
 // Dev-only handles so the app can be driven/inspected from the console (and by automated checks)
 // even when the tab is backgrounded and rAF is throttled. Tree-shaken out of production builds.
@@ -214,8 +249,7 @@ if (import.meta.env.DEV) {
     __editor: materialEditor,
     __openEditor: rebuildEditor,
     __frame: () => {
-      mainScene.update();
-      if (resize()) renderer.render(mainScene.scene, camera);
+      if (resize()) renderNow();
     },
   });
   installBakeDevHandles({ mainScene, exporter });

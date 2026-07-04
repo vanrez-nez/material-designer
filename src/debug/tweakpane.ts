@@ -1,10 +1,8 @@
-import * as EssentialsPlugin from "@tweakpane/plugin-essentials";
 import type { ContainerApi } from "@tweakpane/core";
 import * as THREE from "three";
 import { WebGPURenderer, MeshPhysicalNodeMaterial } from "three/webgpu";
 import { Pane } from "tweakpane";
 import { MainScene } from "@/editor/panes/preview/MainScene";
-import { StatsBladeApi, StatsPanePluginBundle } from "../tweak-pane/stats-blade";
 import { EditorPanel } from "@/editor/panes/graph/editor-panel";
 import { buildMaterialEditorConfig } from "@/editor/panes/graph/material-editor-config";
 import { bakeService } from "@/runtime";
@@ -42,10 +40,10 @@ export interface TweakpaneDeps {
   mainScene: MainScene;
   rendererConfig: RendererConfig;
   resize: () => void;
+  requestRender: () => void;
 }
 
 export interface TweakpaneHandles {
-  stats: StatsBladeApi;
   materialEditor: EditorPanel;
   paneElement: HTMLElement;
   rebuildEditor: () => void;
@@ -71,16 +69,13 @@ export function setupTweakpane({
   mainScene,
   rendererConfig,
   resize,
+  requestRender,
 }: TweakpaneDeps): TweakpaneHandles {
   const saveRendererConfig = (): void =>
     localStorage.setItem(RENDERER_CONFIG_KEY, JSON.stringify(rendererConfig));
   const savedSettings = mainScene.materialController.getUiSettings<Record<string, unknown>>();
 
   const pane = new Pane({ container: paneHost, title: "Material" });
-  pane.registerPlugin(EssentialsPlugin);
-  pane.registerPlugin(StatsPanePluginBundle);
-
-  const stats = pane.addBlade({ view: "stats" }) as StatsBladeApi;
 
   const materialState = mergeSetting(savedSettings, "materialState", {
     debugNormals: false,
@@ -341,7 +336,10 @@ export function setupTweakpane({
   buildSurfaceControls(pane);
   buildSceneControls(pane);
   buildRenderControls(pane);
-  pane.on("change", () => saveDocumentSettings());
+  pane.on("change", () => {
+    saveDocumentSettings();
+    requestRender();
+  });
   applyDocumentSettings();
 
   const materialEditor = new EditorPanel({
@@ -363,5 +361,5 @@ export function setupTweakpane({
   };
   rebuildEditor();
 
-  return { stats, materialEditor, paneElement: pane.element, rebuildEditor };
+  return { materialEditor, paneElement: pane.element, rebuildEditor };
 }

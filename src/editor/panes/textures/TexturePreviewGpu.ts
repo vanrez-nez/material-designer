@@ -40,6 +40,9 @@ function createSurfaceState(canvas: HTMLCanvasElement, ctx: GPUCanvasContext, rt
     wPx: 1,
     hPx: 1,
     raf: 0,
+    // Latest requested draw, rendered when the coalesced frame fires (see requestRender).
+    pendingTex: null as Texture | null,
+    pendingLayout: null as PreviewLayout | null,
   };
 }
 type Surface = ReturnType<typeof createSurfaceState>;
@@ -103,10 +106,17 @@ export class TexturePreviewGpu {
   // stream of bake-finish events) collapse to one draw per frame. No-op if the canvas isn't attached.
   requestRender(canvas: HTMLCanvasElement, tex: Texture | null, layout: PreviewLayout): void {
     const s = this.surfaces.get(canvas);
-    if (!s || s.raf) return;
+    if (!s) return;
+    // Coalesce to the LATEST request, not the first. During a pan/zoom `pan` changes several times per
+    // frame and the seam overlay redraws synchronously on each change; if we rendered the frame's FIRST
+    // captured layout the texture would visibly lag the overlay (seams "move independently"). Store the
+    // newest layout and render that when the single scheduled frame fires.
+    s.pendingTex = tex;
+    s.pendingLayout = layout;
+    if (s.raf) return;
     s.raf = requestAnimationFrame(() => {
       s.raf = 0;
-      this.renderNow(s, tex, layout);
+      if (s.pendingLayout) this.renderNow(s, s.pendingTex, s.pendingLayout);
     });
   }
 
@@ -138,7 +148,13 @@ export class TexturePreviewGpu {
     }
     const tilePxDevice = Math.max(0.0001, tilePx * dpr);
     s.uTiles.value.set(wPx / tilePxDevice, hPx / tilePxDevice);
-    s.uPan.value.set(-(panX * dpr) / tilePxDevice, (panY * dpr) / tilePxDevice);
+    // Pan. X maps straight through: coord.x = (sxDevice - panX*dpr) / tilePxDevice.
+    // Y is sampled through the (1 - uv.y) flip above (upright display), which both reverses the pan frame
+    // and shifts it by the canvas height. To land the Y tile boundaries at screen y = panY — matching the
+    // seam overlay's `pan.y + n*tile` — keep panY POSITIVE (natural drag: content follows the cursor) and
+    // subtract the flip's hPx offset. That yields coord.y = (panY*dpr - syDevice) / tilePxDevice, whose
+    // boundaries sit at panY (mod tile) with a +1 pan slope, matching the overlay and centering wheel-zoom.
+    s.uPan.value.set(-(panX * dpr) / tilePxDevice, (panY * dpr - hPx) / tilePxDevice);
 
     // 1) main renderer draws the tiled quad into this surface's RT (it owns `tex`, so sampling works).
     const prevRT = this.renderer.getRenderTarget();

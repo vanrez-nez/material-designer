@@ -429,7 +429,10 @@ function drawSeamsOverlay(
   ctx.clearRect(0, 0, size.width, size.height);
   if (!seams || size.width <= 0 || size.height <= 0) return;
 
-  const tile = Math.max(8, Math.round(tileSize));
+  // Exact float period (not Math.round) so seams stay pixel-aligned with the GPU tiling at fractional
+  // zoom — a rounded period would drift ~1px per tile and accumulate across the viewport. Each line is
+  // still snapped to a crisp pixel below (Math.round(px) + 0.5).
+  const tile = Math.max(8, tileSize);
   const offsetX = modulo(pan.x, tile) - tile;
   const offsetY = modulo(pan.y, tile) - tile;
 
