@@ -102,6 +102,33 @@
   background: #6a99da;
 }
 
+/* Native <select> used inside a widget body (e.g. the model picker). Matches the .fw__btn idiom. */
+.fw__select {
+  height: 24px;
+  max-width: 160px;
+  padding: 0 6px;
+  background: #34373e;
+  border: 1px solid #3a3d44;
+  border-radius: 4px;
+  color: #c8ccd4;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.fw__select:hover {
+  background: #3f434b;
+}
+.fw__select:focus-visible {
+  outline: none;
+  border-color: #5b8fd6;
+}
+.floating-widget--busy .fw__select,
+.fw__select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Divider to group buttons within a widget body; orientation follows the body class. */
 .floating-widget__sep {
   background: #3a3d44;

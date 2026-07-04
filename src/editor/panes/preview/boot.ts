@@ -5,6 +5,9 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { MainScene } from "./MainScene";
 import { SceneControls } from "./scene-controls";
 import { SCENE_LIGHT_PRESETS, matchScenePresetId } from "./scene-presets";
+import { ModelControls } from "./model-controls";
+import { MODEL_PRESETS } from "./model-presets";
+import { loadModelGeometry, parseModelGeometry } from "./model-loader";
 import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
 import { installBakeDevHandles } from "@/debug/bake-setup";
@@ -223,11 +226,78 @@ const sceneControls = new SceneControls({
   activePresetId: initialPresetId,
 });
 
+// Top-left overlay: pick the material sample geometry (built-in sphere or a lazy-loaded .obj model,
+// plus custom .obj upload). `loadToken` guards against overlapping loads — if the user switches again
+// mid-download, a stale result is dropped instead of clobbering the newer selection.
+let loadToken = 0;
+let lastValidModelId = "sphere";
+const modelControls = new ModelControls({
+  mount: sceneHost,
+  onSelectPreset: (id) => {
+    void selectModel(id);
+  },
+  onLoadCustom: (file) => {
+    void loadCustomModel(file);
+  },
+});
+
+async function selectModel(id: string): Promise<void> {
+  const preset = MODEL_PRESETS.find((p) => p.id === id);
+  if (!preset) return;
+  const token = ++loadToken;
+
+  if (!preset.url) {
+    mainScene.setSampleGeometry(null); // built-in sphere
+    lastValidModelId = id;
+    requestRender();
+    return;
+  }
+
+  modelControls.setBusy(true);
+  try {
+    const geometry = await loadModelGeometry(preset.url);
+    if (token !== loadToken) {
+      geometry.dispose(); // a newer selection won the race — drop this one
+      return;
+    }
+    mainScene.setSampleGeometry(geometry);
+    lastValidModelId = id;
+    requestRender();
+  } catch (err) {
+    console.warn(`[model] Failed to load ${preset.url}`, err);
+    if (token === loadToken) modelControls.setSelected(lastValidModelId); // revert dropdown
+  } finally {
+    if (token === loadToken) modelControls.setBusy(false);
+  }
+}
+
+async function loadCustomModel(file: File): Promise<void> {
+  const token = ++loadToken;
+  modelControls.setBusy(true);
+  try {
+    const geometry = await parseModelGeometry(await file.text());
+    if (token !== loadToken) {
+      geometry.dispose();
+      return;
+    }
+    mainScene.setSampleGeometry(geometry);
+    modelControls.showCustom(file.name);
+    lastValidModelId = "sphere"; // no preset id for a custom upload; revert target is the sphere
+    requestRender();
+  } catch (err) {
+    console.warn(`[model] Failed to load ${file.name}`, err);
+    if (token === loadToken) modelControls.setSelected(lastValidModelId);
+  } finally {
+    if (token === loadToken) modelControls.setBusy(false);
+  }
+}
+
 function attachPreviewHosts(nextSceneHost: HTMLDivElement, nextPaneHost: HTMLDivElement): void {
   sceneHost = nextSceneHost;
   paneHost = nextPaneHost;
   if (sceneCanvas.parentElement !== sceneHost) sceneHost.appendChild(sceneCanvas);
   if (sceneControls.root.parentElement !== sceneHost) sceneHost.appendChild(sceneControls.root);
+  if (modelControls.root.parentElement !== sceneHost) sceneHost.appendChild(modelControls.root);
   if (paneElement.parentElement !== paneHost) paneHost.appendChild(paneElement);
   resize();
 }

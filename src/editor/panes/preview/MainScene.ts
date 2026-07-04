@@ -34,10 +34,17 @@ export class MainScene {
   // default view is symmetric. Exposed so boot.ts can target it and reset the camera to it.
   readonly focusPoint = new THREE.Vector3(0, 0.95, 0);
 
-  private readonly sphere: THREE.Mesh<THREE.SphereGeometry, THREE.Material>;
+  // The material sample mesh. Starts as the built-in sphere but its geometry can be swapped for a
+  // loaded model (see setSampleGeometry), so the geometry type is the base BufferGeometry.
+  private readonly sphere: THREE.Mesh<THREE.BufferGeometry, THREE.Material>;
   private readonly plane: THREE.Mesh<THREE.CircleGeometry, THREE.Material>;
-  private readonly sphereBaseUv: Float32Array;
+  // The original sphere geometry, kept so selecting "Sphere" restores it without rebuilding (and so
+  // we never dispose it when swapping back and forth).
+  private readonly baseSphereGeometry: THREE.SphereGeometry;
+  private sphereBaseUv: Float32Array;
   private readonly planeBaseUv: Float32Array;
+  // Current material tiling, so a geometry swap can re-apply the same density to the new UVs.
+  private demoTiles = 1;
   // Turntable rig: holds the material sample (sphere + ground plane) so they spin together (lock mode). The
   // lights + IBL environment stay world-fixed, so spinning the sample makes its surfaces relight (specular /
   // normals / reflections sweep across it) — a material-inspection turntable. Identity = default pose.
@@ -53,6 +60,7 @@ export class MainScene {
     planeGeometry.rotateX(-Math.PI / 2);
     addFullVertexAo(sphereGeometry);
     addFullVertexAo(planeGeometry);
+    this.baseSphereGeometry = sphereGeometry;
     this.sphereBaseUv = copyUv(sphereGeometry);
     this.planeBaseUv = copyUv(planeGeometry);
 
@@ -88,8 +96,32 @@ export class MainScene {
   }
 
   setDemoTiling(tiles: number): void {
+    this.demoTiles = tiles;
     applyUvTiling(this.sphere.geometry, this.sphereBaseUv, tiles);
     applyUvTiling(this.plane.geometry, this.planeBaseUv, tiles);
+  }
+
+  // Swap the material sample's geometry. Pass null to restore the built-in sphere. The passed
+  // geometry is expected to be centered/normalized (see model-loader's prepareSampleGeometry) with
+  // position + normal + uv; this fills in the vertexAo attribute the material reads and re-applies
+  // the current UV tiling. The previous geometry is disposed unless it's the kept base sphere.
+  setSampleGeometry(geometry: THREE.BufferGeometry | null): void {
+    const next = geometry ?? this.baseSphereGeometry;
+    if (next === this.sphere.geometry) return;
+
+    const previous = this.sphere.geometry;
+    if (previous !== this.baseSphereGeometry) previous.dispose();
+
+    if (!next.getAttribute("vertexAo")) addFullVertexAo(next);
+    this.sphere.geometry = next;
+    this.sphereBaseUv = copyUv(next);
+    applyUvTiling(next, this.sphereBaseUv, this.demoTiles);
+
+    // Loaded models are non-convex, so they self-occlude — and the shadow bias tuned for the smooth
+    // convex sphere turns that into full-surface shadow acne, blocking the directional light entirely
+    // (only IBL still reaches them). Stop the sample from RECEIVING shadows when a model is active; it
+    // still CASTS onto the ground. The built-in sphere is convex and keeps shadow receipt.
+    this.sphere.receiveShadow = geometry === null;
   }
 
   update(): void {
@@ -102,6 +134,8 @@ export class MainScene {
 
   dispose(): void {
     this.sphere.geometry.dispose();
+    // The base sphere may be swapped out (a model is active) — dispose it too if it isn't the live one.
+    if (this.baseSphereGeometry !== this.sphere.geometry) this.baseSphereGeometry.dispose();
     this.plane.geometry.dispose();
     this.materialSurface.dispose();
     this.materialController.dispose();
