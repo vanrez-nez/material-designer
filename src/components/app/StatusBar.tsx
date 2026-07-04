@@ -10,6 +10,8 @@ export function StatusBar() {
         <span className="workspace-footer__dim">v{__APP_VERSION__}</span>
         <span className="workspace-footer__sep">·</span>
         <span className="workspace-footer__dim">runtime v{__RUNTIME_VERSION__}</span>
+        <span className="workspace-footer__sep">·</span>
+        <span className="workspace-footer__dim" title="Build commit">{__COMMIT_HASH__}</span>
       </div>
       <a
         className="workspace-footer__link"

@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
@@ -42,13 +43,27 @@ function loadManifestPlugin(): Plugin {
   };
 }
 
+// Short hash of the HEAD commit, baked into a BUILD so the status bar can identify the exact released code.
+// Appends "-dirty" when the tree has uncommitted changes so the marker never claims a clean commit it isn't.
+// Only meaningful at build time — in dev the working tree is live/uncommitted, so we show "dev" instead of a
+// commit that wouldn't represent what's actually running. Falls back to "unknown" when git is unavailable.
+function gitCommitHash(): string {
+  try {
+    const hash = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+    const dirty = execSync("git status --porcelain", { encoding: "utf8" }).trim().length > 0;
+    return dirty ? `${hash}-dirty` : hash;
+  } catch {
+    return "unknown";
+  }
+}
+
 const threeRoot = fileURLToPath(new URL("./node_modules/three", import.meta.url));
 const threeModule = fileURLToPath(new URL("./node_modules/three/build/three.module.js", import.meta.url));
 const threeWebgpu = fileURLToPath(new URL("./node_modules/three/build/three.webgpu.js", import.meta.url));
 const threeTsl = fileURLToPath(new URL("./node_modules/three/build/three.tsl.js", import.meta.url));
 const threeExamples = fileURLToPath(new URL("./node_modules/three/examples/jsm", import.meta.url));
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   // Relative base so the build works whether GitHub Pages serves it at a domain root or a project
   // subpath (…/material-designer/). All asset URLs become relative to index.html; runtime asset paths
   // use import.meta.env.BASE_URL.
@@ -56,6 +71,8 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appPkg.version),
     __RUNTIME_VERSION__: JSON.stringify(runtimePkg.version),
+    // Only a real build gets a commit hash (representative of the released code); dev shows "dev".
+    __COMMIT_HASH__: JSON.stringify(command === "build" ? gitCommitHash() : "dev"),
   },
   plugins: [react(), tailwindcss(), loadManifestPlugin()],
   resolve: {
@@ -80,4 +97,4 @@ export default defineConfig({
       ignored: ["**/external/**"],
     },
   },
-});
+}));
