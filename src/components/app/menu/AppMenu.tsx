@@ -51,6 +51,7 @@ type AppMenuProps = {
   onNewDocument?: () => void;
   onOpenDocument?: () => void;
   onOpenCatalog?: () => void;
+  onClearSession?: () => void;
 };
 
 export function AppMenu({
@@ -59,6 +60,7 @@ export function AppMenu({
   onNewDocument,
   onOpenDocument,
   onOpenCatalog,
+  onClearSession,
 }: AppMenuProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [openMenu, setOpenMenu] = useState("");
@@ -252,6 +254,16 @@ export function AppMenu({
             >
               <span>Redo</span>
               <Shortcut keys={[modifierKeyLabel, "⇧", "Z"]} />
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem
+              variant="destructive"
+              onSelect={() => {
+                closeMenu();
+                onClearSession?.();
+              }}
+            >
+              <span>Clear Session</span>
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>

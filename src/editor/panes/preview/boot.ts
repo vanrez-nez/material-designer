@@ -7,6 +7,7 @@ import { SceneControls } from "./scene-controls";
 import { SCENE_LIGHT_PRESETS, matchScenePresetId } from "./scene-presets";
 import { ModelControls } from "./model-controls";
 import { MODEL_PRESETS } from "./model-presets";
+import { TileControls } from "./tile-controls";
 import { loadModelGeometry, parseModelGeometry } from "./model-loader";
 import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
@@ -202,7 +203,7 @@ function endTurnDrag(event: PointerEvent): void {
 sceneCanvas.addEventListener("pointerup", endTurnDrag);
 sceneCanvas.addEventListener("pointercancel", endTurnDrag);
 
-const { materialEditor, paneElement, rebuildEditor, applyScenePreset } = setupTweakpane({
+const { materialEditor, paneElement, rebuildEditor, applyScenePreset, setTiling, getTiling } = setupTweakpane({
   app,
   graphHost,
   paneHost,
@@ -256,6 +257,13 @@ const modelControls = new ModelControls({
   onLoadCustom: (file) => {
     void loadCustomModel(file);
   },
+});
+
+// Bottom-left overlay: tile-scale stepper [+] / [reset] / [-]. Clamping/persistence live in setTiling.
+const tileControls = new TileControls({
+  mount: sceneHost,
+  onStep: (dir) => setTiling(getTiling() + dir * 0.25),
+  onReset: () => setTiling(1),
 });
 
 async function selectModel(id: string): Promise<void> {
@@ -321,6 +329,7 @@ function attachPreviewHosts(nextSceneHost: HTMLDivElement, nextPaneHost: HTMLDiv
   if (sceneCanvas.parentElement !== sceneHost) sceneHost.appendChild(sceneCanvas);
   if (sceneControls.root.parentElement !== sceneHost) sceneHost.appendChild(sceneControls.root);
   if (modelControls.root.parentElement !== sceneHost) sceneHost.appendChild(modelControls.root);
+  if (tileControls.root.parentElement !== sceneHost) sceneHost.appendChild(tileControls.root);
   if (paneElement.parentElement !== paneHost) paneHost.appendChild(paneElement);
   resize();
 }

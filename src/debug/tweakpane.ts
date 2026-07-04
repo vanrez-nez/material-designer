@@ -51,6 +51,10 @@ export interface TweakpaneHandles {
   // Apply a named lighting preset (see scene-presets.ts); mutates sceneState, syncs the Scene folder, and
   // applies + persists. Called from the scene overlay controls.
   applyScenePreset: (id: string) => void;
+  // Clamp/round to [0.25, 8] step 0.25, apply to the meshes, persist, and re-render. Returns the applied
+  // value. Called from the bottom-left tile-scale overlay (replaces the old Projection → tiling slider).
+  setTiling: (value: number) => number;
+  getTiling: () => number;
 }
 
 function mergeSetting<T extends Record<string, unknown>>(
@@ -211,6 +215,19 @@ export function setupTweakpane({
     resize();
   }
 
+  function setTiling(value: number): number {
+    const v = Math.min(8, Math.max(0.25, Math.round(value / 0.25) * 0.25));
+    projectionState.tiling = v;
+    mainScene.setDemoTiling(v);
+    saveDocumentSettings();
+    requestRender();
+    return v;
+  }
+
+  function getTiling(): number {
+    return projectionState.tiling;
+  }
+
   function applyScenePreset(id: string): void {
     const preset = SCENE_LIGHT_PRESETS.find((p) => p.id === id);
     if (!preset) return;
@@ -231,9 +248,6 @@ export function setupTweakpane({
       .on("change", (event) => mainScene.materialSurface.setNormalDebug(event.value));
 
     const projection = container.addFolder({ title: "Projection", expanded: false });
-    projection
-      .addBinding(projectionState, "tiling", { min: 0.25, max: 8, step: 0.25 })
-      .on("change", (event) => mainScene.setDemoTiling(event.value));
     projection
       .addBinding(projectionState, "triplanar", { label: "triplanar" })
       .on("change", (event) => mainScene.materialSurface.setTriplanar(event.value));
@@ -378,5 +392,5 @@ export function setupTweakpane({
   };
   rebuildEditor();
 
-  return { materialEditor, paneElement: pane.element, rebuildEditor, applyScenePreset };
+  return { materialEditor, paneElement: pane.element, rebuildEditor, applyScenePreset, setTiling, getTiling };
 }

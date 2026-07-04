@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { ClearSessionDialog } from "@/components/app/dialogs/ClearSessionDialog";
 import { DocumentExportDialog } from "@/components/app/dialogs/DocumentExportDialog";
 import { FromCatalogDialog } from "@/components/app/dialogs/FromCatalogDialog";
 import { OpenDocumentDialog } from "@/components/app/dialogs/OpenDocumentDialog";
@@ -27,6 +28,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
   const [isTextureExportOpen, setIsTextureExportOpen] = useState(false);
   const [isOpenDocumentOpen, setIsOpenDocumentOpen] = useState(false);
   const [isFromCatalogOpen, setIsFromCatalogOpen] = useState(false);
+  const [isClearSessionOpen, setIsClearSessionOpen] = useState(false);
   const [splashOpen, setSplashOpen] = useState(() => !splashHidden());
 
   useDocumentLibrarySync();
@@ -41,6 +43,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
             onNewDocument={newDocument}
             onOpenDocument={() => setIsOpenDocumentOpen(true)}
             onOpenCatalog={() => setIsFromCatalogOpen(true)}
+            onClearSession={() => setIsClearSessionOpen(true)}
           />
           <DocumentTitle onShowAll={() => setIsOpenDocumentOpen(true)} />
           <LayoutToolbar />
@@ -79,6 +82,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
         services={services}
         onOpenChange={setIsTextureExportOpen}
       />
+      <ClearSessionDialog open={isClearSessionOpen} onOpenChange={setIsClearSessionOpen} />
       {splashOpen ? (
         <SplashScreen
           services={services}
