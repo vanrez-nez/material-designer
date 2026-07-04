@@ -7,6 +7,7 @@ import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
 import { installBakeDevHandles } from "@/debug/bake-setup";
 import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
+import { createFrameScheduler } from "@/lib/frame-scheduler";
 import type { MaterialAppServices } from "@/components/app/services";
 import {
   GRAPH_NAVIGATE_EVENT,
@@ -79,7 +80,6 @@ let sceneRenderable = false;
 // once per meaningful change — camera interaction, a material bake/rebuild, a scene/lighting tweak, a
 // resize, or a document load. `requestRender` coalesces bursts into a single rAF-timed frame. These are
 // declared before setupTweakpane because it applies saved settings synchronously (→ resize → requestRender).
-let renderRaf = 0;
 let rendererReady = false; // flipped true after renderer.init(); guards early rAFs (resize runs pre-init)
 function renderNow(): void {
   if (!rendererReady || !sceneRenderable) return;
@@ -94,12 +94,11 @@ function renderNow(): void {
   mainScene.update();
   renderer.render(mainScene.scene, camera);
 }
+// Shared coalescing scheduler (also used by the texture preview) — collapses a burst of change events into
+// one rAF-timed render instead of a continuous loop.
+const frameScheduler = createFrameScheduler(renderNow);
 function requestRender(): void {
-  if (renderRaf) return;
-  renderRaf = requestAnimationFrame(() => {
-    renderRaf = 0;
-    renderNow();
-  });
+  frameScheduler.request();
 }
 
 // OrbitControls has damping (inertial glide after release), which needs a frame-by-frame render until it

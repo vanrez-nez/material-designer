@@ -1,6 +1,7 @@
 import type { Texture } from "three";
 import { MeshBasicNodeMaterial, QuadMesh, RenderTarget, type WebGPURenderer } from "three/webgpu";
 import { texture as tslTexture, uniform, uv, vec2 } from "three/tsl";
+import { createFrameScheduler, type FrameScheduler } from "@/lib/frame-scheduler";
 
 // Zero-readback 2D texture preview. The 2D preview pane used to re-bake the graph and read pixels back to
 // the CPU on every edit; instead this samples the surface's ALREADY-BAKED channel texture directly on the
@@ -39,10 +40,11 @@ function createSurfaceState(canvas: HTMLCanvasElement, ctx: GPUCanvasContext, rt
     boundTex: null as Texture | null,
     wPx: 1,
     hPx: 1,
-    raf: 0,
-    // Latest requested draw, rendered when the coalesced frame fires (see requestRender).
+    // Latest requested draw, rendered when the coalesced frame fires (see requestRender). The scheduler is
+    // assigned in attach() where `this.renderNow` is reachable.
     pendingTex: null as Texture | null,
     pendingLayout: null as PreviewLayout | null,
+    scheduler: null as FrameScheduler | null,
   };
 }
 type Surface = ReturnType<typeof createSurfaceState>;
@@ -76,14 +78,20 @@ export class TexturePreviewGpu {
     });
     const rt = new RenderTarget(1, 1);
     rt.texture.colorSpace = colorSpace; // set so the quad's write re-encodes to the source channel's bytes
-    this.surfaces.set(canvas, createSurfaceState(canvas, ctx, rt));
+    const s = createSurfaceState(canvas, ctx, rt);
+    // Same coalescing primitive the 3D scene uses (see @/lib/frame-scheduler): the callback renders this
+    // surface's LATEST pending draw when the single scheduled frame fires.
+    s.scheduler = createFrameScheduler(() => {
+      if (s.pendingLayout) this.renderNow(s, s.pendingTex, s.pendingLayout);
+    });
+    this.surfaces.set(canvas, s);
     return true;
   }
 
   detach(canvas: HTMLCanvasElement): void {
     const s = this.surfaces.get(canvas);
     if (!s) return;
-    if (s.raf) cancelAnimationFrame(s.raf);
+    s.scheduler?.cancel();
     s.rt.dispose();
     s.material.dispose();
     try {
@@ -113,11 +121,7 @@ export class TexturePreviewGpu {
     // newest layout and render that when the single scheduled frame fires.
     s.pendingTex = tex;
     s.pendingLayout = layout;
-    if (s.raf) return;
-    s.raf = requestAnimationFrame(() => {
-      s.raf = 0;
-      if (s.pendingLayout) this.renderNow(s, s.pendingTex, s.pendingLayout);
-    });
+    s.scheduler?.request();
   }
 
   private renderNow(s: Surface, tex: Texture | null, layout: PreviewLayout): void {
