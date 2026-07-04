@@ -896,6 +896,13 @@ body {
   cursor: grabbing;
 }
 
+.texture-preview-seams {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+
 .texture-preview-thumbnails {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));

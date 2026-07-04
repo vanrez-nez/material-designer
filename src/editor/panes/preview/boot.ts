@@ -3,7 +3,7 @@ import { WebGPURenderer, PMREMGenerator } from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { MainScene } from "./MainScene";
-import { bakeService, PBR_SOCKETS, type MaterialValue } from "@/runtime";
+import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
 import { installBakeDevHandles } from "@/debug/bake-setup";
 import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
@@ -178,13 +178,13 @@ await mainScene.materialSurface.refresh();
 // graph edit).
 services.setTextureApi({
   exportTextureZip: ({ channels, size }) => exporter.exportTextureZip({ channels, size }),
-  readConnectedTextureChannels: () => {
-    const { bundle } = mainScene.materialController.compileBundle({ backend: "offline" });
-    const present = bundle as Partial<Record<string, MaterialValue>>;
-    return PBR_SOCKETS.filter((socket) => present[socket] !== undefined);
-  },
-  readTexturePreview: (channel, size) =>
-    bakeService.readImage(mainScene.materialController, channel, size),
+  // The connected channels are exactly what the surface baked — read them from the set instead of
+  // recompiling a bundle just to list presence.
+  readConnectedTextureChannels: () => [...mainScene.materialSurface.presentChannels()],
+  // GPU-direct preview: the pane samples these baked textures directly (no readImage, no readback).
+  getChannelTexture: (channel) => mainScene.materialSurface.getChannelTexture(channel),
+  getRenderer: () => renderer,
+  onTexturesUpdated: (cb) => mainScene.materialSurface.onTexturesUpdated(cb),
 });
 
 // Shared IBL environment: one RoomEnvironment PMREM cubemap gives the preview soft fill and reflections.

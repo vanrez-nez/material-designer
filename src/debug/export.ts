@@ -259,19 +259,23 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     const files: Record<string, Uint8Array> = {};
     const missing: PbrSocket[] = [];
 
-    for (const channel of channels) {
-      const image = await bakeService.readImage(graph, channel, size);
-      if (!image) {
-        missing.push(channel);
-        continue;
+    try {
+      for (const channel of channels) {
+        const image = await bakeService.readImage(graph, channel, size);
+        if (!image) {
+          missing.push(channel);
+          continue;
+        }
+        const blob = await canvasToPngBlob(imageDataToCanvas(image));
+        if (!blob) throw new Error(`Could not encode ${channel} as PNG.`);
+        files[textureChannelForSocket(channel).filename] = await blobToUint8Array(blob);
       }
-      const blob = await canvasToPngBlob(imageDataToCanvas(image));
-      if (!blob) throw new Error(`Could not encode ${channel} as PNG.`);
-      files[textureChannelForSocket(channel).filename] = await blobToUint8Array(blob);
-    }
 
-    if (missing.length > 0) {
-      throw new Error(`Selected channel not connected: ${missing.join(", ")}.`);
+      if (missing.length > 0) {
+        throw new Error(`Selected channel not connected: ${missing.join(", ")}.`);
+      }
+    } finally {
+      graph.dispose();
     }
 
     const zipped = zipSync(files, { level: 6 });
@@ -375,6 +379,11 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
       dispose: () => {
         sphereGeometry.dispose();
         planeGeometry.dispose();
+        // The shadow map is a real GPU render target (2048²) allocated on first shadow render — without
+        // this, every profile render of every material in the long-lived bake worker leaks one.
+        key.shadow.dispose();
+        key.dispose();
+        fill.dispose();
         scene.remove(sphere, plane, key, key.target, fill);
       },
     };
@@ -442,13 +451,17 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     );
 
     const written: string[] = [];
-    for (const channel of PBR_SOCKETS) {
-      const image = await bakeService.readImage(graph, channel, size);
-      if (!image) continue; // channel unconnected — skip
-      const blob = await canvasToPngBlob(imageDataToCanvas(image));
-      if (!blob) continue;
-      await postBakeFile(`${name}/${channel}.ours.png`, blob);
-      written.push(channel);
+    try {
+      for (const channel of PBR_SOCKETS) {
+        const image = await bakeService.readImage(graph, channel, size);
+        if (!image) continue; // channel unconnected — skip
+        const blob = await canvasToPngBlob(imageDataToCanvas(image));
+        if (!blob) continue;
+        await postBakeFile(`${name}/${channel}.ours.png`, blob);
+        written.push(channel);
+      }
+    } finally {
+      graph.dispose();
     }
     console.log(`[bake] wrote bake/${name}/ — channels: ${written.join(", ") || "(none connected)"}`);
   }
@@ -504,7 +517,17 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     let pmrem: PMREMGenerator | null = null;
     if (profiles.some((p) => p.environmentIntensity > 0)) {
       pmrem = new PMREMGenerator(renderer);
-      env = pmrem.fromScene(new RoomEnvironment()).texture;
+      // RoomEnvironment is a full Scene of meshes whose GPU buffers upload during the PMREM render —
+      // dispose its geometries/materials or every catalog bake leaks them.
+      const room = new RoomEnvironment();
+      env = pmrem.fromScene(room).texture;
+      room.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry.dispose();
+          (mesh.material as THREE.Material).dispose();
+        }
+      });
     }
 
     const rendered: string[] = [];
@@ -518,6 +541,7 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     env?.dispose();
     pmrem?.dispose();
     surface.dispose();
+    graph.dispose();
 
     console.log(
       `[material-task] wrote bake/${folder}/ — channels: ${written.join(", ") || "(none connected)"}, tileability proof: ${proofBlob ? "yes" : "no"}, renders: ${rendered.join("/") || "(none)"}`,
