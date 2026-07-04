@@ -102,17 +102,29 @@ function requestRender(): void {
 }
 
 // OrbitControls has damping (inertial glide after release), which needs a frame-by-frame render until it
-// settles. Run a short self-terminating loop for the whole interaction: kicked on `start` (orbit/pan/
-// zoom), it renders each frame and stops as soon as `controls.update()` reports no further motion. Idle
-// between interactions = zero rAF.
-let dampingRaf = 0;
-function dampingTick(): void {
+// settles. Render whenever the controls report the camera moved — this is the canonical on-demand hook and
+// it covers ALL paths, including wheel-zoom: OrbitControls' wheel handler applies the dolly via its own
+// internal `update()` (between its synchronous "start"/"end"), so the change happens outside our pump loop;
+// a loop that only rendered on its own `update()` motion would miss it (the scroll wouldn't update the view).
+controls.addEventListener("change", requestRender);
+
+// Damping only advances when `controls.update()` is called, so pump it every frame for the whole gesture
+// (start→end) and until the inertial glide settles. `update()` dispatches "change" (→ requestRender) when it
+// actually moves, so the pump itself doesn't render. Keeping it alive while the pointer is held
+// (`interacting`) means holding still mid-drag then moving again isn't dropped. Idle between interactions =
+// zero rAF (nothing calls `update()`, so no "change" fires).
+let interacting = false;
+let controlsRaf = 0;
+function pumpControls(): void {
   const moving = controls.update();
-  renderNow();
-  dampingRaf = moving ? requestAnimationFrame(dampingTick) : 0;
+  controlsRaf = interacting || moving ? requestAnimationFrame(pumpControls) : 0;
 }
 controls.addEventListener("start", () => {
-  if (!dampingRaf) dampingRaf = requestAnimationFrame(dampingTick);
+  interacting = true;
+  if (!controlsRaf) controlsRaf = requestAnimationFrame(pumpControls);
+});
+controls.addEventListener("end", () => {
+  interacting = false; // let the pump run out as damping settles, then stop
 });
 
 const { materialEditor, paneElement, rebuildEditor } = setupTweakpane({
@@ -197,6 +209,13 @@ sceneResizeObserver.observe(sceneCanvas);
 // the first render.
 await renderer.init();
 rendererReady = true;
+// three's WebGPURenderer starts an internal, always-on rAF loop inside init() (Animation.start) that ticks
+// `nodeFrame.update()` every frame for the renderer's lifetime — so even with our on-demand rendering and a
+// fully static scene the tab never idles (~7% CPU, a tiny three.webgpu render every frame). `setAnimationLoop
+// (null)` does NOT stop it; only `dispose()` does. We have no time-based/animated nodes, and `render()` drives
+// node updates per call (via renderId) — baking still ticks the frame through `compileAsync` — so we cancel
+// the internal loop and let our on-demand renders drive everything. Idle = zero rAF.
+(renderer as unknown as { _animation?: { stop(): void } })._animation?.stop();
 // Offline baking needs the renderer. Hand it to the shared bake service, then refresh the preview surface so
 // it swaps from the live startup fallback to the baked offline material.
 bakeService.attachRenderer(renderer);

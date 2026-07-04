@@ -391,11 +391,14 @@ function useElementSize(ref: RefObject<HTMLElement | null>): CanvasSize {
     const node = ref.current;
     if (!node) return undefined;
 
-    const update = () =>
-      setSize({
-        height: Math.max(0, Math.floor(node.clientHeight)),
-        width: Math.max(0, Math.floor(node.clientWidth)),
-      });
+    // ResizeObserver fires on sub-pixel border-box changes, so bail when the floored dimensions are
+    // unchanged — otherwise a new `size` object identity would re-run the draw effects and re-blit the
+    // preview every frame at rest (a persistent idle rAF for no visible change).
+    const update = () => {
+      const height = Math.max(0, Math.floor(node.clientHeight));
+      const width = Math.max(0, Math.floor(node.clientWidth));
+      setSize((prev) => (prev.width === width && prev.height === height ? prev : { height, width }));
+    };
     const observer = new ResizeObserver(update);
     update();
     observer.observe(node);

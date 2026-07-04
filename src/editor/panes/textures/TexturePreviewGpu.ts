@@ -11,8 +11,15 @@ import { createFrameScheduler, type FrameScheduler } from "@/lib/frame-scheduler
 // `copyTextureToTexture` blits it into that canvas's own WebGPU context. No re-bake, no readback, and the
 // baked texture object is stable across bakes so a redraw only re-reads its (updated-in-place) pixels.
 
-// MUST match the RenderTarget's format or copyTextureToTexture is a silent no-op (blank canvas).
-const CANVAS_FORMAT: GPUTextureFormat = "rgba8unorm";
+// The canvas is configured with the device-PREFERRED format so the browser doesn't insert an extra copy
+// on present (the "different format than preferred" warning). The per-canvas RenderTarget is then forced
+// to this SAME GPUTextureFormat (via texture.internalFormat in attach) — copyTextureToTexture requires
+// both textures to share a format, otherwise it's a silent no-op (blank canvas).
+function preferredCanvasFormat(): GPUTextureFormat {
+  return typeof navigator !== "undefined" && navigator.gpu
+    ? navigator.gpu.getPreferredCanvasFormat()
+    : "rgba8unorm";
+}
 // GPUTextureUsage flag bits (COPY_DST=0x02, RENDER_ATTACHMENT=0x10) — spelled out to avoid depending on the
 // ambient `GPUTextureUsage` runtime const, which isn't reliably declared as a value in this typings setup.
 const CANVAS_USAGE = 0x02 | 0x10;
@@ -70,14 +77,19 @@ export class TexturePreviewGpu {
     if (this.surfaces.has(canvas)) return true;
     const ctx = canvas.getContext("webgpu") as GPUCanvasContext | null;
     if (!ctx) return false;
+    const format = preferredCanvasFormat();
     ctx.configure({
       device: this.device,
-      format: CANVAS_FORMAT,
+      format,
       alphaMode: "opaque",
       usage: CANVAS_USAGE,
     });
     const rt = new RenderTarget(1, 1);
     rt.texture.colorSpace = colorSpace; // set so the quad's write re-encodes to the source channel's bytes
+    // Match the canvas so copyTextureToTexture stays a same-format blit. three types `internalFormat` as
+    // WebGL2 names, but its WebGPU backend reads it as a raw GPUTextureFormat (WebGPUTextureUtils: the RT
+    // GPUTexture is allocated as `texture.internalFormat || …`), so the cast is the intended override.
+    (rt.texture as unknown as { internalFormat: GPUTextureFormat }).internalFormat = format;
     const s = createSurfaceState(canvas, ctx, rt);
     // Same coalescing primitive the 3D scene uses (see @/lib/frame-scheduler): the callback renders this
     // surface's LATEST pending draw when the single scheduled frame fires.
