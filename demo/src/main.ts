@@ -102,7 +102,7 @@ const mesh = new THREE.Mesh<THREE.BufferGeometry, THREE.Material>(
 scene.add(mesh);
 
 function applyMaterial(): void {
-  mesh.material = runtime.material;
+  mesh.material = runtime.getNodeMaterial();
 }
 
 function setGeometry(type: GeometryType): void {
@@ -116,8 +116,7 @@ function setGeometry(type: GeometryType): void {
 
 // --- runtime ---------------------------------------------------------------------------------------
 const runtime = new MaterialGraphRuntime({ document: createDefaultMaterialDocument() })
-  .setRenderer(renderer)
-  .setBackend("offline");
+  .setRenderer(renderer);
 
 // The material object can be swapped on a structural rebuild — keep the mesh current.
 runtime.surface.onRebuilt(() => applyMaterial());
