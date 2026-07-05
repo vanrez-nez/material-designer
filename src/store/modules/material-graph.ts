@@ -10,7 +10,7 @@ import type {
 
 const MATERIAL_GRAPH_STORAGE_KEY = "material-designer:material-graph-document:v1";
 const LEGACY_MATERIAL_GRAPH_STORAGE_KEY = "material-graph-document:v1";
-const DOC_VERSION = 3;
+const DOC_VERSION = 4;
 
 export type MaterialGraphEvent = {
   change: GraphChange;
