@@ -114,7 +114,10 @@ export function setupTweakpane({
   });
 
   function applySurfaceMaterialState(): void {
-    const m = mainScene.materialSurface.material as MeshPhysicalNodeMaterial;
+    const m = mainScene.materialSurface.material;
+    // These are Physical-only surface controls; other families (Lambert/Toon/Phong/Matcap) lack these
+    // properties, so skip when the graph's materialType isn't Physical.
+    if (!(m instanceof MeshPhysicalNodeMaterial)) return;
     const s = surfaceMaterialState;
     m.envMapIntensity = s.envMapIntensity;
     m.flatShading = s.flatShading;

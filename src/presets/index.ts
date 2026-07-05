@@ -1,4 +1,4 @@
-import type { MaterialGraphDocument } from "@/runtime";
+import { migrateMaterialDocument, type MaterialGraphDocument } from "@/runtime";
 import defaultDoc from "./default.json";
 import checkersDoc from "./checkers.json";
 import voronoiCellsDoc from "./voronoi-cells.json";
@@ -40,10 +40,11 @@ export const MATERIAL_PRESETS: Preset[] = [
 ];
 export const DEFAULT_PRESET = "empty"; // presets/default.json — the document loaded on a fresh session
 
-// Deep-clone the preset (the imported JSON is shared; loadDocument mutates the doc, so callers need a copy).
+// Clone + migrate the preset (the imported JSON is shared and may be an older schema version; migration
+// clones, rewrites legacy Principled BSDF → shader-material, and stamps the current version).
 export function makePreset(key: string): MaterialGraphDocument {
   const preset = MATERIAL_PRESETS.find((p) => p.key === key) ?? MATERIAL_PRESETS[0];
-  return structuredClone(preset.doc);
+  return migrateMaterialDocument(preset.doc);
 }
 
 // The document loaded on a fresh session / reset (no persisted graph).

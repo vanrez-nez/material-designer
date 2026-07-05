@@ -18,8 +18,10 @@ import {
 const OUTPUT_TYPE = "material-output";
 // Nodes that can't be deleted from the canvas (terminal output + a subgraph's boundary markers).
 const UNDELETABLE = new Set([OUTPUT_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE]);
-// Boundary markers live only inside a subgraph — never offered in the add-node palette.
-const PALETTE_HIDDEN = new Set([OUTPUT_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE]);
+// Boundary markers live only inside a subgraph — never offered in the add-node palette. `principled-bsdf`
+// stays registered (so legacy in-memory docs validate) but is superseded by the polymorphic `shader-material`
+// node, so it's hidden from the palette too.
+const PALETTE_HIDDEN = new Set([OUTPUT_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE, "principled-bsdf"]);
 
 // Registry-driven adapter: turns the controller's live MaterialGraphDocument into the generic editor
 // config (material-graph-plan.md). Node ports and Tweakpane controls are generated from each node's

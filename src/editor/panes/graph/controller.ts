@@ -1,6 +1,7 @@
 import {
   compileSockets,
   defaultRegistry,
+  migrateMaterialDocument,
   nodePorts,
   type CompileOptions,
   type CompiledSockets,
@@ -23,7 +24,7 @@ import { useWorkspaceStore, type HistoryUpdateOptions } from "@/store/app";
 
 const STORAGE_KEY = "material-designer:material-graph-document:v1";
 const LEGACY_STORAGE_KEY = "material-graph-document:v1";
-const DOC_VERSION = 2;
+const DOC_VERSION = 3;
 
 const rid = (): string => Math.random().toString(36).slice(2, 8);
 
@@ -386,6 +387,11 @@ export class MaterialGraphController implements MaterialGraphSource {
       this.emit({ kind: "structural" }, options);
       return;
     }
+    // Construction-time settings (e.g. phong shininess/specular) reconstruct the material → structural.
+    if (paramDef?.structural) {
+      this.emit({ kind: "structural" }, options);
+      return;
+    }
     // float/colour/vec3/curve are live-tweakable values (the surface updates a uniform live, or folds the
     // value into a re-bake). Everything else (int loop counts, plain bool/select) needs a structural rebuild.
     if (paramType === "float" || paramType === "color" || paramType === "vec3" || paramType === "curve") {
@@ -568,7 +574,8 @@ export class MaterialGraphController implements MaterialGraphSource {
   // inspecting a material never clobbers the saved graph. Listeners are always notified so any bound
   // surface rebuilds. (A null-storageKey controller never persists regardless of this flag.)
   loadDocument(doc: MaterialGraphDocument, { persist = true }: { persist?: boolean } = {}): void {
-    this.doc = structuredClone(doc);
+    // Migrate on the way in so an older (v2 Principled BSDF) file/library/preset document loads seamlessly.
+    this.doc = migrateMaterialDocument(doc);
     this.path = [...(this.doc.ui?.editor?.activeGroupPath ?? [])];
     this.soloNode_ = this.doc.ui?.editor?.soloNode ?? null;
     if (this.storeBacked) {
@@ -605,8 +612,10 @@ export class MaterialGraphController implements MaterialGraphSource {
       }
       if (!raw) return null;
       const parsed = JSON.parse(raw) as MaterialGraphDocument;
-      if (parsed.version !== DOC_VERSION || !Array.isArray(parsed.nodes)) return null;
-      return parsed;
+      // Accept any version up to the current one and migrate it; reject only unusable shapes / future versions.
+      if (!Array.isArray(parsed.nodes) || typeof parsed.version !== "number" || parsed.version > DOC_VERSION)
+        return null;
+      return migrateMaterialDocument(parsed);
     } catch {
       return null;
     }

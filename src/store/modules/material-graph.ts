@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 
-import type { GraphChange, MaterialGraphDocument } from "@/runtime";
+import { migrateMaterialDocument, type GraphChange, type MaterialGraphDocument } from "@/runtime";
 import { createDefaultDocument } from "@/presets";
 import type {
   HistoryParticipant,
@@ -10,7 +10,7 @@ import type {
 
 const MATERIAL_GRAPH_STORAGE_KEY = "material-designer:material-graph-document:v1";
 const LEGACY_MATERIAL_GRAPH_STORAGE_KEY = "material-graph-document:v1";
-const DOC_VERSION = 2;
+const DOC_VERSION = 3;
 
 export type MaterialGraphEvent = {
   change: GraphChange;
@@ -80,9 +80,11 @@ function readLegacyMaterialDocument(): MaterialGraphDocument | null {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as MaterialGraphDocument;
-    if (parsed.version !== DOC_VERSION || !Array.isArray(parsed.nodes)) return null;
+    // Accept any version up to the current one and migrate it; reject only unusable shapes / future versions.
+    if (!Array.isArray(parsed.nodes) || typeof parsed.version !== "number" || parsed.version > DOC_VERSION)
+      return null;
 
-    return parsed;
+    return migrateMaterialDocument(parsed);
   } catch {
     return null;
   }
