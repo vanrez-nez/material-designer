@@ -1,6 +1,6 @@
 import type { ContainerApi } from "@tweakpane/core";
 import * as THREE from "three";
-import { WebGPURenderer, MeshPhysicalNodeMaterial } from "three/webgpu";
+import { WebGPURenderer } from "three/webgpu";
 import { Pane } from "tweakpane";
 import { MainScene } from "@/editor/panes/preview/MainScene";
 import { SCENE_LIGHT_PRESETS } from "@/editor/panes/preview/scene-presets";
@@ -95,52 +95,9 @@ export function setupTweakpane({
     sharpness: 8,
     parallax: 0,
   });
-  const surfaceMaterialState = mergeSetting(savedSettings, "surfaceMaterialState", {
-    envMapIntensity: 1,
-    flatShading: false,
-    baseColorTint: "#ffffff",
-    roughnessFactor: 1,
-    metalnessFactor: 1,
-    clearcoat: 0,
-    clearcoatRoughness: 0.03,
-    sheen: 0,
-    sheenRoughness: 0.3,
-    sheenColor: "#ffffff",
-    transmission: 0,
-    thickness: 0.5,
-    ior: 1.5,
-    iridescence: 0,
-    iridescenceIOR: 1.3,
-  });
-
-  function applySurfaceMaterialState(): void {
-    const m = mainScene.materialSurface.material;
-    // These are Physical-only surface controls; other families (Lambert/Toon/Phong/Matcap) lack these
-    // properties, so skip when the graph's materialType isn't Physical.
-    if (!(m instanceof MeshPhysicalNodeMaterial)) return;
-    const s = surfaceMaterialState;
-    m.envMapIntensity = s.envMapIntensity;
-    m.flatShading = s.flatShading;
-    m.clearcoat = s.clearcoat;
-    m.clearcoatRoughness = s.clearcoatRoughness;
-    m.sheen = s.sheen;
-    m.sheenRoughness = s.sheenRoughness;
-    m.sheenColor.set(s.sheenColor);
-    m.transmission = s.transmission;
-    m.thickness = s.thickness;
-    m.ior = s.ior;
-    m.iridescence = s.iridescence;
-    m.iridescenceIOR = s.iridescenceIOR;
-    m.needsUpdate = true;
-  }
-
-  let lastSurfaceMaterial: unknown = mainScene.materialSurface.material;
+  // Re-bake shadows whenever the surface material rebuilds (family/backend swap or re-bake). Surface PBR
+  // overrides used to be re-applied here too; they're now owned by the material graph's node sliders.
   mainScene.materialSurface.onRebuilt(() => {
-    const m = mainScene.materialSurface.material;
-    if (m !== lastSurfaceMaterial) {
-      lastSurfaceMaterial = m;
-      applySurfaceMaterialState();
-    }
     mainScene.requestShadowBake();
   });
 
@@ -184,7 +141,6 @@ export function setupTweakpane({
       {
         materialState,
         projectionState,
-        surfaceMaterialState,
         sceneState,
         rendererConfig,
       },
@@ -199,10 +155,6 @@ export function setupTweakpane({
     mainScene.materialSurface.setScale(projectionState.worldPerTile);
     mainScene.materialSurface.setSharpness(projectionState.sharpness);
     mainScene.materialSurface.setParallaxScale(projectionState.parallax);
-    applySurfaceMaterialState();
-    mainScene.materialSurface.setColorTint(surfaceMaterialState.baseColorTint);
-    mainScene.materialSurface.setRoughnessFactor(surfaceMaterialState.roughnessFactor);
-    mainScene.materialSurface.setMetalnessFactor(surfaceMaterialState.metalnessFactor);
     setToneMapping(sceneState.toneMapping);
     renderer.toneMappingExposure = sceneState.exposure;
     mainScene.directionalLight.intensity = sceneState.dirIntensity;
@@ -265,42 +217,6 @@ export function setupTweakpane({
     projection
       .addBinding(projectionState, "parallax", { min: 0, max: 0.12, step: 0.005 })
       .on("change", (event) => mainScene.materialSurface.setParallaxScale(event.value));
-  }
-
-  function buildSurfaceControls(container: ContainerApi): void {
-    const surface = container.addFolder({ title: "Surface (PBR)", expanded: false });
-    const onSurface = (): void => applySurfaceMaterialState();
-    surface
-      .addBinding(surfaceMaterialState, "envMapIntensity", { label: "env intensity", min: 0, max: 3, step: 0.05 })
-      .on("change", onSurface);
-    surface.addBinding(surfaceMaterialState, "flatShading", { label: "flat shading" }).on("change", onSurface);
-    surface
-      .addBinding(surfaceMaterialState, "baseColorTint", { label: "color tint", view: "color" })
-      .on("change", (e) => mainScene.materialSurface.setColorTint(e.value));
-    surface
-      .addBinding(surfaceMaterialState, "roughnessFactor", { label: "roughness x", min: 0, max: 2, step: 0.01 })
-      .on("change", (e) => mainScene.materialSurface.setRoughnessFactor(e.value));
-    surface
-      .addBinding(surfaceMaterialState, "metalnessFactor", { label: "metalness x", min: 0, max: 1, step: 0.01 })
-      .on("change", (e) => mainScene.materialSurface.setMetalnessFactor(e.value));
-
-    const coat = surface.addFolder({ title: "Clearcoat", expanded: false });
-    coat.addBinding(surfaceMaterialState, "clearcoat", { label: "weight", min: 0, max: 1, step: 0.01 }).on("change", onSurface);
-    coat.addBinding(surfaceMaterialState, "clearcoatRoughness", { label: "roughness", min: 0, max: 1, step: 0.01 }).on("change", onSurface);
-
-    const sheen = surface.addFolder({ title: "Sheen", expanded: false });
-    sheen.addBinding(surfaceMaterialState, "sheen", { label: "weight", min: 0, max: 1, step: 0.01 }).on("change", onSurface);
-    sheen.addBinding(surfaceMaterialState, "sheenRoughness", { label: "roughness", min: 0, max: 1, step: 0.01 }).on("change", onSurface);
-    sheen.addBinding(surfaceMaterialState, "sheenColor", { label: "color", view: "color" }).on("change", onSurface);
-
-    const trans = surface.addFolder({ title: "Transmission", expanded: false });
-    trans.addBinding(surfaceMaterialState, "transmission", { label: "weight", min: 0, max: 1, step: 0.01 }).on("change", onSurface);
-    trans.addBinding(surfaceMaterialState, "thickness", { min: 0, max: 5, step: 0.05 }).on("change", onSurface);
-    trans.addBinding(surfaceMaterialState, "ior", { label: "IOR", min: 1, max: 2.5, step: 0.01 }).on("change", onSurface);
-
-    const irid = surface.addFolder({ title: "Iridescence", expanded: false });
-    irid.addBinding(surfaceMaterialState, "iridescence", { label: "weight", min: 0, max: 1, step: 0.01 }).on("change", onSurface);
-    irid.addBinding(surfaceMaterialState, "iridescenceIOR", { label: "IOR", min: 1, max: 2.5, step: 0.01 }).on("change", onSurface);
   }
 
   function buildSceneControls(container: ContainerApi): void {
@@ -369,7 +285,6 @@ export function setupTweakpane({
   }
 
   buildMaterialControls(pane);
-  buildSurfaceControls(pane);
   buildSceneControls(pane);
   buildRenderControls(pane);
   pane.on("change", () => {
