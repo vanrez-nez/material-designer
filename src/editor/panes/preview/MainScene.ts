@@ -95,10 +95,17 @@ export class MainScene {
     this.turntable.quaternion.copy(q);
   }
 
+  // Tiling is snapped to a positive integer: a texture can only tile seamlessly an INTEGER number of times
+  // around a closed UV loop (the sphere's meridian, a cylinder/torus seam, box face edges). A fractional
+  // factor leaves the wrapped axis unclosed — one side of the seam lands at texture u=frac, the other at
+  // u=0 — so the pattern visibly breaks along the seam (the flat plane has no wrap seam, so it looks fine,
+  // which is what made this deceptive). Rounding here is the single funnel: it also sanitises any persisted
+  // fractional value re-applied on load. See model-presets.ts (same integer-wrapped-axis rule).
   setDemoTiling(tiles: number): void {
-    this.demoTiles = tiles;
-    applyUvTiling(this.sphere.geometry, this.sphereBaseUv, tiles);
-    applyUvTiling(this.plane.geometry, this.planeBaseUv, tiles);
+    const t = Math.max(1, Math.round(tiles));
+    this.demoTiles = t;
+    applyUvTiling(this.sphere.geometry, this.sphereBaseUv, t);
+    applyUvTiling(this.plane.geometry, this.planeBaseUv, t);
   }
 
   // Swap the material sample's geometry. Pass null to restore the built-in sphere. The passed

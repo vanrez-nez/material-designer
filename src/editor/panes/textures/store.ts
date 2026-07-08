@@ -13,7 +13,7 @@ export type TexturePreviewStore = {
 
 export const useTexturePreviewStore = create<TexturePreviewStore>()((set) => ({
   seams: false,
-  tileSize: 160,
+  tileSize: 750,
   zoom: 1,
   setSeams: (seams) => set({ seams }),
   setTileSize: (tileSize) => set({ tileSize }),

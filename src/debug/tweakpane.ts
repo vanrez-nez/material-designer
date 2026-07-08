@@ -219,7 +219,9 @@ export function setupTweakpane({
   }
 
   function setTiling(value: number): number {
-    const v = Math.min(8, Math.max(0.25, Math.round(value / 0.25) * 0.25));
+    // Integer tiling only — a fractional factor can't close a wrap seam on round geometry (see
+    // MainScene.setDemoTiling). Clamp to [1, 8].
+    const v = Math.min(8, Math.max(1, Math.round(value)));
     projectionState.tiling = v;
     mainScene.setDemoTiling(v);
     saveDocumentSettings();

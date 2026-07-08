@@ -262,7 +262,7 @@ const modelControls = new ModelControls({
 // Bottom-left overlay: tile-scale stepper [+] / [reset] / [-]. Clamping/persistence live in setTiling.
 const tileControls = new TileControls({
   mount: sceneHost,
-  onStep: (dir) => setTiling(getTiling() + dir * 0.25),
+  onStep: (dir) => setTiling(getTiling() + dir),
   onReset: () => setTiling(1),
 });
 
