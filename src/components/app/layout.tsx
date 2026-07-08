@@ -10,7 +10,7 @@ import { SplashScreen } from "@/components/app/SplashScreen";
 import { StatusBar } from "@/components/app/StatusBar";
 import { useDocumentLibrarySync } from "@/components/app/useDocumentLibrarySync";
 import { splashHidden } from "@/lib/splash-prefs";
-import { newDocument, openCatalogMaterial, openDocument } from "@/store/document-actions";
+import { duplicateActiveDocument, newDocument, openCatalogMaterial, openDocument } from "@/store/document-actions";
 import { makePreset } from "@/presets";
 import { AppMenu } from "@/components/app/menu/AppMenu";
 import { LayoutToolbar } from "@/editor/panes/common/LayoutToolbar";
@@ -41,6 +41,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
             onExportDocument={() => setIsDocumentExportOpen(true)}
             onExportTextures={() => setIsTextureExportOpen(true)}
             onNewDocument={newDocument}
+            onMakeCopy={duplicateActiveDocument}
             onOpenDocument={() => setIsOpenDocumentOpen(true)}
             onOpenCatalog={() => setIsFromCatalogOpen(true)}
             onClearSession={() => setIsClearSessionOpen(true)}

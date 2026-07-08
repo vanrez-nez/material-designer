@@ -49,6 +49,7 @@ type AppMenuProps = {
   onExportDocument?: () => void;
   onExportTextures?: () => void;
   onNewDocument?: () => void;
+  onMakeCopy?: () => void;
   onOpenDocument?: () => void;
   onOpenCatalog?: () => void;
   onClearSession?: () => void;
@@ -58,6 +59,7 @@ export function AppMenu({
   onExportDocument,
   onExportTextures,
   onNewDocument,
+  onMakeCopy,
   onOpenDocument,
   onOpenCatalog,
   onClearSession,
@@ -176,6 +178,14 @@ export function AppMenu({
             >
               <span>New</span>
               <Shortcut keys={[modifierKeyLabel, "N"]} />
+            </MenubarItem>
+            <MenubarItem
+              onSelect={() => {
+                closeMenu();
+                onMakeCopy?.();
+              }}
+            >
+              <span>Make a Copy</span>
             </MenubarItem>
             <MenubarSub>
               <MenubarSubTrigger>Open</MenubarSubTrigger>

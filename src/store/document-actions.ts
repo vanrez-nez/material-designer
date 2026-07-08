@@ -1,5 +1,5 @@
 import { dispatchMaterialDocumentLoad } from "@/app-events";
-import type { MaterialGraphDocument } from "@/runtime";
+import { cloneMaterialDocument, type MaterialGraphDocument } from "@/runtime";
 import { useWorkspaceStore } from "@/store/app";
 import { type DocumentEntry, useDocumentLibraryStore } from "@/store/document-library";
 
@@ -21,6 +21,19 @@ function saveCurrent(): void {
 export function newDocument(): void {
   saveCurrent();
   activateEntry(useDocumentLibraryStore.getState().createDocument());
+}
+
+// Fork the active document: snapshot the original into its own entry, then create a new library entry
+// from a deep clone (so the copy shares no node/edge references) titled "Copy of <title>" and make it
+// active — the editor switches to the copy while the original is preserved untouched.
+export function duplicateActiveDocument(): void {
+  saveCurrent();
+  const { materialDocument } = useWorkspaceStore.getState();
+  const currentTitle = materialDocument.metadata?.title?.trim() || "Untitled";
+  const copyTitle = `Copy of ${currentTitle}`;
+  activateEntry(
+    useDocumentLibraryStore.getState().importDocument(cloneMaterialDocument(materialDocument), copyTitle),
+  );
 }
 
 export function openDocument(id: string): void {
