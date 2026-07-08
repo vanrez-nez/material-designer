@@ -7,6 +7,16 @@
         "./scripts/blender-official-mcp-server.mjs"
       ],
       "env": {}
+    },
+    "material-designer": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./scripts/material-mcp-server.mjs"
+      ],
+      "env": {
+        "MD_WS_PORT": "51787"
+      }
     }
   }
 }

@@ -160,6 +160,15 @@ export interface ExportApi {
     render?: DemoRenderOptions,
   ): Promise<string[]>;
   saveTilingComposite(type: string, img: ImageData): Promise<void>;
+  // Render a single lit sphere/plane demo of `doc` and return the PNG bytes (no disk/bake-server). Used by
+  // the MCP bridge so an agent can "see" the current material. `scale` tiles the material N× (zoom into the
+  // pattern); `profile` picks a lighting rig (standard/normals/metallic/ao).
+  renderMaterialImage(options: {
+    doc: MaterialGraphDocument;
+    size?: number;
+    scale?: number;
+    profile?: string;
+  }): Promise<Blob | null>;
 }
 
 // Reject a malformed document before anything is written. loadDocument does NO validation (it stores the
@@ -549,10 +558,57 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     return written;
   }
 
+  // Render one lit demo image of a document and hand back the PNG bytes directly (no bake server). Mirrors
+  // the render step of bakeMaterialTask on a throwaway, non-persisting graph so it never touches the
+  // on-screen material.
+  async function renderMaterialImage({
+    doc,
+    size = 768,
+    scale = 1,
+    profile = "standard",
+  }: {
+    doc: MaterialGraphDocument;
+    size?: number;
+    scale?: number;
+    profile?: string;
+  }): Promise<Blob | null> {
+    if (!isValidDocument(doc)) throw new Error("renderMaterialImage: invalid document (missing nodes/edges)");
+    const [resolved] = resolveProfiles({ size, scale, profiles: [profile] });
+    const graph = exportGraph(doc);
+    const surface = new TexturedSurface(graph, bakeService);
+    await surface.refresh();
+
+    // Only the metallic profile needs an IBL environment; build it lazily, dispose after.
+    let env: THREE.Texture | null = null;
+    let pmrem: PMREMGenerator | null = null;
+    if (resolved.environmentIntensity > 0) {
+      pmrem = new PMREMGenerator(renderer);
+      const room = new RoomEnvironment();
+      env = pmrem.fromScene(room).texture;
+      room.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry.dispose();
+          (mesh.material as THREE.Material).dispose();
+        }
+      });
+    }
+
+    try {
+      return await renderStandardMaterialDemo(surface.material, resolved, env);
+    } finally {
+      env?.dispose();
+      pmrem?.dispose();
+      surface.dispose();
+      graph.dispose();
+    }
+  }
+
   return {
     exportTextureZip,
     bakeConfigToBake,
     bakeMaterialTask,
     saveTilingComposite,
+    renderMaterialImage,
   };
 }

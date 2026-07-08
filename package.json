@@ -11,7 +11,8 @@
     "catalog": "node scripts/gen-catalog.mjs",
     "material:agent": "node scripts/material-agent-batch.mjs",
     "bake:server": "node scripts/bake-server.mjs",
-    "bake:blender": "node scripts/blender-bake.mjs"
+    "bake:blender": "node scripts/blender-bake.mjs",
+    "mcp:server": "node scripts/material-mcp-server.mjs"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
@@ -46,6 +47,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -55,6 +57,7 @@
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.2",
     "typescript": "6.0.3",
-    "vite": "8.0.16"
+    "vite": "8.0.16",
+    "ws": "^8.18.0"
   }
 }

@@ -13,6 +13,7 @@ import { loadModelGeometry, parseModelGeometry } from "./model-loader";
 import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
 import { installBakeDevHandles } from "@/debug/bake-setup";
+import { installMcpBridge } from "@/debug/mcp-bridge";
 import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
 import { createFrameScheduler } from "@/lib/frame-scheduler";
 import type { MaterialAppServices } from "@/components/app/services";
@@ -488,5 +489,8 @@ if (import.meta.env.DEV) {
     },
   });
   installBakeDevHandles({ mainScene, exporter });
+  // Bridge for the Material Designer MCP server (scripts/material-mcp-server.mjs): connects to its local
+  // WebSocket and lets an agent read/mutate the graph, snapshot/restore, and capture images. Dev-only.
+  installMcpBridge({ mainScene, exporter, getRenderer: () => renderer, getCamera: () => camera });
 }
 }
