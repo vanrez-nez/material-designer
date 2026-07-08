@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { MATERIAL_CONTROLS_OPEN_EVENT } from "@/app-events";
 import { ClearSessionDialog } from "@/components/app/dialogs/ClearSessionDialog";
+import { ControlsDialog } from "@/components/app/dialogs/ControlsDialog";
 import { DocumentExportDialog } from "@/components/app/dialogs/DocumentExportDialog";
 import { FromCatalogDialog } from "@/components/app/dialogs/FromCatalogDialog";
 import { OpenDocumentDialog } from "@/components/app/dialogs/OpenDocumentDialog";
@@ -29,9 +31,17 @@ export function Layout({ services }: { services: MaterialAppServices }) {
   const [isOpenDocumentOpen, setIsOpenDocumentOpen] = useState(false);
   const [isFromCatalogOpen, setIsFromCatalogOpen] = useState(false);
   const [isClearSessionOpen, setIsClearSessionOpen] = useState(false);
+  const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [splashOpen, setSplashOpen] = useState(() => !splashHidden());
 
   useDocumentLibrarySync();
+
+  // The viewport toolbar's settings button (imperative DOM) opens this React dialog via a window event.
+  useEffect(() => {
+    const open = () => setIsControlsOpen(true);
+    window.addEventListener(MATERIAL_CONTROLS_OPEN_EVENT, open);
+    return () => window.removeEventListener(MATERIAL_CONTROLS_OPEN_EVENT, open);
+  }, []);
 
   return (
     <>
@@ -84,6 +94,7 @@ export function Layout({ services }: { services: MaterialAppServices }) {
         onOpenChange={setIsTextureExportOpen}
       />
       <ClearSessionDialog open={isClearSessionOpen} onOpenChange={setIsClearSessionOpen} />
+      <ControlsDialog open={isControlsOpen} onOpenChange={setIsControlsOpen} />
       {splashOpen ? (
         <SplashScreen
           services={services}

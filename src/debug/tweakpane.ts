@@ -48,6 +48,10 @@ export interface TweakpaneHandles {
   materialEditor: EditorPanel;
   paneElement: HTMLElement;
   rebuildEditor: () => void;
+  // Debug-normals visualization toggle. Lives outside the pane now (a button in the viewport toolbar),
+  // so it's driven through these handles instead of a Tweakpane binding.
+  getDebugNormals: () => boolean;
+  setDebugNormals: (on: boolean) => void;
   // Apply a named lighting preset (see scene-presets.ts); mutates sceneState, syncs the Scene folder, and
   // applies + persists. Called from the scene overlay controls.
   applyScenePreset: (id: string) => void;
@@ -83,7 +87,7 @@ export function setupTweakpane({
     localStorage.setItem(RENDERER_CONFIG_KEY, JSON.stringify(rendererConfig));
   const savedSettings = mainScene.materialController.getUiSettings<Record<string, unknown>>();
 
-  const pane = new Pane({ container: paneHost, title: "Material" });
+  const pane = new Pane({ container: paneHost });
 
   const materialState = mergeSetting(savedSettings, "materialState", {
     debugNormals: false,
@@ -198,29 +202,35 @@ export function setupTweakpane({
     requestRender();
   }
 
-  function buildMaterialControls(container: ContainerApi): void {
-    const folder = container.addFolder({ title: "Graph", expanded: false });
-    folder
-      .addBinding(materialState, "debugNormals", { label: "debug normals" })
-      .on("change", (event) => mainScene.materialSurface.setNormalDebug(event.value));
+  // debug-normals lives outside the pane (a viewport-toolbar button). Own its state + persistence here so
+  // load (applyDocumentSettings) and the button stay in sync. Persist explicitly — it's no longer a binding,
+  // so the global pane.on("change") no longer covers it.
+  function getDebugNormals(): boolean {
+    return materialState.debugNormals;
+  }
+  function setDebugNormals(on: boolean): void {
+    materialState.debugNormals = on;
+    mainScene.materialSurface.setNormalDebug(on);
+    saveDocumentSettings();
+    requestRender();
+  }
 
-    const projection = container.addFolder({ title: "Projection", expanded: false });
-    projection
+  function buildProjectionControls(container: ContainerApi): void {
+    container
       .addBinding(projectionState, "triplanar", { label: "triplanar" })
       .on("change", (event) => mainScene.materialSurface.setTriplanar(event.value));
-    projection
+    container
       .addBinding(projectionState, "worldPerTile", { label: "world / tile", min: 0.2, max: 6, step: 0.05 })
       .on("change", (event) => mainScene.materialSurface.setScale(event.value));
-    projection
+    container
       .addBinding(projectionState, "sharpness", { min: 1, max: 24, step: 0.5 })
       .on("change", (event) => mainScene.materialSurface.setSharpness(event.value));
-    projection
+    container
       .addBinding(projectionState, "parallax", { min: 0, max: 0.12, step: 0.005 })
       .on("change", (event) => mainScene.materialSurface.setParallaxScale(event.value));
   }
 
-  function buildSceneControls(container: ContainerApi): void {
-    const folder = container.addFolder({ title: "Scene", expanded: false });
+  function buildSceneControls(folder: ContainerApi): void {
     folder
       .addBinding(sceneState, "toneMapping", { label: "tone", options: TONE_MAPPING_MODES })
       .on("change", (e) => setToneMapping(e.value));
@@ -259,8 +269,7 @@ export function setupTweakpane({
       .on("change", (e) => (mainScene.scene.environmentIntensity = e.value));
   }
 
-  function buildRenderControls(container: ContainerApi): void {
-    const folder = container.addFolder({ title: "Render", expanded: false });
+  function buildRenderControls(folder: ContainerApi): void {
     folder
       .addBinding(rendererConfig, "pixelRatio", { label: "pixel ratio", min: 0.5, max: 2, step: 0.05 })
       .on("change", (e) => {
@@ -284,9 +293,12 @@ export function setupTweakpane({
     });
   }
 
-  buildMaterialControls(pane);
-  buildSceneControls(pane);
-  buildRenderControls(pane);
+  const tabs = pane.addTab({
+    pages: [{ title: "Projection" }, { title: "Scene" }, { title: "Render" }],
+  });
+  buildProjectionControls(tabs.pages[0]);
+  buildSceneControls(tabs.pages[1]);
+  buildRenderControls(tabs.pages[2]);
   pane.on("change", () => {
     saveDocumentSettings();
     requestRender();
@@ -312,5 +324,14 @@ export function setupTweakpane({
   };
   rebuildEditor();
 
-  return { materialEditor, paneElement: pane.element, rebuildEditor, applyScenePreset, setTiling, getTiling };
+  return {
+    materialEditor,
+    paneElement: pane.element,
+    rebuildEditor,
+    getDebugNormals,
+    setDebugNormals,
+    applyScenePreset,
+    setTiling,
+    getTiling,
+  };
 }

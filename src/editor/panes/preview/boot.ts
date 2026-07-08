@@ -8,6 +8,7 @@ import { SCENE_LIGHT_PRESETS, matchScenePresetId } from "./scene-presets";
 import { ModelControls } from "./model-controls";
 import { MODEL_PRESETS } from "./model-presets";
 import { TileControls } from "./tile-controls";
+import { ViewportControls } from "./viewport-controls";
 import { loadModelGeometry, parseModelGeometry } from "./model-loader";
 import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
@@ -16,12 +17,15 @@ import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
 import { createFrameScheduler } from "@/lib/frame-scheduler";
 import type { MaterialAppServices } from "@/components/app/services";
 import {
+  dispatchOpenControls,
   GRAPH_NAVIGATE_EVENT,
+  MATERIAL_CONTROLS_DIALOG_MOUNT_EVENT,
   MATERIAL_DOCUMENT_LOAD_EVENT,
   MATERIAL_GRAPH_PANE_MOUNT_EVENT,
   MATERIAL_GRAPH_REBUILD_EVENT,
   MATERIAL_PREVIEW_PANE_MOUNT_EVENT,
   type GraphNavigateEvent,
+  type MaterialControlsDialogMountEvent,
   type MaterialDocumentLoadEvent,
   type MaterialGraphPaneMountEvent,
   type MaterialPreviewPaneMountEvent,
@@ -37,7 +41,9 @@ if (!app) {
 
 let sceneHost = app.querySelector<HTMLDivElement>(".scene-host") ?? document.createElement("div");
 const graphHost = app.querySelector<HTMLDivElement>(".graph-host") ?? document.createElement("div");
-let paneHost = app.querySelector<HTMLDivElement>(".pane-host") ?? document.createElement("div");
+// The Tweakpane pane is created into this placeholder, then re-parented into the controls dialog each
+// time it opens (see MATERIAL_CONTROLS_DIALOG_MOUNT_EVENT). `.pane-host` no longer exists in the DOM.
+const paneHost = app.querySelector<HTMLDivElement>(".pane-host") ?? document.createElement("div");
 
 const sceneCanvas = document.createElement("canvas");
 sceneCanvas.className = "scene";
@@ -203,7 +209,16 @@ function endTurnDrag(event: PointerEvent): void {
 sceneCanvas.addEventListener("pointerup", endTurnDrag);
 sceneCanvas.addEventListener("pointercancel", endTurnDrag);
 
-const { materialEditor, paneElement, rebuildEditor, applyScenePreset, setTiling, getTiling } = setupTweakpane({
+const {
+  materialEditor,
+  paneElement,
+  rebuildEditor,
+  getDebugNormals,
+  setDebugNormals,
+  applyScenePreset,
+  setTiling,
+  getTiling,
+} = setupTweakpane({
   app,
   graphHost,
   paneHost,
@@ -242,6 +257,15 @@ const sceneControls = new SceneControls({
     requestRender();
   },
   activePresetId: initialPresetId,
+});
+
+// Top-right overlay: [settings ⚙] opens the controls dialog; [debug-normals] toggles the normal
+// visualization (relocated out of the Tweakpane Graph folder).
+const viewportControls = new ViewportControls({
+  mount: sceneHost,
+  onOpenControls: dispatchOpenControls,
+  debugNormals: getDebugNormals(),
+  onToggleDebugNormals: setDebugNormals,
 });
 
 // Top-left overlay: pick the material sample geometry (built-in sphere or a lazy-loaded .obj model,
@@ -323,14 +347,13 @@ async function loadCustomModel(file: File): Promise<void> {
   }
 }
 
-function attachPreviewHosts(nextSceneHost: HTMLDivElement, nextPaneHost: HTMLDivElement): void {
+function attachPreviewHosts(nextSceneHost: HTMLDivElement): void {
   sceneHost = nextSceneHost;
-  paneHost = nextPaneHost;
   if (sceneCanvas.parentElement !== sceneHost) sceneHost.appendChild(sceneCanvas);
   if (sceneControls.root.parentElement !== sceneHost) sceneHost.appendChild(sceneControls.root);
   if (modelControls.root.parentElement !== sceneHost) sceneHost.appendChild(modelControls.root);
   if (tileControls.root.parentElement !== sceneHost) sceneHost.appendChild(tileControls.root);
-  if (paneElement.parentElement !== paneHost) paneHost.appendChild(paneElement);
+  if (viewportControls.root.parentElement !== sceneHost) sceneHost.appendChild(viewportControls.root);
   resize();
 }
 
@@ -366,9 +389,15 @@ window.addEventListener(GRAPH_NAVIGATE_EVENT, (event) => {
 });
 
 window.addEventListener(MATERIAL_PREVIEW_PANE_MOUNT_EVENT, (event) => {
-  const { sceneHost: nextSceneHost, paneHost: nextPaneHost } =
-    (event as MaterialPreviewPaneMountEvent).detail;
-  attachPreviewHosts(nextSceneHost, nextPaneHost);
+  const { sceneHost: nextSceneHost } = (event as MaterialPreviewPaneMountEvent).detail;
+  attachPreviewHosts(nextSceneHost);
+});
+
+// The controls dialog re-mounts its body on every open; re-parent the imperative Tweakpane element into it
+// each time (the pane keeps its state — it's a single detached subtree between opens).
+window.addEventListener(MATERIAL_CONTROLS_DIALOG_MOUNT_EVENT, (event) => {
+  const { controlsHost } = (event as MaterialControlsDialogMountEvent).detail;
+  if (paneElement.parentElement !== controlsHost) controlsHost.appendChild(paneElement);
 });
 
 window.addEventListener(MATERIAL_GRAPH_PANE_MOUNT_EVENT, (event) => {
