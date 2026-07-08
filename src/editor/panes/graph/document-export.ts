@@ -48,9 +48,23 @@ export function buildDocumentExport(
   return options.includeMetadata ? withDefaultMetadata(doc) : stripDocumentMetadata(doc);
 }
 
+function serializeDocumentExport(
+  doc: MaterialGraphDocument,
+  options: DocumentExportOptions,
+): string {
+  return JSON.stringify(buildDocumentExport(doc, options), null, 2);
+}
+
 export function downloadDocumentExport(
   doc: MaterialGraphDocument,
   options: DocumentExportOptions,
 ): void {
   downloadJson("material.json", buildDocumentExport(doc, options));
+}
+
+export async function copyDocumentExportToClipboard(
+  doc: MaterialGraphDocument,
+  options: DocumentExportOptions,
+): Promise<void> {
+  await navigator.clipboard.writeText(serializeDocumentExport(doc, options));
 }
