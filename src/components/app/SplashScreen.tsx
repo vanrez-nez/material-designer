@@ -56,8 +56,14 @@ export function SplashScreen({
   // waits for a free frame; the timeout guarantees it still fires under sustained load.
   useEffect(() => {
     if (!shouldExpand || expanded) return;
-    const id = window.requestIdleCallback(() => setExpanded(true), { timeout: 800 });
-    return () => window.cancelIdleCallback(id);
+    // requestIdleCallback isn't universal (Safari <16.4, some webviews) — a missing one threw here and
+    // aborted the splash/boot. Fall back to a short timer when it's absent.
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => setExpanded(true), { timeout: 800 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(() => setExpanded(true), 200);
+    return () => window.clearTimeout(id);
   }, [shouldExpand, expanded]);
 
   // Take over from the inline pre-JS splash once React has painted (idempotent under StrictMode).
