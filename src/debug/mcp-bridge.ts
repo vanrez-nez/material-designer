@@ -15,7 +15,7 @@ import type { MainScene } from "@/editor/panes/preview/MainScene";
 import type { ExportApi } from "./export";
 import { useWorkspaceStore } from "@/store/app";
 import { useDocumentLibraryStore, listDocuments } from "@/store/document-library";
-import { dispatchMaterialDocumentLoad } from "@/app-events";
+import { dispatchMaterialDocumentLoad, dispatchMaterialGraphRebuild } from "@/app-events";
 
 // ---------------------------------------------------------------------------------------------------------
 // In-page MCP bridge (dev-only). Connects OUTBOUND to the Node MCP server's WebSocket (scripts/
@@ -83,10 +83,15 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
     return snap;
   }
 
-  // Wrap a mutating command so the state before it is always recoverable.
+  // Wrap a mutating command so the state before it is always recoverable. After the mutation lands in the
+  // store, redraw the imperative node canvas — the store drives the preview reactively, but the Rete editor
+  // view only refreshes on an explicit rebuild. Without this, MCP edits show in the preview but not in the
+  // graph until a reload. Rebuilds coalesce (EditorPanel.queueRebuild), so bursts collapse to one redraw.
   async function mutating<T>(label: string, fn: () => T | Promise<T>): Promise<T> {
     takeSnapshot(label, "auto");
-    return await fn();
+    const result = await fn();
+    dispatchMaterialGraphRebuild();
+    return result;
   }
 
   // --- validation ------------------------------------------------------------------------------------

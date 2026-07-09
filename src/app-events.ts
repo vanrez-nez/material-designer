@@ -47,6 +47,12 @@ export function dispatchMaterialDocumentLoad(document: MaterialGraphDocument, fi
   );
 }
 
+// Ask the imperative graph editor to redraw from the current document. Used by undo/redo and by the
+// MCP bridge so agent-driven mutations show up in the node canvas without a reload.
+export function dispatchMaterialGraphRebuild(): void {
+  window.dispatchEvent(new CustomEvent(MATERIAL_GRAPH_REBUILD_EVENT));
+}
+
 export function dispatchGraphAutoLayout(arrangement: GraphLayoutArrangement): void {
   window.dispatchEvent(
     new CustomEvent(GRAPH_AUTO_LAYOUT_EVENT, {
