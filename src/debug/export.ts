@@ -13,6 +13,7 @@ import {
   type MaterialGraphDocument,
 } from "@/runtime";
 import { textureChannelForSocket } from "@/editor/panes/textures/channels";
+import { documentBaseName } from "@/editor/panes/graph/document-export";
 
 // Dev-only: bake a PBR channel and POST it to the bake server (scripts/bake-server.mjs,
 // `npm run bake:server`), which writes it to ./bake/<channel>.png. Lets a node configuration be saved
@@ -290,7 +291,7 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     const zipped = zipSync(files, { level: 6 });
     downloadBlob(
       new Blob([zipped], { type: "application/zip" }),
-      filename ?? `material-textures-${size}px.zip`,
+      filename ?? `${documentBaseName(doc)}-textures-${size}px.zip`,
     );
   }
 
