@@ -202,6 +202,18 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
       });
     },
 
+    set_label: (p) => {
+      const nodeId = requireString(p, "nodeId");
+      // Allow an empty string to clear the label (falls back to the registry name); so don't requireString it.
+      const label = typeof p.label === "string" ? p.label : "";
+      const node = currentActive().nodes.find((n) => n.id === nodeId);
+      if (!node) throw new Error(`no node with id ${nodeId}`);
+      return mutating(`before set_label:${nodeId}`, () => {
+        controller.setNodeLabel(nodeId, label);
+        return { ok: true, label: label.trim() || null };
+      });
+    },
+
     connect_edge: (p) => {
       const edge = edgeFrom(p);
       return mutating("before connect_edge", () => {

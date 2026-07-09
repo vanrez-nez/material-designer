@@ -134,6 +134,14 @@ const tools = [
       ["nodeId", "key", "value"],
     ),
   },
+  {
+    name: "set_label",
+    description: "Set a node's display label (the name shown on the node in the editor). Pass an empty label to clear it back to the node's type name. Auto-snapshots first.",
+    inputSchema: OBJ(
+      { nodeId: { type: "string" }, label: { type: "string", description: "display name; empty string clears it" } },
+      ["nodeId", "label"],
+    ),
+  },
   { name: "connect_edge", description: "Connect two ports. Auto-snapshots first. Fails on incompatible port kinds.", inputSchema: OBJ(edgeProps, ["fromNode", "fromOutput", "toNode", "toInput"]) },
   { name: "disconnect_edge", description: "Remove an edge. Auto-snapshots first.", inputSchema: OBJ(edgeProps, ["fromNode", "fromOutput", "toNode", "toInput"]) },
   {
