@@ -104,7 +104,6 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
   }, [materialGraphEvent, refresh]);
 
   const channels = textureChannelsForSockets(connectedSockets);
-  const generated = new Set(connectedSockets);
   const selectedChannel = channels.find((channel) => channel.socket === selectedSocket) ?? channels[0];
 
   useEffect(() => {
@@ -139,38 +138,32 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
               />
             </div>
             <div className="texture-preview-thumbnails">
-              {TEXTURE_CHANNELS.map((channel) => {
-                const isGenerated = generated.has(channel.socket);
-
-                return (
-                  <Button
-                    key={channel.id}
-                    className={cn(
-                      "texture-preview-thumb",
-                      selectedChannel.socket === channel.socket && "texture-preview-thumb--selected",
-                      !isGenerated && "texture-preview-thumb--disabled",
-                    )}
-                    title={isGenerated ? channel.label : `${channel.label} (not generated)`}
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    disabled={!isGenerated}
-                    onClick={() => {
-                      if (isGenerated) setSelectedSocket(channel.socket);
-                    }}
-                  >
-                    <StaticTextureCanvas
-                      gpu={gpu}
-                      services={services}
-                      socket={channel.socket}
-                      label={channel.label}
-                      generated={isGenerated}
-                      bakeGeneration={bakeGeneration}
-                    />
-                    <span>{channel.label}</span>
-                  </Button>
-                );
-              })}
+              {/* Only channels the current graph actually outputs get a thumb; empty channels are hidden
+                  entirely (and when none are connected, the empty-state text below is shown instead). */}
+              {channels.map((channel) => (
+                <Button
+                  key={channel.id}
+                  className={cn(
+                    "texture-preview-thumb",
+                    selectedChannel.socket === channel.socket && "texture-preview-thumb--selected",
+                  )}
+                  title={channel.label}
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setSelectedSocket(channel.socket)}
+                >
+                  <StaticTextureCanvas
+                    gpu={gpu}
+                    services={services}
+                    socket={channel.socket}
+                    label={channel.label}
+                    generated
+                    bakeGeneration={bakeGeneration}
+                  />
+                  <span>{channel.label}</span>
+                </Button>
+              ))}
             </div>
           </>
         ) : (

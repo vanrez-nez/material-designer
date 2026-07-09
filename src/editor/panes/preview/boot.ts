@@ -14,6 +14,7 @@ import { bakeService } from "@/runtime";
 import { createExport } from "@/debug/export";
 import { installBakeDevHandles } from "@/debug/bake-setup";
 import { installMcpBridge } from "@/debug/mcp-bridge";
+import { connectedTextureSockets } from "@/editor/panes/textures/channels";
 import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
 import { createFrameScheduler } from "@/lib/frame-scheduler";
 import type { MaterialAppServices } from "@/components/app/services";
@@ -445,9 +446,13 @@ await mainScene.materialSurface.refresh();
 // graph edit).
 services.setTextureApi({
   exportTextureZip: ({ channels, size }) => exporter.exportTextureZip({ channels, size }),
-  // The connected channels are exactly what the surface baked — read them from the set instead of
-  // recompiling a bundle just to list presence.
-  readConnectedTextureChannels: () => [...mainScene.materialSurface.presentChannels()],
+  // The channels the surface baked, narrowed to those the graph actually WIRES into the material — an
+  // unconnected channel (e.g. metallic left on its slider) is baked from the param constant but isn't a real
+  // texture output, so it shouldn't show as a generated preview/export channel.
+  readConnectedTextureChannels: () => {
+    const wired = connectedTextureSockets(mainScene.materialController.document);
+    return [...mainScene.materialSurface.presentChannels()].filter((channel) => wired.has(channel));
+  },
   // GPU-direct preview: the pane samples these baked textures directly (no readImage, no readback).
   getChannelTexture: (channel) => mainScene.materialSurface.getChannelTexture(channel),
   getRenderer: () => renderer,
