@@ -197,6 +197,18 @@ const tools = [
     }),
   },
   {
+    name: "gpu_info",
+    description:
+      "GPU-residency report: renderer live-texture/geometry counts plus every bake cache container's size (channel targets, decomposition caches, bake materials, scratch pools). Flat across regenerate cycles = caches released.",
+    inputSchema: OBJ({}),
+  },
+  {
+    name: "regenerate",
+    description:
+      "Full Regenerate: flush ALL baked GPU state (decomposition caches + bake materials), recompile and re-bake, awaited to completion. Returns {before, after} gpu_info payloads so cache growth/leaks show in one call.",
+    inputSchema: OBJ({}),
+  },
+  {
     name: "profile_nodes",
     description:
       "Profile per-node GPU cost: each node's subtree is solo-compiled and rendered in isolation. Returns {overheadMs, nodes:[{nodeId,type,label,renderMs,pipelineMs,marginalMs}]} sorted by renderMs desc. renderMs = median warm re-render (GPU cost); pipelineMs = cold compile+first draw; marginalMs = renderMs minus costliest input subtree (approximate hint).",

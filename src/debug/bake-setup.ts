@@ -32,6 +32,12 @@ export function installBakeDevHandles({ mainScene, exporter }: BakeDevHandleDeps
     },
     __bakeConfig: exporter.bakeConfigToBake,
     __bakeMaterialTask: exporter.bakeMaterialTask,
+    // GPU-residency snapshot (renderer texture count + cache container sizes). Compare across Regenerate
+    // clicks: flat = released, growth = a pinning container. Usage: `__gpuInfo()`.
+    __gpuInfo: () => ({
+      service: bakeService.gpuInfo(),
+      surface: mainScene.materialSurface.debugReport(),
+    }),
     // Per-node cost table for the ACTIVE document (solo-compiled subtrees rendered in isolation — see
     // runtime node-profiler.ts for semantics). Usage: `await __profileNodes()` (optionally {size, runs}).
     __profileNodes: async (opts?: { nodeIds?: string[]; size?: number; runs?: number }) => {

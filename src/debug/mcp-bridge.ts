@@ -315,6 +315,31 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
       return optimize(canvas, { maxDim, mime: "image/jpeg", quality: 0.8 });
     },
 
+    // GPU-residency report: renderer live-texture count + every cache container's size. Flat numbers
+    // across regenerate cycles = caches really released; growth pinpoints the pinning container.
+    gpu_info: () => ({
+      service: bakeService.gpuInfo(),
+      surface: deps.mainScene.materialSurface.debugReport(),
+    }),
+
+    // Full Regenerate (flush ALL baked GPU state + recompile + re-bake), awaited to completion, returning
+    // the before/after residency counts so a leak shows up in one call.
+    regenerate: async () => {
+      const before = {
+        service: bakeService.gpuInfo(),
+        surface: deps.mainScene.materialSurface.debugReport(),
+      };
+      deps.mainScene.materialSurface.regenerate();
+      // regenerate() only queues the flush+rebuild; give the pump a tick to enter processing, then await idle.
+      await new Promise((r) => setTimeout(r, 50));
+      await deps.mainScene.materialSurface.whenIdle();
+      const after = {
+        service: bakeService.gpuInfo(),
+        surface: deps.mainScene.materialSurface.debugReport(),
+      };
+      return { before, after };
+    },
+
     // Per-node cost table (solo-compiled subtrees rendered in isolation; see runtime node-profiler.ts).
     // renderMs/pipelineMs are subtree ground truth; marginalMs is an attribution hint.
     profile_nodes: async (p) => {
