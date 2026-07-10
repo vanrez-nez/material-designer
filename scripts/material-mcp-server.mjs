@@ -196,6 +196,16 @@ const tools = [
       maxDim: { type: "number", description: "longest output side, default 768" },
     }),
   },
+  {
+    name: "profile_nodes",
+    description:
+      "Profile per-node GPU cost: each node's subtree is solo-compiled and rendered in isolation. Returns {overheadMs, nodes:[{nodeId,type,label,renderMs,pipelineMs,marginalMs}]} sorted by renderMs desc. renderMs = median warm re-render (GPU cost); pipelineMs = cold compile+first draw; marginalMs = renderMs minus costliest input subtree (approximate hint).",
+    inputSchema: OBJ({
+      nodeIds: { type: "array", items: { type: "string" }, description: "restrict to these node ids (default: all)" },
+      size: { type: "number", description: "render size px, default 512" },
+      runs: { type: "number", description: "warm renders per node (median), default 6" },
+    }),
+  },
 ];
 
 const toolNames = new Set(tools.map((t) => t.name));

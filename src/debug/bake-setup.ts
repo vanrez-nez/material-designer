@@ -32,6 +32,23 @@ export function installBakeDevHandles({ mainScene, exporter }: BakeDevHandleDeps
     },
     __bakeConfig: exporter.bakeConfigToBake,
     __bakeMaterialTask: exporter.bakeMaterialTask,
+    // Per-node cost table for the ACTIVE document (solo-compiled subtrees rendered in isolation — see
+    // runtime node-profiler.ts for semantics). Usage: `await __profileNodes()` (optionally {size, runs}).
+    __profileNodes: async (opts?: { nodeIds?: string[]; size?: number; runs?: number }) => {
+      const report = await bakeService.profileNodes(mainScene.materialController, opts);
+      console.table(
+        report.nodes.map((n) => ({
+          node: n.label ?? n.nodeId,
+          type: n.type,
+          renderMs: +n.renderMs.toFixed(2),
+          pipelineMs: +n.pipelineMs.toFixed(2),
+          marginalMs: +n.marginalMs.toFixed(2),
+          ...(n.error ? { error: n.error } : {}),
+        })),
+      );
+      console.log(`[profile] ${report.size}px × ${report.runs} runs, overhead ${report.overheadMs.toFixed(2)}ms`);
+      return report;
+    },
     // Tiling test for every Tileable Noise type: bakes each, scores the wrap-edge seam, console.tables a
     // pass/fail summary, and saves a 2×2 composite PNG per type to ./bake (needs `npm run bake:server`).
     // Usage from the dev console: `await __tilingTest()`  (optionally `__tilingTest(256)`).

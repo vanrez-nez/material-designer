@@ -314,6 +314,27 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
       const canvas = await captureViewport(clampTo64(typeof p.size === "number" ? p.size : 768));
       return optimize(canvas, { maxDim, mime: "image/jpeg", quality: 0.8 });
     },
+
+    // Per-node cost table (solo-compiled subtrees rendered in isolation; see runtime node-profiler.ts).
+    // renderMs/pipelineMs are subtree ground truth; marginalMs is an attribution hint.
+    profile_nodes: async (p) => {
+      const nodeIds = Array.isArray(p.nodeIds)
+        ? (p.nodeIds.filter((v) => typeof v === "string") as string[])
+        : undefined;
+      const size = typeof p.size === "number" ? p.size : undefined;
+      const runs = typeof p.runs === "number" ? p.runs : undefined;
+      const report = await bakeService.profileNodes(controller, { nodeIds, size, runs });
+      // Round for a compact, readable payload — sub-0.01ms precision is below measurement noise anyway.
+      const r2 = (v: number): number => Math.round(v * 100) / 100;
+      return {
+        size: report.size,
+        runs: report.runs,
+        overheadMs: r2(report.overheadMs),
+        nodes: report.nodes.map((n) => ({
+          ...n, renderMs: r2(n.renderMs), pipelineMs: r2(n.pipelineMs), marginalMs: r2(n.marginalMs),
+        })),
+      };
+    },
   };
 
   // --- image helpers ---------------------------------------------------------------------------------

@@ -73,6 +73,8 @@ The docs list labels; the document stores keys. Confirmed mismatches:
 | `levels` | `min`, `max`, `invert` | out min, out max, invert |
 | `principled-bsdf` | `emissionStrength` | emission str |
 | `material-output` | `outputResolution` (string) | output res |
+| `shape` | `formRandom` | form rand |
+| `vector-math` | `operation` (param); ports `vector1`/`vector2` | op; A, B |
 
 When unsure of a key, read the node's def in `material-designer-runtime/src/graph/nodes/`
 or copy from a shipped preset — never guess from the label.

@@ -150,7 +150,7 @@ global surface coordinate.
 | Checker `checker` | coord, color1, color2 | color, fac | color1 — `#c4201e` · color2 — `#18b6b6` · scale — 0.5–32, 4 |
 | Tile Generator `tile` | coord | mask, value | lattice — `square/hex`, square · columns — int 1–32, 6 · rows — int 1–64, 12 · row offset — 0–1, 0.5 · offset every — int 1–6, 2 · gap — 0–0.08, 0.012 · roundness — 0–1, 0.05 · edge soft — 0–0.05, 0.004 · size rand — 0–1, 0 · pos rand — 0–1, 0 · rot rand — 0–1, 0 |
 | Scatter `scatter` | coord | coord, value, size | density — int 1–48, 10 · amount — 0–1, 0.5 · radius — 0.05–1, 0.4 · size rand — 0–1, 0.6 · pos rand — 0–1, 0.85 · rot rand — 0–1, 1 |
-| Shape `shape` | coord, seed | mask, height | shape — `blob/polygon`, blob · sides — int 3–12, 6 · irregularity — 0–1, 0.6 · dome — 0.2–3, 0.6 · edge soft — 0.002–0.3, 0.04 |
+| Shape `shape` | coord, seed | mask, height | shape — `blob/polygon`, blob · sides — int 3–12, 6 · irregularity — 0–1, 0.6 · dome — 0.2–3, 0.6 · edge soft — 0.002–0.3, 0.04 · tilt — 0–1, 0 · form rand — 0–1, 0 · erode — 0–1, 0 · erode taps ⟳ — `off/4`, off |
 | Gradient `gradient` | coord | field | scale — 0.1–8, 1 · type — `linear/quadratic/easing/diagonal/radial/quadratic-sphere/sphere`, linear |
 | Wave `wave` | coord | field | scale ⟳ — 0.1–8, 1 · type — `bands/rings`, bands · direction — `x/y/z/diagonal`, x · profile — `sine/saw/triangle`, sine · phase — 0–20, 0 · distortion ⟳ — 0–10, 0 · detail — int 0–8, 2 · detail scale ⟳ — 0–8, 1 · detail rough — 0–1, 0.5 |
 | Anisotropic Stripes `anisotropic-stripes` | coord | field | count — 1–64, 22 · sharpness — 0.2–8, 2.2 · waviness — 0–2, 0.18 · contrast — 0–1, 1 |
@@ -162,6 +162,14 @@ global surface coordinate.
 >
 > **Scatter → Shape** are a pair: Scatter distributes points and emits a per-cell local `coord` (+ `value`,
 > `size`); feed that `coord` into a **Shape** node to stamp a silhouette (mask + domed height) at each point.
+> Wire `Scatter.value → Shape.seed` or every instance is the identical outline. For ROCK-like stamps, the
+> per-seed form params matter: `tilt` (stones lying at angles), `form rand` (sharp AND flat stones from one
+> layer), and `erode` (min-tap self-erosion — chipped/melted outlines, the slope-blur equivalent; shape
+> erodes ITSELF because the compiler can't re-evaluate an arbitrary upstream field at offset coords).
+> Erosion must be enabled via **`erode taps`** (structural ⟳, default off): each tap re-evaluates the whole
+> silhouette, so it multiplies shader size and pipeline-compile time ~5× — pay it only where it shows. A
+> `domain-warp` between Scatter and Shape distorts each outline organically (rotation decorrelates
+> instances); keep its amount ≲ 0.3 in local units.
 >
 > **Voronoi** changes its outputs with `feature`: F1/F2/smooth-F1 give `distance`/`color`/`position`;
 > `distance-to-edge` gives `distance`/`random`. `exponent` applies only to the Minkowski metric,
