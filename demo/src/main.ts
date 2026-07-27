@@ -7,6 +7,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import {
   MaterialGraphRuntime,
   createDefaultMaterialDocument,
+  type BakeCacheMetrics,
   type GraphNode,
   type MaterialGraphDocument,
 } from "material-designer-runtime";
@@ -27,9 +28,14 @@ const scaleInput = document.getElementById("scale") as HTMLInputElement;
 const loadButton = document.getElementById("load") as HTMLButtonElement;
 const loadInput = document.getElementById("load-input") as HTMLInputElement;
 const statusEl = document.getElementById("status") as HTMLSpanElement;
+const cacheToggle = document.getElementById("cache-toggle") as HTMLButtonElement;
+const cacheRebuild = document.getElementById("cache-rebuild") as HTMLButtonElement;
+const cacheClear = document.getElementById("cache-clear") as HTMLButtonElement;
+const cacheStatsEl = document.getElementById("cache-stats") as HTMLDivElement;
 
-function setStatus(message: string): void {
+function setStatus(message: string, kind: "info" | "baked" | "restored" = "info"): void {
   statusEl.textContent = message;
+  statusEl.dataset.kind = kind;
 }
 
 // --- sample catalog --------------------------------------------------------------------------------
@@ -114,12 +120,73 @@ function setGeometry(type: GeometryType): void {
   }
 }
 
+// --- persistent texture cache ----------------------------------------------------------------------
+// The cache stores baked channel texels in IndexedDB and, on a hit, restores them with a GPU-to-GPU copy
+// that short-circuits BEFORE shader compilation — which is what actually makes a bake slow. It is opt-in,
+// so the demo remembers your choice across reloads: that is the only way to see the interesting case,
+// where a material you baked in a PREVIOUS session comes back without compiling anything.
+//
+// Try it: enable the cache, pick "Rock" (a heavy graph), wait for the bake, then switch to another sample
+// and back — or just reload the page. The status readout tells you which path each load took.
+const CACHE_PREF_KEY = "md-demo-cache-enabled";
+const cacheEnabledPref = localStorage.getItem(CACHE_PREF_KEY) === "true";
+
 // --- runtime ---------------------------------------------------------------------------------------
-const runtime = new MaterialGraphRuntime({ document: createDefaultMaterialDocument() })
-  .setRenderer(renderer);
+const runtime = new MaterialGraphRuntime({
+  document: createDefaultMaterialDocument(),
+  cache: {
+    enabled: cacheEnabledPref,
+    // Demo-tuned, so every sample is cacheable and a quick click-through still persists. The library
+    // defaults (minBakeMs 250, writeDelayMs 750) are the sensible production values — they avoid spending
+    // disk on bakes too cheap to be worth caching, and avoid a readback per tick during a slider drag.
+    minBakeMs: 0,
+    writeDelayMs: 300,
+  },
+}).setRenderer(renderer);
 
 // The material object can be swapped on a structural rebuild — keep the mesh current.
 runtime.surface.onRebuilt(() => applyMaterial());
+
+// How the last load resolved. The bake service reports a "restore" phase when texels came from the cache
+// instead of being rendered, which is the honest signal — timing alone can't tell you, since a warm shader
+// pipeline also makes a real bake fast.
+let lastLoadWasRestore = false;
+runtime.service.onBakeReport((report) => {
+  if (report.phase === "restore") lastLoadWasRestore = true;
+});
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function refreshCacheStats(): Promise<void> {
+  const metrics: BakeCacheMetrics | null = await runtime.cacheMetrics();
+  if (!metrics || !metrics.enabled) {
+    cacheStatsEl.innerHTML = `<span class="off">cache off — enable it to persist bakes across reloads</span>`;
+    return;
+  }
+  const quota = metrics.quota
+    ? `  quota ${formatBytes(metrics.quota.usage)} / ${formatBytes(metrics.quota.quota)}`
+    : "";
+  cacheStatsEl.innerHTML =
+    `store <b>${metrics.store}</b>  encoding <b>${metrics.encoding}</b>\n` +
+    `entries <b>${metrics.entries}</b>  size <b>${formatBytes(metrics.bytes)}</b>` +
+    ` / ${formatBytes(metrics.budgetBytes)}${quota}\n` +
+    `hits <b>${metrics.hits}</b>  misses <b>${metrics.misses}</b>` +
+    `  writes <b>${metrics.writes}</b>  evictions <b>${metrics.evictions}</b>` +
+    (metrics.lastError ? `\nlast error: ${metrics.lastError}` : "");
+}
+
+function syncCacheToggle(): void {
+  const on = runtime.cacheEnabled;
+  cacheToggle.textContent = on ? "On" : "Off";
+  cacheToggle.dataset.active = String(on);
+  cacheToggle.setAttribute("aria-pressed", String(on));
+  cacheRebuild.disabled = !on;
+  cacheClear.disabled = !on;
+}
 
 // --- scale slider (live setNodeParam demo) ---------------------------------------------------------
 // Bind the slider to the first top-level node exposing a numeric `scale` param (setNodeParam targets
@@ -145,17 +212,39 @@ function syncScaleControl(document: MaterialGraphDocument): void {
 }
 
 // --- document loading ------------------------------------------------------------------------------
-async function loadDocument(document: MaterialGraphDocument): Promise<void> {
+async function loadDocument(document: MaterialGraphDocument, label = ""): Promise<void> {
   setStatus("Baking…");
   try {
     runtime.setDocument(document);
-    await runtime.refresh();
-    applyMaterial();
+    await refreshAndReport(label);
     syncScaleControl(runtime.getDocument());
-    setStatus(runtime.lastError ? `Error: ${runtime.lastError}` : "");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   }
+}
+
+// Bake (or restore) the current document and say which happened, with the wall time. This is the whole
+// point of the demo: the same material either compiles shaders or doesn't, and you can watch the difference.
+async function refreshAndReport(label = ""): Promise<void> {
+  lastLoadWasRestore = false;
+  const started = performance.now();
+  await runtime.refresh();
+  await runtime.whenIdle();
+  const ms = Math.round(performance.now() - started);
+  applyMaterial();
+  if (runtime.lastError) {
+    setStatus(`Error: ${runtime.lastError}`);
+  } else {
+    const prefix = label ? `${label} — ` : "";
+    setStatus(
+      lastLoadWasRestore ? `${prefix}restored from cache in ${ms} ms` : `${prefix}baked in ${ms} ms`,
+      lastLoadWasRestore ? "restored" : "baked",
+    );
+  }
+  // The capture is deferred (writeDelayMs) so it never lands inside an edit burst; wait for it so the
+  // stats below reflect what is actually stored rather than what is about to be.
+  await runtime.flushCache();
+  await refreshCacheStats();
 }
 
 function isMaterialGraphDocument(value: unknown): value is MaterialGraphDocument {
@@ -171,7 +260,8 @@ function isMaterialGraphDocument(value: unknown): value is MaterialGraphDocument
 sampleSelect.addEventListener("change", async () => {
   try {
     setStatus("Loading…");
-    await loadDocument(await loadSampleDocument(sampleSelect.value));
+    const label = sampleSelect.value;
+    await loadDocument(await loadSampleDocument(label), label);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   }
@@ -183,10 +273,48 @@ geoButtons.plane.addEventListener("click", () => setGeometry("plane"));
 
 resolutionSelect.addEventListener("change", async () => {
   setStatus("Baking…");
+  // Bake size is part of the cache key, so each resolution gets its own entry — flip between two and the
+  // second visit to either is a restore.
   runtime.setOutputResolution(Number(resolutionSelect.value));
-  await runtime.refresh();
+  await refreshAndReport(`${resolutionSelect.value}px`);
+});
+
+// --- cache controls ---------------------------------------------------------------------------------
+cacheToggle.addEventListener("click", async () => {
+  const next = !runtime.cacheEnabled;
+  runtime.setCacheEnabled(next);
+  localStorage.setItem(CACHE_PREF_KEY, String(next));
+  syncCacheToggle();
+  if (next) {
+    // Nothing is stored for the current document yet — bake once so there is something to restore.
+    await refreshAndReport();
+  } else {
+    setStatus("cache disabled");
+    await refreshCacheStats();
+  }
+});
+
+cacheRebuild.addEventListener("click", async () => {
+  setStatus("Rebuilding cache…");
+  const started = performance.now();
+  // Deletes this document's entry, re-bakes for REAL (the read is bypassed), and resolves only once the
+  // fresh entry is durably written.
+  await runtime.rebuildCache();
   applyMaterial();
-  setStatus("");
+  setStatus(`cache rebuilt in ${Math.round(performance.now() - started)} ms`, "baked");
+  await refreshCacheStats();
+});
+
+cacheClear.addEventListener("click", async () => {
+  await runtime.clearCache();
+  setStatus("cache cleared — the next load will bake");
+  await refreshCacheStats();
+});
+
+// A capture is deferred by writeDelayMs, so a fast reload could otherwise lose the most recent bake.
+// `flushCache()` forces it out on the way off the page.
+window.addEventListener("pagehide", () => {
+  void runtime.flushCache();
 });
 
 scaleInput.addEventListener("input", () => {
@@ -233,8 +361,8 @@ async function main(): Promise<void> {
   }
 
   resize();
-  await runtime.refresh();
-  applyMaterial();
+  syncCacheToggle();
+  await refreshAndReport(sampleSelect.value);
   syncScaleControl(runtime.getDocument());
 
   renderer.setAnimationLoop(() => {

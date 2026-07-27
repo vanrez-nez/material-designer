@@ -1,9 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    // ES2022 to match ../src/runtime/tsconfig.json — the `paths` mapping below resolves the runtime to its
+    // TypeScript source, so its code is typechecked under THIS config and must have the lib it was written for.
+    "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Mirrors the Vite alias so editor-time types and the dev server agree on which runtime is in play.
+    "paths": {
+      "material-designer-runtime": ["../src/runtime/src/index.ts"]
+    },
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

@@ -41,6 +41,24 @@
       .toolbar input[type="range"] { width: 110px; }
       #scale-group[hidden] { display: none; }
       #status { color: #f0b429; min-width: 5rem; }
+      #status[data-kind="restored"] { color: #3fb950; }
+      #status[data-kind="baked"] { color: #58a6ff; }
+      .stats {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        z-index: 10;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(13, 17, 23, 0.85);
+        color: #8b949e;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        line-height: 1.6;
+        white-space: pre;
+      }
+      .stats b { color: #e6edf3; font-weight: 600; }
+      .stats .off { color: #6e7681; }
     </style>
   </head>
   <body>
@@ -75,9 +93,17 @@
         <button id="load" type="button">Load .json…</button>
         <input id="load-input" type="file" accept=".json,application/json" hidden />
       </div>
+      <span class="sep"></span>
+      <div class="group">
+        <span class="label">Cache</span>
+        <button id="cache-toggle" type="button" aria-pressed="false">Off</button>
+        <button id="cache-rebuild" type="button" title="Re-bake for real and replace this document's entry">Rebuild</button>
+        <button id="cache-clear" type="button" title="Drop every cached bake">Clear</button>
+      </div>
       <span id="status"></span>
     </div>
     <div id="app"></div>
+    <div class="stats" id="cache-stats"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
