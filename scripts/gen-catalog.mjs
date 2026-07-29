@@ -34,6 +34,7 @@ const CATEGORIES = [
 // inputs left on their constant param (and height, which is not a baked channel) are not listed.
 const MATERIALS = [
   { id: "asphalt", name: "Asphalt", category: "ground", preset: "asphalt", textures: ["Base Color", "Roughness", "Normal"] },
+  { id: "cobblestone-setts", name: "Cobblestone Setts", category: "ground", preset: "cobblestone-setts", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
   { id: "dark-volcanic-stone", name: "Dark Volcanic Stone", category: "ground", preset: "dark-volcanic-stone", textures: ["Base Color", "Normal"] },
   { id: "bark", name: "Bark", category: "wood", preset: "bark", textures: ["Base Color", "Roughness", "Normal"] },
   { id: "ebonized-wood", name: "Ebonized Wood", category: "wood", preset: "ebonized-wood", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },

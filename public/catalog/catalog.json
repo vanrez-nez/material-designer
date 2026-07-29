@@ -32,6 +32,20 @@
       ]
     },
     {
+      "id": "cobblestone-setts",
+      "name": "Cobblestone Setts",
+      "category": "ground",
+      "preset": "cobblestone-setts",
+      "thumbnail": "catalog/cobblestone-setts.jpg",
+      "nodeCount": 53,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
       "id": "dark-volcanic-stone",
       "name": "Dark Volcanic Stone",
       "category": "ground",

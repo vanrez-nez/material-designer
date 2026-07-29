@@ -274,7 +274,11 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
     },
 
     save_version: (p) => {
-      const title = typeof p.title === "string" ? p.title : undefined;
+      const title = typeof p.title === "string" ? p.title.trim() || undefined : undefined;
+      // Stamp the title into the LIVE document before saving. saveActive() re-derives the entry title
+      // from document metadata, so on overwrite an explicit title would otherwise be silently dropped —
+      // and the next autosave would rename the entry back to the document's stale title.
+      if (title) useWorkspaceStore.getState().setDocumentTitle(title);
       const doc = currentDocument();
       const store = useDocumentLibraryStore.getState();
       const entry = p.overwrite ? store.saveActive(doc) : store.importDocument(doc, title);
