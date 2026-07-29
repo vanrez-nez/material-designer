@@ -1,21 +1,14 @@
 import { migrateMaterialDocument, type MaterialGraphDocument } from "@/runtime";
 import defaultDoc from "./default.json";
-import checkersDoc from "./checkers.json";
-import voronoiCellsDoc from "./voronoi-cells.json";
-import zincDoc from "./zinc.json";
-import rustyMetalDoc from "./rusty-metal.json";
-import woodPlanksDoc from "./wood-planks.json";
 import asphaltDoc from "./asphalt.json";
 import barkDoc from "./bark.json";
-import parquetDoc from "./parquet.json";
-import chineseHackberryBarkDoc from "./chinese-hackberry-bark.json";
-import barkWillowDoc from "./bark_willow.json";
-import rockDoc from "./rock.json";
-import crackedClayDoc from "./cracked-clay.json";
-import tileTestDoc from "./tile-test.json";
+import darkVolcanicStoneDoc from "./dark-volcanic-stone.json";
+import ebonizedWoodDoc from "./ebonized-wood.json";
+import woodDoc from "./wood.json";
 
 // Material preset registry. Each preset is a plain JSON MaterialGraphDocument under presets/. Add a new
-// `<name>.json` and one entry here to surface it in the Material panel's preset selector.
+// `<name>.json` and one entry here to surface it in the Material panel's preset selector. `key` is the
+// kebab-case filename stem and `label` matches the document's own metadata.title.
 interface Preset {
   key: string;
   label: string;
@@ -24,19 +17,11 @@ interface Preset {
 
 export const MATERIAL_PRESETS: Preset[] = [
   { key: "empty", label: "Empty", doc: defaultDoc as MaterialGraphDocument },
-  { key: "checkers", label: "Checkers", doc: checkersDoc as MaterialGraphDocument },
-  { key: "voronoi-cells", label: "Voronoi Cells", doc: voronoiCellsDoc as MaterialGraphDocument },
-  { key: "zinc", label: "Zinc", doc: zincDoc as MaterialGraphDocument },
-  { key: "rusty-metal", label: "Rusty Metal", doc: rustyMetalDoc as MaterialGraphDocument },
-  { key: "wood-planks", label: "Wood Planks", doc: woodPlanksDoc as MaterialGraphDocument },
   { key: "asphalt", label: "Asphalt", doc: asphaltDoc as MaterialGraphDocument },
+  { key: "dark-volcanic-stone", label: "Dark Volcanic Stone", doc: darkVolcanicStoneDoc as MaterialGraphDocument },
   { key: "bark", label: "Bark", doc: barkDoc as MaterialGraphDocument },
-  { key: "parquet", label: "Parquet", doc: parquetDoc as MaterialGraphDocument },
-  { key: "chinese-hackberry-bark", label: "Chinese Hackberry Bark", doc: chineseHackberryBarkDoc as MaterialGraphDocument },
-  { key: "bark-willow", label: "Bark Willow", doc: barkWillowDoc as MaterialGraphDocument },
-  { key: "rock", label: "Rock", doc: rockDoc as MaterialGraphDocument },
-  { key: "cracked-clay", label: "Cracked Clay", doc: crackedClayDoc as MaterialGraphDocument },
-  { key: "tile-test", label: "Tile Test", doc: tileTestDoc as MaterialGraphDocument },
+  { key: "ebonized-wood", label: "Ebonized Wood", doc: ebonizedWoodDoc as MaterialGraphDocument },
+  { key: "wood", label: "Wood", doc: woodDoc as MaterialGraphDocument },
 ];
 export const DEFAULT_PRESET = "empty"; // presets/default.json — the document loaded on a fresh session
 

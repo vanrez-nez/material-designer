@@ -30,19 +30,14 @@ const CATEGORIES = [
   { id: "tile", label: "Tile" },
 ];
 
+// `textures` lists the bakeable PBR channels actually driven by a graph edge into the shader node —
+// inputs left on their constant param (and height, which is not a baked channel) are not listed.
 const MATERIALS = [
-  { id: "cracked-clay", name: "Cracked Clay", category: "ground", preset: "cracked-clay", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
-  { id: "rock", name: "Rock", category: "ground", preset: "rock", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
   { id: "asphalt", name: "Asphalt", category: "ground", preset: "asphalt", textures: ["Base Color", "Roughness", "Normal"] },
-  { id: "zinc", name: "Zinc", category: "metal", preset: "zinc", textures: ["Base Color", "Roughness", "Metallic"] },
-  { id: "rusty-metal", name: "Rusty Metal", category: "metal", preset: "rusty-metal", textures: ["Base Color", "Roughness", "Metallic", "Normal"] },
+  { id: "dark-volcanic-stone", name: "Dark Volcanic Stone", category: "ground", preset: "dark-volcanic-stone", textures: ["Base Color", "Normal"] },
   { id: "bark", name: "Bark", category: "wood", preset: "bark", textures: ["Base Color", "Roughness", "Normal"] },
-  { id: "wood-planks", name: "Wood Planks", category: "wood", preset: "wood-planks", textures: ["Base Color", "Roughness", "Normal"] },
-  { id: "parquet", name: "Parquet", category: "wood", preset: "parquet", textures: ["Base Color", "Roughness", "Normal"] },
-  { id: "chinese-hackberry-bark", name: "Chinese Hackberry Bark", category: "wood", preset: "chinese-hackberry-bark", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
-  { id: "checkers", name: "Checkers", category: "tile", preset: "checkers", textures: ["Base Color", "Roughness"] },
-  { id: "tile-test", name: "Tile Test", category: "tile", preset: "tile-test", textures: ["Base Color"] },
-  { id: "voronoi-cells", name: "Voronoi Cells", category: "tile", preset: "voronoi-cells", textures: ["Base Color", "Roughness", "Normal"] },
+  { id: "ebonized-wood", name: "Ebonized Wood", category: "wood", preset: "ebonized-wood", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
+  { id: "wood", name: "Wood", category: "wood", preset: "wood", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
 ];
 
 // --- thumbnail rendering -----------------------------------------------------------------------------

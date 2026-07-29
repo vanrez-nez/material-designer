@@ -1,0 +1,475 @@
+{
+  "version": 4,
+  "nodes": [
+    {
+      "id": "pr",
+      "type": "shader-material",
+      "params": {
+        "materialType": "physical"
+      },
+      "position": {
+        "x": 2715,
+        "y": 405
+      },
+      "enabled": true
+    },
+    {
+      "id": "out",
+      "type": "material-output",
+      "params": {},
+      "position": {
+        "x": 3163,
+        "y": 428
+      },
+      "enabled": true
+    },
+    {
+      "id": "tileable-noise-ez63zs",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "perlin-fbm",
+        "preset": "none",
+        "scale": 2,
+        "aspect": 8,
+        "octaves": 8,
+        "gain": 0.4,
+        "lacunarity": 3,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": 475,
+        "y": 1082
+      },
+      "enabled": true,
+      "label": "erosion streaks"
+    },
+    {
+      "id": "tileable-warp-zoaxvr",
+      "type": "tileable-warp",
+      "params": {
+        "amount": 0.06,
+        "scale": 3
+      },
+      "position": {
+        "x": 27,
+        "y": 1273
+      },
+      "enabled": true
+    },
+    {
+      "id": "color-ramp-hc6jzc",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#000000",
+        "colorB": "#ffffff",
+        "low": 0.41000000000000003,
+        "high": 0.43
+      },
+      "position": {
+        "x": 923,
+        "y": 1011
+      },
+      "enabled": true
+    },
+    {
+      "id": "tileable-noise-t5ww8g",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "perlin-fbm",
+        "preset": "none",
+        "scale": 19,
+        "aspect": 4,
+        "octaves": 4,
+        "gain": 0.6,
+        "lacunarity": 5,
+        "antialias": 0.68,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "128"
+      },
+      "position": {
+        "x": 923,
+        "y": 301
+      },
+      "enabled": true,
+      "label": "inner crust noise"
+    },
+    {
+      "id": "tileable-noise-nm0iss",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "value",
+        "preset": "none",
+        "scale": 6,
+        "aspect": 6,
+        "octaves": 4,
+        "gain": 0.33,
+        "lacunarity": 6,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "256"
+      },
+      "position": {
+        "x": 923,
+        "y": 668
+      },
+      "enabled": true,
+      "label": "outer noise"
+    },
+    {
+      "id": "blend-425m28",
+      "type": "blend",
+      "params": {
+        "mode": "mix",
+        "opacity": 1
+      },
+      "position": {
+        "x": 1819,
+        "y": 323
+      },
+      "enabled": true
+    },
+    {
+      "id": "color-ramp-1k9wci",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#201510",
+        "colorB": "#57402d",
+        "low": 0.2,
+        "high": 0.8
+      },
+      "position": {
+        "x": 1371,
+        "y": 12
+      },
+      "enabled": true,
+      "label": "inner crust color"
+    },
+    {
+      "id": "color-ramp-684ofe",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#6b4f34",
+        "colorB": "#b89268",
+        "low": 0.2,
+        "high": 0.85
+      },
+      "position": {
+        "x": 1371,
+        "y": 259
+      },
+      "enabled": true,
+      "label": "outer color"
+    },
+    {
+      "id": "normal-from-height-iwfg48",
+      "type": "normal-from-height",
+      "params": {
+        "strength": 0.05000000000000002
+      },
+      "position": {
+        "x": 2267,
+        "y": 567
+      },
+      "enabled": true
+    },
+    {
+      "id": "levels-bs8gyq",
+      "type": "levels",
+      "params": {
+        "min": 0.8,
+        "max": 0.98,
+        "invert": false
+      },
+      "position": {
+        "x": 1371,
+        "y": 1209
+      },
+      "enabled": true,
+      "label": "inner roughness"
+    },
+    {
+      "id": "levels-e8ort6",
+      "type": "levels",
+      "params": {
+        "min": 0.20000000000000004,
+        "max": 0.89,
+        "invert": false
+      },
+      "position": {
+        "x": 1371,
+        "y": 1432
+      },
+      "enabled": true,
+      "label": "outer roughness"
+    },
+    {
+      "id": "blend-dbsp6s",
+      "type": "blend",
+      "params": {
+        "mode": "mix",
+        "opacity": 0.88
+      },
+      "position": {
+        "x": 1819,
+        "y": 1210
+      },
+      "enabled": true,
+      "label": "roughness"
+    },
+    {
+      "id": "levels-pdftwl",
+      "type": "levels",
+      "params": {
+        "min": 1.3877787807814457e-17,
+        "max": 0.74,
+        "invert": false
+      },
+      "position": {
+        "x": 2267,
+        "y": 1095
+      },
+      "enabled": true,
+      "label": "AO"
+    },
+    {
+      "id": "blend-wzhtzg",
+      "type": "blend",
+      "params": {
+        "mode": "mix",
+        "opacity": 1
+      },
+      "position": {
+        "x": 1371,
+        "y": 635
+      },
+      "enabled": true,
+      "label": "detail height (masked)"
+    },
+    {
+      "id": "math-kjl6ux",
+      "type": "math",
+      "params": {
+        "op": "mix",
+        "factor": 0.33,
+        "c": 0.7100000000000001
+      },
+      "position": {
+        "x": 1819,
+        "y": 566
+      },
+      "enabled": true,
+      "label": "height combine"
+    }
+  ],
+  "edges": [
+    {
+      "fromNode": "pr",
+      "fromOutput": "bsdf",
+      "toNode": "out",
+      "toInput": "surface"
+    },
+    {
+      "fromNode": "tileable-warp-zoaxvr",
+      "fromOutput": "coord",
+      "toNode": "tileable-noise-ez63zs",
+      "toInput": "coord"
+    },
+    {
+      "fromNode": "tileable-noise-ez63zs",
+      "fromOutput": "field",
+      "toNode": "color-ramp-hc6jzc",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "color-ramp-hc6jzc",
+      "fromOutput": "color",
+      "toNode": "blend-425m28",
+      "toInput": "mask"
+    },
+    {
+      "fromNode": "blend-425m28",
+      "fromOutput": "color",
+      "toNode": "pr",
+      "toInput": "baseColor"
+    },
+    {
+      "fromNode": "tileable-noise-t5ww8g",
+      "fromOutput": "field",
+      "toNode": "color-ramp-1k9wci",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "color-ramp-1k9wci",
+      "fromOutput": "color",
+      "toNode": "blend-425m28",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-nm0iss",
+      "fromOutput": "field",
+      "toNode": "color-ramp-684ofe",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "color-ramp-684ofe",
+      "fromOutput": "color",
+      "toNode": "blend-425m28",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "normal-from-height-iwfg48",
+      "fromOutput": "normal",
+      "toNode": "pr",
+      "toInput": "normal"
+    },
+    {
+      "fromNode": "tileable-noise-t5ww8g",
+      "fromOutput": "field",
+      "toNode": "levels-bs8gyq",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-bs8gyq",
+      "fromOutput": "field",
+      "toNode": "blend-dbsp6s",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-nm0iss",
+      "fromOutput": "field",
+      "toNode": "levels-e8ort6",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-e8ort6",
+      "fromOutput": "field",
+      "toNode": "blend-dbsp6s",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "color-ramp-hc6jzc",
+      "fromOutput": "color",
+      "toNode": "blend-dbsp6s",
+      "toInput": "mask"
+    },
+    {
+      "fromNode": "blend-dbsp6s",
+      "fromOutput": "color",
+      "toNode": "pr",
+      "toInput": "roughness"
+    },
+    {
+      "fromNode": "tileable-noise-ez63zs",
+      "fromOutput": "field",
+      "toNode": "levels-pdftwl",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-pdftwl",
+      "fromOutput": "field",
+      "toNode": "pr",
+      "toInput": "ambientOcclusion"
+    },
+    {
+      "fromNode": "tileable-noise-t5ww8g",
+      "fromOutput": "field",
+      "toNode": "blend-wzhtzg",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-nm0iss",
+      "fromOutput": "field",
+      "toNode": "blend-wzhtzg",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "color-ramp-hc6jzc",
+      "fromOutput": "color",
+      "toNode": "blend-wzhtzg",
+      "toInput": "mask"
+    },
+    {
+      "fromNode": "tileable-noise-ez63zs",
+      "fromOutput": "field",
+      "toNode": "math-kjl6ux",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "blend-wzhtzg",
+      "fromOutput": "color",
+      "toNode": "math-kjl6ux",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-kjl6ux",
+      "fromOutput": "field",
+      "toNode": "normal-from-height-iwfg48",
+      "toInput": "height"
+    },
+    {
+      "fromNode": "math-kjl6ux",
+      "fromOutput": "field",
+      "toNode": "pr",
+      "toInput": "height"
+    }
+  ],
+  "metadata": {
+    "title": "Wood"
+  },
+  "ui": {
+    "editor": {
+      "activeGroupPath": [],
+      "soloNode": null,
+      "view": {
+        "layoutArrangement": "right",
+        "transform": {
+          "x": -1479.0756990170494,
+          "y": -620.3880327483084,
+          "k": 1.8506337105967547
+        }
+      }
+    },
+    "settings": {
+      "materialState": {
+        "debugNormals": false
+      },
+      "projectionState": {
+        "tiling": 1,
+        "triplanar": false,
+        "worldPerTile": 1.2,
+        "sharpness": 8,
+        "parallax": 0
+      },
+      "sceneState": {
+        "toneMapping": 4,
+        "exposure": 1,
+        "dirIntensity": 3,
+        "dirColor": "#ffffff",
+        "dirPosition": {
+          "x": 3,
+          "y": 4,
+          "z": 5
+        },
+        "ambIntensity": 0.35,
+        "ambColor": "#ffffff",
+        "envIntensity": 0.1,
+        "shadowSoftness": 4,
+        "shadowDarkness": 1
+      },
+      "rendererConfig": {
+        "antialias": false,
+        "samples": 8,
+        "pixelRatio": 2,
+        "transparentBg": false
+      }
+    }
+  }
+}

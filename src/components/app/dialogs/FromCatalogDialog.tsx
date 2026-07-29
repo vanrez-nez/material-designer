@@ -50,11 +50,14 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
   }, [open, catalog]);
 
   // Reset the selection (and default the category) whenever the dialog opens or the catalog arrives.
+  // Categories are a fixed taxonomy, so some may hold no materials yet — open on the first populated
+  // one so the grid isn't blank on arrival.
   useEffect(() => {
     if (!open) return;
-    setCategoryId(catalog?.categories[0]?.id ?? "");
+    const categories = catalog?.categories ?? [];
+    setCategoryId((categories.find((category) => (counts[category.id] ?? 0) > 0) ?? categories[0])?.id ?? "");
     setSelectedId(null);
-  }, [open, catalog]);
+  }, [open, catalog, counts]);
 
   function openMaterial(material: CatalogMaterial): void {
     onOpen(material);
