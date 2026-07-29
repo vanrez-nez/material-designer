@@ -5,6 +5,8 @@ import barkDoc from "./bark.json";
 import cobblestoneSettsDoc from "./cobblestone-setts.json";
 import darkVolcanicStoneDoc from "./dark-volcanic-stone.json";
 import ebonizedWoodDoc from "./ebonized-wood.json";
+import flamedBasaltDoc from "./flamed-basalt.json";
+import lichenStoneDoc from "./lichen-stone.json";
 import woodDoc from "./wood.json";
 
 // Material preset registry. Each preset is a plain JSON MaterialGraphDocument under presets/. Add a new
@@ -21,6 +23,8 @@ export const MATERIAL_PRESETS: Preset[] = [
   { key: "asphalt", label: "Asphalt", doc: asphaltDoc as MaterialGraphDocument },
   { key: "cobblestone-setts", label: "Cobblestone Setts", doc: cobblestoneSettsDoc as MaterialGraphDocument },
   { key: "dark-volcanic-stone", label: "Dark Volcanic Stone", doc: darkVolcanicStoneDoc as MaterialGraphDocument },
+  { key: "flamed-basalt", label: "Flamed Basalt", doc: flamedBasaltDoc as MaterialGraphDocument },
+  { key: "lichen-stone", label: "Lichen Stone", doc: lichenStoneDoc as MaterialGraphDocument },
   { key: "bark", label: "Bark", doc: barkDoc as MaterialGraphDocument },
   { key: "ebonized-wood", label: "Ebonized Wood", doc: ebonizedWoodDoc as MaterialGraphDocument },
   { key: "wood", label: "Wood", doc: woodDoc as MaterialGraphDocument },

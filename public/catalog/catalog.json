@@ -58,6 +58,34 @@
       ]
     },
     {
+      "id": "flamed-basalt",
+      "name": "Flamed Basalt",
+      "category": "ground",
+      "preset": "flamed-basalt",
+      "thumbnail": "catalog/flamed-basalt.jpg",
+      "nodeCount": 21,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
+      "id": "lichen-stone",
+      "name": "Lichen Stone",
+      "category": "ground",
+      "preset": "lichen-stone",
+      "thumbnail": "catalog/lichen-stone.jpg",
+      "nodeCount": 16,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
       "id": "bark",
       "name": "Bark",
       "category": "wood",
