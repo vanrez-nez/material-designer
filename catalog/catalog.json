@@ -19,40 +19,12 @@
   ],
   "materials": [
     {
-      "id": "cracked-clay",
-      "name": "Cracked Clay",
-      "category": "ground",
-      "preset": "cracked-clay",
-      "thumbnail": "catalog/cracked-clay.jpg",
-      "nodeCount": 90,
-      "textures": [
-        "Base Color",
-        "Roughness",
-        "Normal",
-        "Ambient Occlusion"
-      ]
-    },
-    {
-      "id": "rock",
-      "name": "Rock",
-      "category": "ground",
-      "preset": "rock",
-      "thumbnail": "catalog/rock.jpg",
-      "nodeCount": 47,
-      "textures": [
-        "Base Color",
-        "Roughness",
-        "Normal",
-        "Ambient Occlusion"
-      ]
-    },
-    {
       "id": "asphalt",
       "name": "Asphalt",
       "category": "ground",
       "preset": "asphalt",
       "thumbnail": "catalog/asphalt.jpg",
-      "nodeCount": 12,
+      "nodeCount": 31,
       "textures": [
         "Base Color",
         "Roughness",
@@ -60,30 +32,71 @@
       ]
     },
     {
-      "id": "zinc",
-      "name": "Zinc",
-      "category": "metal",
-      "preset": "zinc",
-      "thumbnail": "catalog/zinc.jpg",
-      "nodeCount": 7,
+      "id": "cobblestone-setts",
+      "name": "Cobblestone Setts",
+      "category": "ground",
+      "preset": "cobblestone-setts",
+      "thumbnail": "catalog/cobblestone-setts.jpg",
+      "nodeCount": 53,
       "textures": [
         "Base Color",
         "Roughness",
-        "Metallic"
+        "Normal",
+        "Ambient Occlusion"
       ]
     },
     {
-      "id": "rusty-metal",
-      "name": "Rusty Metal",
-      "category": "metal",
-      "preset": "rusty-metal",
-      "thumbnail": "catalog/rusty-metal.jpg",
-      "nodeCount": 28,
+      "id": "dark-volcanic-stone",
+      "name": "Dark Volcanic Stone",
+      "category": "ground",
+      "preset": "dark-volcanic-stone",
+      "thumbnail": "catalog/dark-volcanic-stone.jpg",
+      "nodeCount": 22,
+      "textures": [
+        "Base Color",
+        "Normal"
+      ]
+    },
+    {
+      "id": "eroded-rock",
+      "name": "Eroded Rock",
+      "category": "ground",
+      "preset": "eroded-rock",
+      "thumbnail": "catalog/eroded-rock.jpg",
+      "nodeCount": 21,
       "textures": [
         "Base Color",
         "Roughness",
-        "Metallic",
-        "Normal"
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
+      "id": "flamed-basalt",
+      "name": "Flamed Basalt",
+      "category": "ground",
+      "preset": "flamed-basalt",
+      "thumbnail": "catalog/flamed-basalt.jpg",
+      "nodeCount": 21,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
+      "id": "lichen-stone",
+      "name": "Lichen Stone",
+      "category": "ground",
+      "preset": "lichen-stone",
+      "thumbnail": "catalog/lichen-stone.jpg",
+      "nodeCount": 16,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
       ]
     },
     {
@@ -100,38 +113,12 @@
       ]
     },
     {
-      "id": "wood-planks",
-      "name": "Wood Planks",
+      "id": "ebonized-wood",
+      "name": "Ebonized Wood",
       "category": "wood",
-      "preset": "wood-planks",
-      "thumbnail": "catalog/wood-planks.jpg",
-      "nodeCount": 15,
-      "textures": [
-        "Base Color",
-        "Roughness",
-        "Normal"
-      ]
-    },
-    {
-      "id": "parquet",
-      "name": "Parquet",
-      "category": "wood",
-      "preset": "parquet",
-      "thumbnail": "catalog/parquet.jpg",
-      "nodeCount": 11,
-      "textures": [
-        "Base Color",
-        "Roughness",
-        "Normal"
-      ]
-    },
-    {
-      "id": "chinese-hackberry-bark",
-      "name": "Chinese Hackberry Bark",
-      "category": "wood",
-      "preset": "chinese-hackberry-bark",
-      "thumbnail": "catalog/chinese-hackberry-bark.jpg",
-      "nodeCount": 19,
+      "preset": "ebonized-wood",
+      "thumbnail": "catalog/ebonized-wood.jpg",
+      "nodeCount": 24,
       "textures": [
         "Base Color",
         "Roughness",
@@ -140,39 +127,17 @@
       ]
     },
     {
-      "id": "checkers",
-      "name": "Checkers",
-      "category": "tile",
-      "preset": "checkers",
-      "thumbnail": "catalog/checkers.jpg",
-      "nodeCount": 4,
-      "textures": [
-        "Base Color",
-        "Roughness"
-      ]
-    },
-    {
-      "id": "tile-test",
-      "name": "Tile Test",
-      "category": "tile",
-      "preset": "tile-test",
-      "thumbnail": "catalog/tile-test.jpg",
-      "nodeCount": 3,
-      "textures": [
-        "Base Color"
-      ]
-    },
-    {
-      "id": "voronoi-cells",
-      "name": "Voronoi Cells",
-      "category": "tile",
-      "preset": "voronoi-cells",
-      "thumbnail": "catalog/voronoi-cells.jpg",
-      "nodeCount": 9,
+      "id": "wood",
+      "name": "Wood",
+      "category": "wood",
+      "preset": "wood",
+      "thumbnail": "catalog/wood.jpg",
+      "nodeCount": 17,
       "textures": [
         "Base Color",
         "Roughness",
-        "Normal"
+        "Normal",
+        "Ambient Occlusion"
       ]
     }
   ]
