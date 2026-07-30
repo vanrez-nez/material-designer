@@ -58,6 +58,20 @@
       ]
     },
     {
+      "id": "eroded-rock",
+      "name": "Eroded Rock",
+      "category": "ground",
+      "preset": "eroded-rock",
+      "thumbnail": "catalog/eroded-rock.jpg",
+      "nodeCount": 21,
+      "textures": [
+        "Base Color",
+        "Roughness",
+        "Normal",
+        "Ambient Occlusion"
+      ]
+    },
+    {
       "id": "flamed-basalt",
       "name": "Flamed Basalt",
       "category": "ground",

@@ -36,6 +36,7 @@ const MATERIALS = [
   { id: "asphalt", name: "Asphalt", category: "ground", preset: "asphalt", textures: ["Base Color", "Roughness", "Normal"] },
   { id: "cobblestone-setts", name: "Cobblestone Setts", category: "ground", preset: "cobblestone-setts", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
   { id: "dark-volcanic-stone", name: "Dark Volcanic Stone", category: "ground", preset: "dark-volcanic-stone", textures: ["Base Color", "Normal"] },
+  { id: "eroded-rock", name: "Eroded Rock", category: "ground", preset: "eroded-rock", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
   { id: "flamed-basalt", name: "Flamed Basalt", category: "ground", preset: "flamed-basalt", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
   { id: "lichen-stone", name: "Lichen Stone", category: "ground", preset: "lichen-stone", textures: ["Base Color", "Roughness", "Normal", "Ambient Occlusion"] },
   { id: "bark", name: "Bark", category: "wood", preset: "bark", textures: ["Base Color", "Roughness", "Normal"] },
