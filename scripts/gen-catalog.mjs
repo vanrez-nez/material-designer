@@ -13,7 +13,7 @@ import sharp from "sharp";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "public", "catalog");
-const SIZE = 256;
+const SIZE = 512;
 const JPEG_QUALITY = 80;
 
 // Shared JPEG optimization: square cover crop at SIZE, mozjpeg + progressive for the smallest files.

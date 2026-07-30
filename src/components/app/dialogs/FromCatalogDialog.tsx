@@ -71,7 +71,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[860px]">
+      <DialogContent className="sm:max-w-[100rem]">
         <DialogHeader>
           <DialogTitle>Open From Catalog</DialogTitle>
           <DialogDescription>Browse the material catalog by category.</DialogDescription>
@@ -101,7 +101,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
             {!catalog ? (
               <p className="text-sm text-muted-foreground">Loading catalog…</p>
             ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-3">
               {materials.map((material) => (
                 <button
                   key={material.id}
