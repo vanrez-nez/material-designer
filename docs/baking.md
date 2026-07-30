@@ -22,6 +22,7 @@ Contents:
   - [Lighting profiles](#lighting-profiles)
   - [Output layout](#output-layout)
 - [Dev-console handles](#dev-console-handles)
+- [Multiple-material submission experiment](#multiple-material-submission-experiment)
 - [Batch preset generation with an agent](#batch-preset-generation-with-an-agent)
 
 ---
@@ -184,6 +185,28 @@ await __bakeMaterialTask(preset, 'materials/ceramic-brick-and-tile/brick/brick-r
 > Note: channels are baked through the graph's **baked** backend (a 2D uv slice). Nodes authored for the
 > 3D world-space (live) domain — e.g. the angular `anisotropic-stripes` — can show artifacts/seams when
 > baked this way; the bake is faithful to the graph, not necessarily a tileable texture yet.
+
+---
+
+## Multiple-material submission experiment
+
+On 2026-07-30, a bounded two-material submission window was implemented and compared with the existing
+one-at-a-time queue in headed Chrome/WebGPU. Each sample requested `eroded-rock` and `bark` together at
+256 px with persistent-cache reads bypassed; every resulting channel was read back and hashed.
+
+The paired cold-pipeline comparison could not be made reliable because the browser/driver pipeline cache
+survived renderer reloads, so the acceptance decision used the repeatable warm-pipeline runs:
+
+| Window | Median two-material wall time | Result |
+|---|---:|---|
+| 1 (existing serialization) | 333.0 ms | baseline |
+| 2 (bounded pending submissions) | 357.2 ms | 7.3% slower |
+
+Both modes produced the same per-material hashes (`2ed73de7`, `06587c80`), triggered no GPU resource
+backoff, and returned Three's tracked texture count from 11 to the pooled baseline of 1 after disposal.
+Because the two-entry window missed the required 10% improvement and added lifecycle/error complexity, it
+was removed. `MaterialBakeService` therefore continues to serialize full materials and await
+`GPUQueue.onSubmittedWorkDone()` after each one.
 
 ---
 
