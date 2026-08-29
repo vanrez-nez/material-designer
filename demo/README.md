@@ -13,6 +13,17 @@ npm run dev
 
 Open the printed URL in a WebGPU-capable browser (Chrome/Edge).
 
+- `/index.html` is the interactive single-material runtime/cache demo.
+- `/performance.html` is the 10+ material generation benchmark. It loads every registered preset at 1024px
+  by default; use its Tweakpane panel to inspect timings or reload at another resolution.
+
+The performance page is cold on every navigation, including a normal browser reload. Persistent baked
+textures are disabled and each page load creates a new run id that is injected into the actual WGSL for
+intermediate caches, channel bakes, and visible surface materials. The identity operation does not change
+the generated pixels, but it prevents shader and pipeline entries from a previous page load from matching.
+The run id is visible in Tweakpane, the `cold` URL parameter, the console, and
+`window.__materialPerformance.coldRunId`.
+
 `vite.config.ts` aliases `material-designer-runtime` to the package's **source**
 (`../src/runtime/src/index.ts`), so the demo always exercises the working tree — no `npm run build` in the
 runtime needed, and no risk of demoing a stale `dist/`. Drop that alias if you specifically want to validate
@@ -67,5 +78,5 @@ Nothing is stored unless you turn the cache on. To remove it entirely, use **Cle
 ## Build
 
 ```sh
-npm run build   # tsc --noEmit + vite build → dist/
+npm run build   # tsc --noEmit + Vite multi-page build → dist/
 ```

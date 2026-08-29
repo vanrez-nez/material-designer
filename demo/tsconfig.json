@@ -8,7 +8,8 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     // Mirrors the Vite alias so editor-time types and the dev server agree on which runtime is in play.
     "paths": {
-      "material-designer-runtime": ["../src/runtime/src/index.ts"]
+      "material-designer-runtime": ["../src/runtime/src/index.ts"],
+      "@/*": ["../src/*"]
     },
     "strict": true,
     "noUnusedLocals": true,
