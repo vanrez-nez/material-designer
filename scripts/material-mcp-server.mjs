@@ -211,11 +211,12 @@ const tools = [
   {
     name: "profile_nodes",
     description:
-      "Profile per-node GPU cost: each node's subtree is solo-compiled and rendered in isolation. Returns {overheadMs, nodes:[{nodeId,type,label,renderMs,pipelineMs,marginalMs}]} sorted by renderMs desc. renderMs = median warm re-render (GPU cost); pipelineMs = cold compile+first draw; marginalMs = renderMs minus costliest input subtree (approximate hint).",
+      "Profile measured per-output node-local costs. Each output compares an independently cache-busted isolated real node with a matched neutral baseline; compile and timestamp-query GPU deltas are returned separately from real ancestor-subtree totals. Results also calculate selected-kernel primitive counts and isolated-vs-baseline fragment WGSL size.",
     inputSchema: OBJ({
       nodeIds: { type: "array", items: { type: "string" }, description: "restrict to these node ids (default: all)" },
       size: { type: "number", description: "render size px, default 512" },
-      runs: { type: "number", description: "warm renders per node (median), default 6" },
+      runs: { type: "number", description: "GPU timestamp samples per node (median), default 6" },
+      compileRuns: { type: "number", description: "independently cache-busted pipeline compiles per node (median), default 3" },
     }),
   },
 ];

@@ -2,6 +2,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const runtimeSource = fileURLToPath(new URL("../src/runtime/src/index.ts", import.meta.url));
+const runtimeProfilingSource = fileURLToPath(
+  new URL("../src/runtime/src/profiling/index.ts", import.meta.url),
+);
 const appSource = fileURLToPath(new URL("../src", import.meta.url));
 
 export default defineConfig({
@@ -11,6 +14,10 @@ export default defineConfig({
   resolve: {
     dedupe: ["three"],
     alias: [
+      {
+        find: "material-designer-runtime/profiling",
+        replacement: runtimeProfilingSource,
+      },
       // Resolve the runtime to its SOURCE rather than the package `main` (dist/). The package entry only
       // updates when someone runs `npm run build` in ../src/runtime, so a plain `file:` link demos whatever
       // was last built — which is a poor way to try out a change you just made, and actively misleading when

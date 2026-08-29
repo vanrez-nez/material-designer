@@ -16,6 +16,7 @@ import type { ExportApi } from "./export";
 import { useWorkspaceStore } from "@/store/app";
 import { useDocumentLibraryStore, listDocuments } from "@/store/document-library";
 import { dispatchMaterialDocumentLoad, dispatchMaterialGraphRebuild } from "@/app-events";
+import { profileMaterialNodes } from "@/runtime/profiling";
 
 // ---------------------------------------------------------------------------------------------------------
 // In-page MCP bridge (dev-only). Connects OUTBOUND to the Node MCP server's WebSocket (scripts/
@@ -344,23 +345,48 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
       return { before, after };
     },
 
-    // Per-node cost table (solo-compiled subtrees rendered in isolation; see runtime node-profiler.ts).
-    // renderMs/pipelineMs are subtree ground truth; marginalMs is an attribution hint.
+    // Per-output cost table. compileMs/gpuMs are measured isolated-node minus matched-baseline deltas;
+    // subtree totals are explicitly separate and never used as node attribution.
     profile_nodes: async (p) => {
       const nodeIds = Array.isArray(p.nodeIds)
         ? (p.nodeIds.filter((v) => typeof v === "string") as string[])
         : undefined;
       const size = typeof p.size === "number" ? p.size : undefined;
       const runs = typeof p.runs === "number" ? p.runs : undefined;
-      const report = await bakeService.profileNodes(controller, { nodeIds, size, runs });
+      const compileRuns = typeof p.compileRuns === "number" ? p.compileRuns : undefined;
+      const report = await profileMaterialNodes(bakeService, controller, {
+        nodeIds,
+        size,
+        runs,
+        compileRuns,
+      });
       // Round for a compact, readable payload — sub-0.01ms precision is below measurement noise anyway.
       const r2 = (v: number): number => Math.round(v * 100) / 100;
       return {
         size: report.size,
         runs: report.runs,
+        compileRuns: report.compileRuns,
+        profileRunId: report.profileRunId,
+        measurementMode: report.measurementMode,
+        timingMode: report.timingMode,
+        timestampScope: report.timestampScope,
+        timestampQuerySupported: report.timestampQuerySupported,
+        timestampTrackingEnabled: report.timestampTrackingEnabled,
         overheadMs: r2(report.overheadMs),
+        compileOverheadMs: r2(report.compileOverheadMs),
         nodes: report.nodes.map((n) => ({
-          ...n, renderMs: r2(n.renderMs), pipelineMs: r2(n.pipelineMs), marginalMs: r2(n.marginalMs),
+          ...n,
+          graphCompileMs: r2(n.graphCompileMs),
+          isolatedGraphCompileMs: r2(n.isolatedGraphCompileMs),
+          subtreeCompileMs: r2(n.subtreeCompileMs),
+          subtreeGpuMs: r2(n.subtreeGpuMs),
+          isolatedCompileMs: r2(n.isolatedCompileMs),
+          isolatedGpuMs: r2(n.isolatedGpuMs),
+          baselineCompileMs: r2(n.baselineCompileMs),
+          baselineGpuMs: r2(n.baselineGpuMs),
+          ...(n.gpuPairedDeltaMs == null ? {} : { gpuPairedDeltaMs: r2(n.gpuPairedDeltaMs) }),
+          compileMs: r2(n.compileMs),
+          gpuMs: r2(n.gpuMs),
         })),
       };
     },

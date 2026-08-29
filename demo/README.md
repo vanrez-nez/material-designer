@@ -24,6 +24,47 @@ the generated pixels, but it prevents shader and pipeline entries from a previou
 The run id is visible in Tweakpane, the `cold` URL parameter, the console, and
 `window.__materialPerformance.coldRunId`.
 
+### Per-node profiling
+
+The page imports this functionality explicitly from `material-designer-runtime/profiling`; the default
+`material-designer-runtime` entry does not include node profiling, GPU timestamp queries, shader inspection,
+workload accounting, or cold-cache identity generation.
+Every selected-material profile also prints collapsed console groups for the compiled subtree, isolated node,
+and matched baseline materials, including their complete vertex and fragment WGSL.
+
+After the catalog benchmark completes, **Node profiler** can profile one selected material without changing
+the base benchmark results. It emits one row per previewable output and measures three independently
+cache-busted pipelines: the real ancestor subtree, the isolated node with cheap varying stand-ins for its
+connected inputs, and a matched neutral baseline over those same stand-ins. `Node compile` / `Node GPU` are
+calculated as isolated real minus matched baseline; subtree totals are shown only as context. The pane ranks
+the 12 largest measured node-local costs, while the complete structured report remains available at
+`window.__materialNodeProfile`.
+
+The two timing classes are deliberately separate:
+
+- **Compile** is the median of independently cache-busted wall-time samples around Three's `compileAsync()`
+  because browser/WGSL/pipeline compilation is not GPU command execution and cannot be measured by a GPU
+  timestamp.
+- **GPU** uses WebGPU `timestamp-query`. With Three r184 the demo requests timestamp support at renderer
+  initialization, but enables tracking only while a profile is active so the continuous preview loop cannot
+  exhaust Three's query pool. Every pass resolves immediately for back-pressure, then reads the exact scratch
+  render-context timestamp rather than the aggregate frame total. Isolated and baseline passes are interleaved,
+  their signed per-pair deltas are calculated, and `Node GPU` is the median paired delta clamped at zero; the
+  raw isolated/baseline medians and signed delta remain inspectable. An explicitly labeled wall-clock fallback
+  is used only when timestamp queries are unavailable.
+
+Multi-output nodes are measured port-for-port. For example, Voronoi `distance`, `edges`, and `random` compile
+as separate rows instead of comparing a consumer of `random` with Voronoi's first output. The neutral baseline
+also retains the same input/output plumbing, so a multi-input Blend is charged for its own operation rather
+than for the procedural branches connected to it.
+
+Each row also calculates the selected shader workload and inspects the generated fragment WGSL after timing:
+effective kernel/preset, octave/pass counts, primitive evaluations, isolated-vs-baseline WGSL bytes, emitted
+function count, and real shader-loop count. A configured Tileable Noise cache is shown but explicitly labeled
+as excluded from the raw isolated-node profile; the catalog benchmark above remains the end-to-end cached
+measurement. The opt-in `stone-analytic` / `erosion-analytic` presets and `distance-to-edge-2d` Voronoi feature
+are experimental comparison kernels; no catalog preset selects them by default.
+
 `vite.config.ts` aliases `material-designer-runtime` to the package's **source**
 (`../src/runtime/src/index.ts`), so the demo always exercises the working tree — no `npm run build` in the
 runtime needed, and no risk of demoing a stale `dist/`. Drop that alias if you specifically want to validate

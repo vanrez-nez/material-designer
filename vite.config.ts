@@ -77,6 +77,10 @@ export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss(), loadManifestPlugin()],
   resolve: {
     alias: [
+      {
+        find: "@/runtime/profiling",
+        replacement: fileURLToPath(new URL("./src/runtime/src/profiling/index.ts", import.meta.url)),
+      },
       { find: "@/runtime", replacement: fileURLToPath(new URL("./src/runtime/src/index.ts", import.meta.url)) },
       { find: "@/runtime/", replacement: fileURLToPath(new URL("./src/runtime/src/", import.meta.url)) },
       { find: "three/webgpu", replacement: threeWebgpu },

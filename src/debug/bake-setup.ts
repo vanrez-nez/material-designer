@@ -7,6 +7,7 @@ import { runTilingTest } from "@/runtime";
 import { MATERIAL_PRESETS, makePreset } from "@/presets";
 import { PBR_SOCKETS, type PbrSocket, type MaterialGraphDocument } from "@/runtime";
 import { createExport, type ExportApi, type DemoRenderOptions } from "./export";
+import { profileMaterialNodes } from "@/runtime/profiling";
 
 // The dev bake server (scripts/bake-server.mjs, `npm run bake:server`). `POST /save?name=<path>` writes the
 // body under ./bake/<path>; the name may nest with `/`.
@@ -38,21 +39,46 @@ export function installBakeDevHandles({ mainScene, exporter }: BakeDevHandleDeps
       service: bakeService.gpuInfo(),
       surface: mainScene.materialSurface.debugReport(),
     }),
-    // Per-node cost table for the ACTIVE document (solo-compiled subtrees rendered in isolation — see
-    // runtime node-profiler.ts for semantics). Usage: `await __profileNodes()` (optionally {size, runs}).
-    __profileNodes: async (opts?: { nodeIds?: string[]; size?: number; runs?: number }) => {
-      const report = await bakeService.profileNodes(mainScene.materialController, opts);
+    // Per-output cost table for the ACTIVE document. Node values are isolated-real minus a matched baseline;
+    // real ancestor-subtree totals remain separate context columns.
+    __profileNodes: async (opts?: {
+      nodeIds?: string[];
+      size?: number;
+      runs?: number;
+      compileRuns?: number;
+      logCompiledShaders?: boolean;
+    }) => {
+      const report = await profileMaterialNodes(bakeService, mainScene.materialController, {
+        ...opts,
+        logCompiledShaders: opts?.logCompiledShaders ?? true,
+      });
       console.table(
         report.nodes.map((n) => ({
           node: n.label ?? n.nodeId,
+          output: n.outputLabel ?? n.outputKey,
           type: n.type,
-          renderMs: +n.renderMs.toFixed(2),
-          pipelineMs: +n.pipelineMs.toFixed(2),
-          marginalMs: +n.marginalMs.toFixed(2),
+          kernel: n.workload?.kernel ?? "—",
+          primitiveEvaluations: n.workload?.totalPrimitiveEvaluations ?? "—",
+          fragmentWgslBytes: n.shaderMetrics?.fragmentByteDelta ?? "—",
+          shaderLoops: n.shaderMetrics?.loopCountDelta ?? "—",
+          nodeCompileMs: +n.compileMs.toFixed(2),
+          isolatedCompileMs: +n.isolatedCompileMs.toFixed(2),
+          baselineCompileMs: +n.baselineCompileMs.toFixed(2),
+          subtreeCompileMs: +n.subtreeCompileMs.toFixed(2),
+          isolatedGraphBuildMs: +n.isolatedGraphCompileMs.toFixed(2),
+          nodeGpuMs: +n.gpuMs.toFixed(3),
+          pairedGpuDeltaMs: +(n.gpuPairedDeltaMs ?? n.gpuMs).toFixed(3),
+          isolatedGpuMs: +n.isolatedGpuMs.toFixed(3),
+          baselineGpuMs: +n.baselineGpuMs.toFixed(3),
+          subtreeGpuMs: +n.subtreeGpuMs.toFixed(3),
           ...(n.error ? { error: n.error } : {}),
         })),
       );
-      console.log(`[profile] ${report.size}px × ${report.runs} runs, overhead ${report.overheadMs.toFixed(2)}ms`);
+      console.log(
+        `[profile] ${report.size}px × ${report.runs} GPU / ${report.compileRuns} compile runs, ` +
+          `${report.timingMode} (${report.timestampScope}), ` +
+          `GPU floor ${report.overheadMs.toFixed(3)}ms, compile floor ${report.compileOverheadMs.toFixed(2)}ms`,
+      );
       return report;
     },
     // Tiling test for every Tileable Noise type: bakes each, scores the wrap-edge seam, console.tables a

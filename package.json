@@ -12,6 +12,7 @@
     "material:agent": "node scripts/material-agent-batch.mjs",
     "bake:server": "node scripts/bake-server.mjs",
     "bake:blender": "node scripts/blender-bake.mjs",
+    "compare:images": "node scripts/compare-material-images.mjs",
     "mcp:server": "node scripts/material-mcp-server.mjs"
   },
   "dependencies": {
