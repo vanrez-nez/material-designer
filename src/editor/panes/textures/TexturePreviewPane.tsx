@@ -18,6 +18,7 @@ import { useWorkspaceStore } from "@/store/app";
 import {
   TEXTURE_CHANNELS,
   sortedTextureSockets,
+  textureChannelForSocket,
   type TextureChannelInfo,
 } from "@/editor/panes/textures/channels";
 import { TexturePreviewGpu } from "@/editor/panes/textures/TexturePreviewGpu";
@@ -224,14 +225,19 @@ function InteractiveTextureCanvas({
     const tex = services.getChannelTexture(socket);
     if (tex) gpu.setColorSpace(canvas, tex.colorSpace);
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    gpu.requestRender(canvas, tex, {
-      cssWidth: size.width,
-      cssHeight: size.height,
-      dpr,
-      tilePx: tileSize * zoom,
-      panX: pan.x,
-      panY: pan.y,
-    });
+    gpu.requestRender(
+      canvas,
+      tex,
+      {
+        cssWidth: size.width,
+        cssHeight: size.height,
+        dpr,
+        tilePx: tileSize * zoom,
+        panX: pan.x,
+        panY: pan.y,
+      },
+      textureChannelForSocket(socket).view,
+    );
     drawSeamsOverlay(seamsRef.current, size, tileSize * zoom, pan, seams);
   }, [gpu, services, socket, size, tileSize, zoom, pan, seams, bakeGeneration]);
 
@@ -342,14 +348,19 @@ function StaticTextureCanvas({
     if (tex) gpu.setColorSpace(canvas, tex.colorSpace);
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const tilePx = Math.max(48, Math.min(size.width, size.height));
-    gpu.requestRender(canvas, tex, {
-      cssWidth: size.width,
-      cssHeight: size.height,
-      dpr,
-      tilePx,
-      panX: 0,
-      panY: 0,
-    });
+    gpu.requestRender(
+      canvas,
+      tex,
+      {
+        cssWidth: size.width,
+        cssHeight: size.height,
+        dpr,
+        tilePx,
+        panX: 0,
+        panY: 0,
+      },
+      textureChannelForSocket(socket).view,
+    );
   }, [gpu, services, socket, generated, size, bakeGeneration]);
 
   return (

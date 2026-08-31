@@ -304,11 +304,18 @@ global surface coordinate.
 
 | Node (`type`) | Inputs | Outputs | Parameters |
 |---|---|---|---|
-| Material Output `material-output` | Surface (shader) | — | output res — `128/256/512/1024/2048/4096`, 1024 |
+| Material Output `material-output` | Surface (shader) | — | output res — `128/256/512/1024/2048/4096`, 1024 · pack ARMH — bool, **on** |
 
 > The terminal node (Blender's Material Output). It's a singleton, undeletable, and its **output res** sets
 > the pixel size of the baked channel textures — see
 > [Scale vs Tile vs Output Resolution](#scale-vs-tile-vs-output-resolution).
+>
+> **pack ARMH** (`packArm`, default on) bakes AO, roughness, metalness and height into ONE shared texture —
+> R = ambient occlusion, G = roughness, B = metalness (three.js's native
+> `aoMap`/`roughnessMap`/`metalnessMap` layout), A = height when the graph drives height. With it on,
+> querying any of those channel textures (height included) returns the same texture object and parallax
+> samples the height from the alpha; with it off each channel keeps its own grey-broadcast texture. The 2D
+> texture previews and PNG/ZIP exports stay per-channel grayscale either way.
 
 ### Group
 

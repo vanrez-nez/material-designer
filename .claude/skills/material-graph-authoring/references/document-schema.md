@@ -72,7 +72,7 @@ The docs list labels; the document stores keys. Confirmed mismatches:
 | `math` | `op`, `factor`, `c` | op, factor / B, C |
 | `levels` | `min`, `max`, `invert` | out min, out max, invert |
 | `principled-bsdf` | `emissionStrength` | emission str |
-| `material-output` | `outputResolution` (string) | output res |
+| `material-output` | `outputResolution` (string), `packArm` (bool, default true — packs ARMH incl. height in alpha) | output res, pack ARMH |
 | `shape` | `formRandom` | form rand |
 | `vector-math` | `operation` (param); ports `vector1`/`vector2` | op; A, B |
 

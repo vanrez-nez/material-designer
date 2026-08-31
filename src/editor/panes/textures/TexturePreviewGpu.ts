@@ -1,7 +1,8 @@
 import type { Texture } from "three";
 import { MeshBasicNodeMaterial, QuadMesh, RenderTarget, type WebGPURenderer } from "three/webgpu";
-import { texture as tslTexture, uniform, uv, vec2 } from "three/tsl";
+import { texture as tslTexture, uniform, uv, vec2, vec3 } from "three/tsl";
 import { createFrameScheduler, type FrameScheduler } from "@/lib/frame-scheduler";
+import type { TextureChannelView } from "@/editor/panes/textures/channels";
 
 // Zero-readback 2D texture preview. The 2D preview pane used to re-bake the graph and read pixels back to
 // the CPU on every edit; instead this samples the surface's ALREADY-BAKED channel texture directly on the
@@ -45,11 +46,13 @@ function createSurfaceState(canvas: HTMLCanvasElement, ctx: GPUCanvasContext, rt
     uTiles: uniform(vec2(1, 1)),
     uPan: uniform(vec2(0, 0)),
     boundTex: null as Texture | null,
+    boundView: "rgb" as TextureChannelView,
     wPx: 1,
     hPx: 1,
     // Latest requested draw, rendered when the coalesced frame fires (see requestRender). The scheduler is
     // assigned in attach() where `this.renderNow` is reachable.
     pendingTex: null as Texture | null,
+    pendingView: "rgb" as TextureChannelView,
     pendingLayout: null as PreviewLayout | null,
     scheduler: null as FrameScheduler | null,
   };
@@ -94,7 +97,7 @@ export class TexturePreviewGpu {
     // Same coalescing primitive the 3D scene uses (see @/lib/frame-scheduler): the callback renders this
     // surface's LATEST pending draw when the single scheduled frame fires.
     s.scheduler = createFrameScheduler(() => {
-      if (s.pendingLayout) this.renderNow(s, s.pendingTex, s.pendingLayout);
+      if (s.pendingLayout) this.renderNow(s, s.pendingTex, s.pendingLayout, s.pendingView);
     });
     this.surfaces.set(canvas, s);
     return true;
@@ -124,7 +127,14 @@ export class TexturePreviewGpu {
 
   // Draw `tex` into `canvas`, tiled/zoomed/panned per `layout`. rAF-coalesced so bursts (pan/zoom, or a
   // stream of bake-finish events) collapse to one draw per frame. No-op if the canvas isn't attached.
-  requestRender(canvas: HTMLCanvasElement, tex: Texture | null, layout: PreviewLayout): void {
+  // `view` picks the displayed component (see TextureChannelView): "rgb" shows the texture as-is, a single
+  // component renders as grayscale — how a packed-ARM channel gets its own separate preview.
+  requestRender(
+    canvas: HTMLCanvasElement,
+    tex: Texture | null,
+    layout: PreviewLayout,
+    view: TextureChannelView = "rgb",
+  ): void {
     const s = this.surfaces.get(canvas);
     if (!s) return;
     // Coalesce to the LATEST request, not the first. During a pan/zoom `pan` changes several times per
@@ -132,11 +142,17 @@ export class TexturePreviewGpu {
     // captured layout the texture would visibly lag the overlay (seams "move independently"). Store the
     // newest layout and render that when the single scheduled frame fires.
     s.pendingTex = tex;
+    s.pendingView = view;
     s.pendingLayout = layout;
     s.scheduler?.request();
   }
 
-  private renderNow(s: Surface, tex: Texture | null, layout: PreviewLayout): void {
+  private renderNow(
+    s: Surface,
+    tex: Texture | null,
+    layout: PreviewLayout,
+    view: TextureChannelView,
+  ): void {
     const { cssWidth, cssHeight, dpr, tilePx, panX, panY } = layout;
     if (!tex || cssWidth <= 0 || cssHeight <= 0) return;
     const wPx = Math.max(1, Math.round(cssWidth * dpr));
@@ -152,14 +168,22 @@ export class TexturePreviewGpu {
       s.wPx = wPx;
       s.hPx = hPx;
     }
-    // Rebuild the sampling node only when the displayed texture OBJECT changes (channel switch) — not per
-    // bake: the surface re-renders the SAME texture object in place, so only the uniforms below change.
-    if (s.boundTex !== tex) {
+    // Rebuild the sampling node only when the displayed texture OBJECT or the view changes (channel switch)
+    // — not per bake: the surface re-renders the SAME texture object in place, so only the uniforms below
+    // change. The view is part of the key because packed-ARM channels SHARE one texture object — identity
+    // alone would keep showing the previous channel's component.
+    if (s.boundTex !== tex || s.boundView !== view) {
       s.boundTex = tex;
+      s.boundView = view;
       // Sample at (u, 1-v) so the render target's bottom-up content displays top-down (as the old readback
       // did after its row flip). Tiling/zoom via uTiles, pan via uPan — both in tile units.
       const coord = vec2(uv().x, uv().y.oneMinus()).mul(s.uTiles).add(s.uPan);
-      s.material.colorNode = tslTexture(tex, coord);
+      const sampled = tslTexture(tex, coord);
+      // Single-component views broadcast to grayscale (the separate per-channel look of a packed texture).
+      s.material.colorNode =
+        view === "rgb"
+          ? sampled
+          : vec3(view === "r" ? sampled.r : view === "g" ? sampled.g : sampled.b);
       s.material.needsUpdate = true;
     }
     const tilePxDevice = Math.max(0.0001, tilePx * dpr);

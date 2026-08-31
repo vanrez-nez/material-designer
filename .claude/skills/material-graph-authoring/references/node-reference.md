@@ -253,11 +253,15 @@ global surface coordinate.
 
 | Node (`type`) | Inputs | Outputs | Parameters |
 |---|---|---|---|
-| Material Output `material-output` | Surface (shader) | — | output res — `128/256/512/1024/2048/4096`, 1024 |
+| Material Output `material-output` | Surface (shader) | — | output res — `128/256/512/1024/2048/4096`, 1024 · pack ARMH — bool, **on** |
 
 > The terminal output node. It's a singleton, undeletable, and its **output res** sets
 > the pixel size of the baked channel textures — see
 > [Scale vs Tile vs Output Resolution](#scale-vs-tile-vs-output-resolution).
+> **pack ARMH** (`packArm`, default on) bakes AO/roughness/metalness/height into one shared texture
+> (R = AO, G = roughness, B = metalness, A = height when the graph drives height); channel-texture
+> queries then return the same texture object for all of them, and parallax reads the alpha.
+> Previews and exports stay per-channel grayscale in both modes.
 
 ### Group
 
