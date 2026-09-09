@@ -22,12 +22,12 @@
       "id": "out",
       "type": "material-output",
       "params": {
-        "outputResolution": "1024"
+        "outputResolution": "2048"
       },
       "enabled": true,
       "position": {
         "x": 2715,
-        "y": 484
+        "y": 460
       }
     },
     {
@@ -253,10 +253,10 @@
       "enabled": true,
       "position": {
         "x": 475,
-        "y": 1614
+        "y": 1638
       },
       "params": {
-        "value": 0.8899999999999999
+        "value": 0.82
       },
       "label": "Coat · Coverage Threshold"
     },
@@ -328,7 +328,7 @@
         "y": 1362
       },
       "params": {
-        "value": 0.7000000000000001
+        "value": 0.51
       },
       "label": "Coat · Roughness"
     },
@@ -352,10 +352,10 @@
       "enabled": true,
       "position": {
         "x": 475,
-        "y": 1767
+        "y": 1791
       },
       "params": {
-        "value": 1
+        "value": 0.76
       },
       "label": "Coat · Flat Target"
     },
@@ -365,17 +365,17 @@
       "enabled": true,
       "position": {
         "x": 475,
-        "y": 1920
+        "y": 1944
       },
       "params": {
         "noiseType": "worley",
         "preset": "none",
-        "scale": 30,
+        "scale": 1,
         "aspect": 1,
-        "octaves": 6,
-        "gain": 0.4100000000000001,
-        "lacunarity": 5,
-        "antialias": 0,
+        "octaves": 5,
+        "gain": 1,
+        "lacunarity": 3,
+        "antialias": 6.071532165918825e-17,
         "gaborFreq": 2,
         "gaborAniso": 1,
         "gaborOrient": 0.785398,
@@ -389,107 +389,14 @@
       "enabled": true,
       "position": {
         "x": 923,
-        "y": 1732
+        "y": 1756
       },
       "params": {
         "op": "mix",
         "factor": 0.02,
-        "c": 0.31000000000000005
+        "c": 0.22000000000000006
       },
       "label": "Coat · Surface Disturb (factor=amount)"
-    },
-    {
-      "id": "tileable-warp-9vcgew",
-      "type": "tileable-warp",
-      "params": {
-        "amount": 0.15,
-        "scale": 4
-      },
-      "position": {
-        "x": -1250,
-        "y": 400
-      },
-      "enabled": true
-    },
-    {
-      "id": "scatter-v0rqq0",
-      "type": "scatter",
-      "params": {
-        "density": 10,
-        "amount": 0.5,
-        "radius": 0.4,
-        "sizeRandom": 0.6,
-        "posRandom": 0.85,
-        "rotRandom": 1
-      },
-      "position": {
-        "x": -900,
-        "y": 620
-      },
-      "enabled": true
-    },
-    {
-      "id": "shape-gaqood",
-      "type": "shape",
-      "params": {
-        "shape": "blob",
-        "sides": 6,
-        "irregularity": 0.6,
-        "dome": 0.6,
-        "edge": 0.04
-      },
-      "position": {
-        "x": -520,
-        "y": 640
-      },
-      "enabled": true
-    },
-    {
-      "id": "scatter-31cvz3",
-      "type": "scatter",
-      "params": {
-        "density": 10,
-        "amount": 0.5,
-        "radius": 0.4,
-        "sizeRandom": 0.6,
-        "posRandom": 0.85,
-        "rotRandom": 1
-      },
-      "position": {
-        "x": -900,
-        "y": 980
-      },
-      "enabled": true
-    },
-    {
-      "id": "shape-o7d5yt",
-      "type": "shape",
-      "params": {
-        "shape": "blob",
-        "sides": 6,
-        "irregularity": 0.6,
-        "dome": 0.6,
-        "edge": 0.04
-      },
-      "position": {
-        "x": -520,
-        "y": 1000
-      },
-      "enabled": true
-    },
-    {
-      "id": "levels-yylzzr",
-      "type": "levels",
-      "params": {
-        "min": 0,
-        "max": 1,
-        "invert": false
-      },
-      "position": {
-        "x": -520,
-        "y": 300
-      },
-      "enabled": true
     }
   ],
   "edges": [
@@ -699,9 +606,9 @@
       "view": {
         "layoutArrangement": "right",
         "transform": {
-          "x": 261.3925100695358,
-          "y": 103.37011865102203,
-          "k": 0.40311389547787935
+          "x": -595.7739902393575,
+          "y": -3035.651559306616,
+          "k": 1.770168311196297
         }
       }
     },
@@ -728,12 +635,12 @@
         },
         "ambIntensity": 0.35,
         "ambColor": "#ffffff",
-        "envIntensity": 0.1,
+        "envIntensity": 0.10000000000000002,
         "shadowSoftness": 4,
         "shadowDarkness": 1
       },
       "rendererConfig": {
-        "antialias": false,
+        "antialias": true,
         "samples": 8,
         "pixelRatio": 2,
         "transparentBg": false
