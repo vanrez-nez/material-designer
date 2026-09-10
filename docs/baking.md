@@ -244,3 +244,35 @@ The runner verifies these exist under `bake/materials/<catalog-relative-path>/`:
 `channels/{baseColor,roughness,normal,metallic,ambientOcclusion}.png`, `renders/tiled-2x2.png`, and
 `renders/{standard,normals,metallic,ao}.png`. Logs + JSONL summaries land under
 `bake/_material-agent-runs/`.
+
+## MCP-only author/reviewer loop
+
+`npm run material:author-review` runs two persistent Codex agents against one live Material Designer
+document. Agent 1 authors and revises through the `material-designer` MCP. Agent 2 is read-only: on every
+round it obtains fresh renderer images at 1x, 2x, and 4x tiling, inspects the normals render and roughness
+channel, and returns a structured quality verdict. Rejected work and feedback loop back to Agent 1. The
+accepted document is saved to the MCP document library only after the review gate passes.
+The reviewer then independently confirms the exact saved version id and title through MCP.
+
+The input is one folder, read recursively, containing Markdown descriptions and PNG, JPEG, or WebP
+reference images. The runner uses the Codex TypeScript SDK with the current local Codex login, keeps
+agent filesystem access read-only, and does not create presets, renders, logs, or other job artifacts
+in the repository. It refuses to start an agent unless that local login uses ChatGPT subscription
+authentication and removes API-key variables from the agent environment, preventing accidental OpenAI
+API billing.
+
+Start `npm run dev`, open `http://material-designer.localhost`, and leave the tab open. Then run:
+
+```sh
+npm run material:author-review -- /path/to/material-task --title "Material title"
+```
+
+The in-page bridge connects to a local port pool so the persistent author and reviewer threads can each
+use their own Codex MCP server. If the dev page was already open when this runner was installed or
+updated, refresh it once before starting the command.
+
+The defaults require a reviewer score of 85 and allow eight revision rounds. `--min-score` and
+`--max-rounds` change those gates; `--dry-run` validates and inventories the folder without starting an
+agent. Transient Codex transport failures (including 429 and 503 responses) retry four times with
+exponential backoff by default; use `--transport-retries` to change that limit. If the final round is
+rejected, the live draft remains unsaved and the command exits nonzero.
