@@ -4,3 +4,4 @@ external
 bake
 __pycache__
 /catalog
+artifacts

@@ -193,12 +193,23 @@ const tools = [
   },
   {
     name: "get_render",
-    description: "Render a lit 3D preview of the current material to an LLM-optimized image. scale tiles the material N× (zoom into the pattern); profile: standard|normals|metallic|ao.",
+    description: "Render the current material or an ephemeral node-contribution view. nodeId alone matches the graph eye; view: solo|solo-vs-full|without-node-vs-full|difference. Comparisons use left=variant, right=full. difference is the absolute pixel difference between the full graph and the graph without the node (black=identical), with an in-image stats panel and machine-readable MCP text stats. channel selects a raw final-PBR view for without-node-vs-full or difference. The live document and its isolation setting are never changed.",
     inputSchema: OBJ({
       size: { type: "number", description: "render size px, default 768" },
       scale: { type: "number", description: "UV tiling factor, default 1" },
       profile: { type: "string", description: "lighting profile, default standard" },
       maxDim: { type: "number", description: "longest output side, default 768" },
+      nodeId: { type: "string", description: "node to preview/compare; when supplied without view, defaults to solo" },
+      view: {
+        type: "string",
+        enum: ["solo", "solo-vs-full", "without-node-vs-full", "difference"],
+        description: "ephemeral node render layout; requires nodeId",
+      },
+      channel: {
+        type: "string",
+        enum: ["baseColor", "normal", "emission", "roughness", "metallic", "ambientOcclusion"],
+        description: "lossless raw PBR channel on geometry; valid with without-node-vs-full or difference",
+      },
     }),
   },
   {
@@ -260,7 +271,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
     const result = await callPage(name, args ?? {});
     if (isImageResult(result)) {
-      return { content: [{ type: "image", data: result.base64, mimeType: result.mime }] };
+      const content = [];
+      if (result.stats) content.push({ type: "text", text: JSON.stringify({ difference: result.stats }, null, 2) });
+      content.push({ type: "image", data: result.base64, mimeType: result.mime });
+      return { content };
     }
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   } catch (err) {

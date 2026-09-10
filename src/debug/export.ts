@@ -169,6 +169,14 @@ export interface ExportApi {
     size?: number;
     scale?: number;
     profile?: string;
+    centerKeyLight?: boolean;
+  }): Promise<Blob | null>;
+  // Render one final PBR channel as raw, unlit data on the same sphere/plane scene used by get_render.
+  renderMaterialChannelImage(options: {
+    channel: PbrSocket;
+    doc: MaterialGraphDocument;
+    size?: number;
+    scale?: number;
   }): Promise<Blob | null>;
 }
 
@@ -567,14 +575,21 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     size = 768,
     scale = 1,
     profile = "standard",
+    centerKeyLight = false,
   }: {
     doc: MaterialGraphDocument;
     size?: number;
     scale?: number;
     profile?: string;
+    centerKeyLight?: boolean;
   }): Promise<Blob | null> {
     if (!isValidDocument(doc)) throw new Error("renderMaterialImage: invalid document (missing nodes/edges)");
     const [resolved] = resolveProfiles({ size, scale, profiles: [profile] });
+    if (centerKeyLight) {
+      // Contribution comparisons split the frame at its horizontal midpoint. Keep the profile's elevation
+      // and depth, but center the key so its specular lobe straddles the seam and remains visible on both sides.
+      resolved.lightPosition = [0, resolved.lightPosition[1], resolved.lightPosition[2]];
+    }
     const graph = exportGraph(doc);
     const surface = new TexturedSurface(graph, bakeService);
     await surface.refresh();
@@ -605,11 +620,57 @@ export function createExport({ renderer, registry, liveDocument }: ExportDeps): 
     }
   }
 
+  async function renderMaterialChannelImage({
+    channel,
+    doc,
+    size = 768,
+    scale = 1,
+  }: {
+    channel: PbrSocket;
+    doc: MaterialGraphDocument;
+    size?: number;
+    scale?: number;
+  }): Promise<Blob | null> {
+    if (!isValidDocument(doc)) {
+      throw new Error("renderMaterialChannelImage: invalid document (missing nodes/edges)");
+    }
+    const graph = exportGraph(doc);
+    let texture: THREE.CanvasTexture | null = null;
+    let material: THREE.MeshBasicMaterial | null = null;
+    try {
+      const image = await bakeService.readImage(graph, channel, size);
+      if (!image) return null;
+
+      // readImage returns display-ready channel bytes. Marking the canvas texture as sRGB makes the basic
+      // material decode and the sRGB render target re-encode them, preserving those bytes on the geometry.
+      texture = new THREE.CanvasTexture(imageDataToCanvas(image));
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.minFilter = texture.magFilter = THREE.LinearFilter;
+      material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      });
+      const [resolved] = resolveProfiles({ size, scale, profiles: ["standard"] });
+      return await renderStandardMaterialDemo(
+        material,
+        { ...resolved, shadows: false, lightIntensity: 0, ambientStrength: 0, environmentIntensity: 0 },
+        null,
+      );
+    } finally {
+      material?.dispose();
+      texture?.dispose();
+      graph.dispose();
+    }
+  }
+
   return {
     exportTextureZip,
     bakeConfigToBake,
     bakeMaterialTask,
     saveTilingComposite,
     renderMaterialImage,
+    renderMaterialChannelImage,
   };
 }

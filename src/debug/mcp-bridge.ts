@@ -4,10 +4,16 @@ import {
   bakeService,
   compileSockets,
   defaultRegistry,
+  GROUP_INPUT_TYPE,
+  GROUP_OUTPUT_TYPE,
+  GROUP_TYPE,
+  MATERIAL_OUTPUT_TYPE,
   migrateMaterialDocument,
   MATERIAL_DOCUMENT_VERSION,
+  nodePorts,
   PBR_SOCKETS,
   SURFACE_CHANNELS,
+  type GraphNode,
   type MaterialGraphDocument,
   type PbrSocket,
 } from "@/runtime";
@@ -63,7 +69,23 @@ interface ImageResult {
   base64: string;
   width: number;
   height: number;
+  stats?: DifferenceStats;
 }
+
+interface DifferenceStats {
+  nodeId: string;
+  channel: PbrSocket | "lit";
+  threshold: "2/255";
+  changedPixels: number;
+  totalPixels: number;
+  changedPercent: number;
+  meanPercent: number;
+  p95Percent: number;
+  maxPercent: number;
+}
+
+const NODE_RENDER_VIEWS = ["solo", "solo-vs-full", "without-node-vs-full", "difference"] as const;
+type NodeRenderView = (typeof NODE_RENDER_VIEWS)[number];
 
 export function installMcpBridge(deps: McpBridgeDeps): void {
   const controller = deps.mainScene.materialController;
@@ -314,9 +336,94 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
       const scale = typeof p.scale === "number" ? p.scale : 1;
       const profile = typeof p.profile === "string" ? p.profile : "standard";
       const maxDim = typeof p.maxDim === "number" ? p.maxDim : 768;
-      const blob = await deps.exporter.renderMaterialImage({ doc: currentDocument(), size, scale, profile });
-      if (!blob) throw new Error("render produced no image");
-      return optimize(await blobToCanvas(blob), { maxDim, mime: "image/jpeg", quality: 0.8 });
+      const source = currentDocument();
+      const nodeId = optionalString(p, "nodeId");
+
+      // Preserve the original API exactly when no node view was requested, including its historical behavior
+      // of honoring a soloNode serialized in the document.
+      if (!nodeId && p.view === undefined && p.channel === undefined) {
+        const blob = await deps.exporter.renderMaterialImage({ doc: source, size, scale, profile });
+        if (!blob) throw new Error("render produced no image");
+        return optimize(await blobToCanvas(blob), { maxDim, mime: "image/jpeg", quality: 0.8 });
+      }
+      if (!nodeId) throw new Error("nodeId is required when view or channel is supplied");
+
+      const view = requireNodeRenderView(p.view ?? "solo");
+      const channel = p.channel === undefined ? undefined : requireChannel(p);
+      if (channel && view !== "without-node-vs-full" && view !== "difference") {
+        throw new Error('channel is supported only with view "without-node-vs-full" or "difference"');
+      }
+      if (channel && p.profile !== undefined && profile !== "standard") {
+        throw new Error("channel renders are unlit and cannot be combined with a non-standard profile");
+      }
+
+      const node = findDocumentNode(source, nodeId);
+      if (!node) throw new Error(`unknown nodeId "${nodeId}"`);
+      const firstOutput = nodePorts(node, defaultRegistry).outputs[0];
+      if (!firstOutput || firstOutput.kind === "shader") {
+        throw new Error(`node "${nodeId}" cannot be solo-rendered by the graph eye`);
+      }
+      if (view !== "solo" && !hasNodePathToMaterialOutput(source, nodeId)) {
+        throw new Error(`node "${nodeId}" has no downstream path to Material Output`);
+      }
+
+      const full = withSoloNode(source, null);
+      const renderLit = async (
+        doc: MaterialGraphDocument,
+        centerKeyLight = false,
+      ): Promise<HTMLCanvasElement> => {
+        const blob = await deps.exporter.renderMaterialImage({
+          doc,
+          size,
+          scale,
+          profile,
+          centerKeyLight,
+        });
+        if (!blob) throw new Error("render produced no image");
+        return blobToCanvas(blob);
+      };
+
+      if (view === "solo") {
+        const canvas = await renderLit(withSoloNode(full, nodeId));
+        return optimize(canvas, { maxDim, mime: "image/jpeg", quality: 0.8 });
+      }
+
+      let left: HTMLCanvasElement;
+      let right: HTMLCanvasElement;
+      if (view === "solo-vs-full") {
+        left = await renderLit(withSoloNode(full, nodeId), true);
+        right = await renderLit(full, true);
+      } else {
+        const without = withoutDocumentNode(full, nodeId);
+        if (!without) throw new Error(`unknown nodeId "${nodeId}"`);
+        // Disconnected inputs are legal and use their normal node defaults; reject any other structural issue
+        // before spending GPU work on either half.
+        compileSockets(without, defaultRegistry, { backend: "live" });
+        if (channel) {
+          const renderChannel = async (doc: MaterialGraphDocument): Promise<HTMLCanvasElement> => {
+            const blob = await deps.exporter.renderMaterialChannelImage({ channel, doc, size, scale });
+            if (!blob) throw new Error(`channel "${channel}" is not connected`);
+            return blobToCanvas(blob);
+          };
+          left = await renderChannel(without);
+          right = await renderChannel(full);
+        } else {
+          left = await renderLit(without, true);
+          right = await renderLit(full, true);
+        }
+      }
+
+      if (view === "difference") {
+        const difference = pixelDifference(left, right, nodeId, channel ?? "lit");
+        drawDifferenceStats(difference.canvas, difference.stats);
+        const image = await optimize(difference.canvas, { maxDim, mime: "image/png" });
+        return { ...image, stats: difference.stats };
+      }
+
+      const comparison = splitComparison(left, right);
+      return channel
+        ? optimize(comparison, { maxDim, mime: "image/png" })
+        : optimize(comparison, { maxDim, mime: "image/jpeg", quality: 0.8 });
     },
 
     get_viewport: async (p) => {
@@ -414,6 +521,129 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
     canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
     bitmap.close();
     return canvas;
+  }
+
+  // Preserve spatial correspondence: take the left half from one full-frame render and the right half from
+  // the other. Never squeeze two complete scenes into half-width panels.
+  function splitComparison(left: HTMLCanvasElement, right: HTMLCanvasElement): HTMLCanvasElement {
+    if (left.width !== right.width || left.height !== right.height) {
+      throw new Error("comparison renders have mismatched dimensions");
+    }
+    const split = Math.floor(left.width / 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = left.width;
+    canvas.height = left.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("could not create comparison canvas");
+    ctx.drawImage(left, 0, 0, split, left.height, 0, 0, split, left.height);
+    ctx.drawImage(
+      right,
+      split,
+      0,
+      right.width - split,
+      right.height,
+      split,
+      0,
+      right.width - split,
+      right.height,
+    );
+    return canvas;
+  }
+
+  // Absolute display-space difference between two aligned renders. Collapse RGB to the largest changed
+  // component so the result is a black-to-white contribution mask rather than misleading difference hues.
+  // Alpha is intentionally opaque so zero contribution is unambiguously black in MCP clients and saved PNGs.
+  function pixelDifference(
+    left: HTMLCanvasElement,
+    right: HTMLCanvasElement,
+    nodeId: string,
+    channel: PbrSocket | "lit",
+  ): { canvas: HTMLCanvasElement; stats: DifferenceStats } {
+    if (left.width !== right.width || left.height !== right.height) {
+      throw new Error("difference renders have mismatched dimensions");
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = left.width;
+    canvas.height = left.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("could not create difference canvas");
+
+    const leftCtx = left.getContext("2d");
+    const rightCtx = right.getContext("2d");
+    if (!leftCtx || !rightCtx) throw new Error("could not read difference renders");
+    const leftPixels = leftCtx.getImageData(0, 0, left.width, left.height);
+    const rightPixels = rightCtx.getImageData(0, 0, right.width, right.height);
+    const output = ctx.createImageData(canvas.width, canvas.height);
+    const histogram = new Uint32Array(256);
+    let changedPixels = 0;
+    let sum = 0;
+    let max = 0;
+    for (let i = 0; i < output.data.length; i += 4) {
+      const difference = Math.max(
+        Math.abs(leftPixels.data[i] - rightPixels.data[i]),
+        Math.abs(leftPixels.data[i + 1] - rightPixels.data[i + 1]),
+        Math.abs(leftPixels.data[i + 2] - rightPixels.data[i + 2]),
+      );
+      output.data[i] = difference;
+      output.data[i + 1] = difference;
+      output.data[i + 2] = difference;
+      output.data[i + 3] = 255;
+      histogram[difference] += 1;
+      sum += difference;
+      if (difference >= 2) changedPixels += 1;
+      if (difference > max) max = difference;
+    }
+    ctx.putImageData(output, 0, 0);
+
+    const totalPixels = canvas.width * canvas.height;
+    const p95Target = Math.ceil(totalPixels * 0.95);
+    let cumulative = 0;
+    let p95 = 0;
+    for (; p95 < histogram.length; p95 += 1) {
+      cumulative += histogram[p95];
+      if (cumulative >= p95Target) break;
+    }
+    const percent = (value: number): number => Number(((value / 255) * 100).toFixed(3));
+    const stats: DifferenceStats = {
+      nodeId,
+      channel,
+      threshold: "2/255",
+      changedPixels,
+      totalPixels,
+      changedPercent: Number(((changedPixels / totalPixels) * 100).toFixed(3)),
+      meanPercent: percent(sum / totalPixels),
+      p95Percent: percent(p95),
+      maxPercent: percent(max),
+    };
+    return { canvas, stats };
+  }
+
+  function drawDifferenceStats(canvas: HTMLCanvasElement, stats: DifferenceStats): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("could not draw difference stats");
+    const x = 10;
+    const y = 10;
+    const width = Math.min(canvas.width - x * 2, 480);
+    const height = 48;
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.32)";
+    ctx.lineWidth = 1;
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    ctx.textBaseline = "top";
+    ctx.fillText(`DIFF  ${stats.nodeId}  [${stats.channel}]`, x + 8, y + 7);
+    ctx.fillStyle = "#d8d8d8";
+    ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    ctx.fillText(
+      `CHANGED ${stats.changedPercent.toFixed(1)}%  MEAN ${stats.meanPercent.toFixed(1)}%  ` +
+        `P95 ${stats.p95Percent.toFixed(1)}%  MAX ${stats.maxPercent.toFixed(1)}%`,
+      x + 8,
+      y + 26,
+    );
+    ctx.restore();
   }
 
   // Downscale (longest side ≤ maxDim) + optional magnified crop, then encode to a compact base64 image —
@@ -545,10 +775,145 @@ function isUndeletable(type: string): boolean {
   return type === "material-output" || type === "group-input" || type === "group-output";
 }
 
+type NodeLocationParent = {
+  document: MaterialGraphDocument;
+  group: GraphNode;
+  parent?: NodeLocationParent;
+};
+
+type NodeLocation = {
+  document: MaterialGraphDocument;
+  node: GraphNode;
+  parent?: NodeLocationParent;
+};
+
+function findNodeLocation(
+  document: MaterialGraphDocument,
+  nodeId: string,
+  parent?: NodeLocationParent,
+): NodeLocation | undefined {
+  const node = document.nodes.find((candidate) => candidate.id === nodeId);
+  if (node) return { document, node, parent };
+  for (const group of document.nodes) {
+    if (group.type !== GROUP_TYPE || !group.subgraph) continue;
+    const nested = findNodeLocation(group.subgraph, nodeId, { document, group, parent });
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function findDocumentNode(document: MaterialGraphDocument, nodeId: string): GraphNode | undefined {
+  return findNodeLocation(document, nodeId)?.node;
+}
+
+// Walk downstream inside one document. A nested walk returns the Group Output socket keys it reaches so
+// the caller can continue through the owning group node in the parent document.
+function downstreamBoundaryOutputs(
+  document: MaterialGraphDocument,
+  startNodeId: string,
+  startOutputKeys?: ReadonlySet<string>,
+): { materialOutput: boolean; groupOutputKeys: Set<string> } {
+  const byId = new Map(document.nodes.map((node) => [node.id, node]));
+  const queue: Array<{ nodeId: string; outputKeys?: ReadonlySet<string> }> = [
+    { nodeId: startNodeId, outputKeys: startOutputKeys },
+  ];
+  const visited = new Set<string>();
+  const groupOutputKeys = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const visitKey = `${current.nodeId}:${current.outputKeys ? [...current.outputKeys].sort().join(",") : "*"}`;
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+
+    for (const edge of document.edges) {
+      if (edge.fromNode !== current.nodeId) continue;
+      if (current.outputKeys && !current.outputKeys.has(edge.fromOutput)) continue;
+      const target = byId.get(edge.toNode);
+      if (!target) continue;
+      if (target.type === MATERIAL_OUTPUT_TYPE) return { materialOutput: true, groupOutputKeys };
+      if (target.type === GROUP_OUTPUT_TYPE) {
+        groupOutputKeys.add(edge.toInput);
+        continue;
+      }
+      if (target.type === GROUP_TYPE && target.subgraph) {
+        const groupInput = target.subgraph.nodes.find((node) => node.type === GROUP_INPUT_TYPE);
+        if (!groupInput) continue;
+        const nested = downstreamBoundaryOutputs(
+          target.subgraph,
+          groupInput.id,
+          new Set([edge.toInput]),
+        );
+        if (nested.groupOutputKeys.size > 0) {
+          queue.push({ nodeId: target.id, outputKeys: nested.groupOutputKeys });
+        }
+        continue;
+      }
+      const outputs = new Set(nodePorts(target, defaultRegistry).outputs.map((output) => output.key));
+      if (outputs.size > 0) queue.push({ nodeId: target.id, outputKeys: outputs });
+    }
+  }
+  return { materialOutput: false, groupOutputKeys };
+}
+
+function hasNodePathToMaterialOutput(document: MaterialGraphDocument, nodeId: string): boolean {
+  const location = findNodeLocation(document, nodeId);
+  if (!location) return false;
+  let result = downstreamBoundaryOutputs(location.document, location.node.id);
+  if (result.materialOutput) return true;
+
+  let parent = location.parent;
+  while (parent && result.groupOutputKeys.size > 0) {
+    result = downstreamBoundaryOutputs(parent.document, parent.group.id, result.groupOutputKeys);
+    if (result.materialOutput) return true;
+    parent = parent.parent;
+  }
+  return false;
+}
+
+function withoutDocumentNode(document: MaterialGraphDocument, nodeId: string): MaterialGraphDocument | undefined {
+  const clone = structuredClone(document);
+  function remove(current: MaterialGraphDocument): boolean {
+    const index = current.nodes.findIndex((node) => node.id === nodeId);
+    if (index >= 0) {
+      current.nodes.splice(index, 1);
+      current.edges = current.edges.filter((edge) => edge.fromNode !== nodeId && edge.toNode !== nodeId);
+      if (current.ui?.editor?.soloNode === nodeId) current.ui.editor.soloNode = null;
+      return true;
+    }
+    for (const node of current.nodes) {
+      if (node.type === GROUP_TYPE && node.subgraph && remove(node.subgraph)) return true;
+    }
+    return false;
+  }
+  return remove(clone) ? clone : undefined;
+}
+
 function requireString(params: Record<string, unknown>, key: string): string {
   const value = params[key];
   if (typeof value !== "string" || !value) throw new Error(`missing required string param: ${key}`);
   return value;
+}
+
+function optionalString(params: Record<string, unknown>, key: string): string | undefined {
+  const value = params[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !value) throw new Error(`${key} must be a non-empty string`);
+  return value;
+}
+
+function requireNodeRenderView(value: unknown): NodeRenderView {
+  if (typeof value !== "string" || !(NODE_RENDER_VIEWS as readonly string[]).includes(value)) {
+    throw new Error(`unknown view "${String(value)}" — expected one of ${NODE_RENDER_VIEWS.join(", ")}`);
+  }
+  return value as NodeRenderView;
+}
+
+function withSoloNode(document: MaterialGraphDocument, soloNode: string | null): MaterialGraphDocument {
+  const clone = structuredClone(document);
+  clone.ui ??= {};
+  clone.ui.editor = { ...clone.ui.editor, soloNode };
+  return clone;
 }
 
 function requireNumber(params: Record<string, unknown>, key: string): number {

@@ -41,3 +41,10 @@ Baking material-graph channels and reference renders to PNG (the `/export-bake` 
 
 Quick start: run `npm run bake:server` alongside the dev server, then either open `/export-bake` and POST a
 document to `http://127.0.0.1:8788/export-bake`, or use the `__bakeMaterialTask` console handle.
+
+## MCP automation
+
+The local `material-designer` MCP can inspect and edit the live graph, render individual nodes, compare a
+node with the full material, render the graph without a node, and produce quantitative pixel-difference
+masks. Setup, `get_render` options, guarantees, examples, and diff statistics are documented in
+[docs/mcp.md](docs/mcp.md).

@@ -247,6 +247,9 @@ The runner verifies these exist under `bake/materials/<catalog-relative-path>/`:
 
 ## MCP-only author/reviewer loop
 
+For the MCP connection itself and the `get_render` node-isolation, comparison, channel, and quantitative
+difference modes, see **[mcp.md](./mcp.md)**.
+
 `npm run material:author-review` runs two persistent Codex agents against one live Material Designer
 document. Agent 1 authors and revises through the `material-designer` MCP. Agent 2 is read-only: on every
 round it obtains fresh renderer images at 1x, 2x, and 4x tiling, inspects the normals render and roughness
