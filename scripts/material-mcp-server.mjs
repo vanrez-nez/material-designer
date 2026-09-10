@@ -15,6 +15,7 @@ import { WebSocketServer, WebSocket } from "ws";
 
 const WS_HOST = "127.0.0.1";
 const WS_PORT = Number.parseInt(process.env.MD_WS_PORT || "51787", 10);
+const WS_PORT_SPAN = Number.parseInt(process.env.MD_WS_PORT_SPAN || "16", 10);
 const CALL_TIMEOUT_MS = Number.parseInt(process.env.MD_CALL_TIMEOUT_MS || "20000", 10);
 
 // ---------------------------------------------------------------------------------------------------------
@@ -27,12 +28,24 @@ let nextId = 1;
 /** @type {Map<number, {resolve:(v:any)=>void, reject:(e:Error)=>void, timer:NodeJS.Timeout}>} */
 const pending = new Map();
 
-const wss = new WebSocketServer({ host: WS_HOST, port: WS_PORT });
+async function listenOnAvailablePort() {
+  for (let offset = 0; offset < WS_PORT_SPAN; offset += 1) {
+    const port = WS_PORT + offset;
+    const candidate = new WebSocketServer({ host: WS_HOST, port });
+    const error = await new Promise((resolve) => {
+      candidate.once("listening", () => resolve(null));
+      candidate.once("error", resolve);
+    });
+    if (!error) return { wss: candidate, port };
+    try { candidate.close(); } catch { /* The failed listener may already be closed. */ }
+    if (error.code !== "EADDRINUSE") throw error;
+  }
+  throw new Error(`No free Material Designer bridge port in ${WS_PORT}-${WS_PORT + WS_PORT_SPAN - 1}.`);
+}
 
-wss.on("listening", () => {
-  console.error(`[mcp] WebSocket bridge listening on ws://${WS_HOST}:${WS_PORT}`);
-  console.error("[mcp] open http://material-designer.localhost (dev) so the page connects.");
-});
+const { wss, port: activeWsPort } = await listenOnAvailablePort();
+console.error(`[mcp] WebSocket bridge listening on ws://${WS_HOST}:${activeWsPort}`);
+console.error("[mcp] open http://material-designer.localhost (dev) so the page connects.");
 
 wss.on("error", (err) => {
   console.error(`[mcp] WebSocket server error: ${err?.message ?? err}`);

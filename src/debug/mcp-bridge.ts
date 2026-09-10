@@ -26,7 +26,12 @@ import { profileMaterialNodes } from "@/runtime/profiling";
 // nothing an agent does is irreversible. See src/debug/bake-setup.ts for the sibling dev-handle pattern.
 // ---------------------------------------------------------------------------------------------------------
 
-const WS_URL = "ws://127.0.0.1:51787";
+const WS_PORT_START = 51787;
+const WS_PORT_SPAN = 16;
+const WS_URLS = Array.from(
+  { length: WS_PORT_SPAN },
+  (_, offset) => `ws://127.0.0.1:${WS_PORT_START + offset}`,
+);
 const SNAPSHOT_STORAGE_KEY = "md.mcp.snapshots";
 const SNAPSHOT_CAP = 30; // in-memory ring cap
 const SNAPSHOT_PERSIST = 10; // how many full docs to mirror to localStorage (survives a tab reload)
@@ -478,23 +483,20 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
   }
 
   // --- transport -------------------------------------------------------------------------------------
-  let socket: WebSocket | null = null;
-  let backoff = 1000;
-
-  function connect(): void {
+  function connect(url: string, backoff = 1000): void {
     let ws: WebSocket;
     try {
-      ws = new WebSocket(WS_URL);
+      ws = new WebSocket(url);
     } catch {
-      scheduleReconnect();
+      scheduleReconnect(url, backoff);
       return;
     }
-    socket = ws;
+    let opened = false;
 
     ws.addEventListener("open", () => {
-      backoff = 1000;
-      console.info("[mcp] bridge connected");
-      send({ hello: true, app: "material-designer", docVersion: MATERIAL_DOCUMENT_VERSION });
+      opened = true;
+      console.info(`[mcp] bridge connected to ${url}`);
+      send(ws, { hello: true, app: "material-designer", docVersion: MATERIAL_DOCUMENT_VERSION });
     });
 
     ws.addEventListener("message", async (event: MessageEvent) => {
@@ -507,35 +509,32 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
       if (typeof req.id !== "number" || typeof req.method !== "string") return;
       const handler = handlers[req.method];
       if (!handler) {
-        send({ id: req.id, ok: false, error: { message: `unknown method: ${req.method}` } });
+        send(ws, { id: req.id, ok: false, error: { message: `unknown method: ${req.method}` } });
         return;
       }
       try {
         const result = await handler(req.params ?? {});
-        send({ id: req.id, ok: true, result });
+        send(ws, { id: req.id, ok: true, result });
       } catch (err) {
-        send({ id: req.id, ok: false, error: { message: err instanceof Error ? err.message : String(err) } });
+        send(ws, { id: req.id, ok: false, error: { message: err instanceof Error ? err.message : String(err) } });
       }
     });
 
-    ws.addEventListener("close", scheduleReconnect);
+    ws.addEventListener("close", () => {
+      scheduleReconnect(url, opened ? 1000 : Math.min(backoff * 2, 5000));
+    });
     ws.addEventListener("error", () => ws.close());
   }
 
-  function send(payload: unknown): void {
-    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+  function send(socket: WebSocket, payload: unknown): void {
+    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
   }
 
-  function scheduleReconnect(): void {
-    if (socket) {
-      socket.onclose = null;
-      socket = null;
-    }
-    setTimeout(connect, backoff);
-    backoff = Math.min(backoff * 2, 5000);
+  function scheduleReconnect(url: string, backoff: number): void {
+    setTimeout(() => connect(url, backoff), backoff);
   }
 
-  connect();
+  for (const url of WS_URLS) connect(url);
 }
 
 // ---------------------------------------------------------------------------------------------------------
