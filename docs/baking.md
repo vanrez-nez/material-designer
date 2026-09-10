@@ -250,19 +250,50 @@ The runner verifies these exist under `bake/materials/<catalog-relative-path>/`:
 For the MCP connection itself and the `get_render` node-isolation, comparison, channel, and quantitative
 difference modes, see **[mcp.md](./mcp.md)**.
 
-`npm run material:author-review` runs two persistent Codex agents against one live Material Designer
-document. Agent 1 authors and revises through the `material-designer` MCP. Agent 2 is read-only: on every
-round it obtains fresh renderer images at 1x, 2x, and 4x tiling, inspects the normals render and roughness
-channel, and returns a structured quality verdict. Rejected work and feedback loop back to Agent 1. The
-accepted document is saved to the MCP document library only after the review gate passes.
-The reviewer then independently confirms the exact saved version id and title through MCP.
+`npm run material:author-review` keeps one author thread against the live Material Designer document and
+starts a fresh independent reviewer each round. Agent 1 authors, cleans, and revises through the
+`material-designer` MCP. Agent 2 receives only
+the current round's final `render.png` followed by the original reference images and returns a visual
+quality verdict. It does not call MCP or review graph organization. Rejected visual feedback loops back
+to Agent 1. The accepted document is saved to the MCP document library only after the review gate passes.
 
 The input is one folder, read recursively, containing Markdown descriptions and PNG, JPEG, or WebP
-reference images. The runner uses the Codex TypeScript SDK with the current local Codex login, keeps
-agent filesystem access read-only, and does not create presets, renders, logs, or other job artifacts
-in the repository. It refuses to start an agent unless that local login uses ChatGPT subscription
-authentication and removes API-key variables from the agent environment, preventing accidental OpenAI
-API billing.
+reference images. The runner starts the repository-pinned Codex CLI directly, so it can be launched
+from a normal terminal and does not depend on a parent Codex session. It uses the current local ChatGPT
+login, ignores user Codex configuration for the child agents, and supplies only the local
+`material-designer` MCP registration to the author. Reviewer turns have no MCP registration and use a
+read-only sandbox. API-key and parent-session environment variables are removed from the child process
+to prevent accidental API billing or session inheritance.
+
+The child provider uses the authenticated ChatGPT Responses endpoint over HTTPS streaming and explicitly
+disables WebSocket transport. The author thread is retained across revisions; each reviewer starts fresh
+with only the current render and references. If a turn ends on a retryable 429/5xx or connection failure,
+the runner resumes that same in-progress thread; a transient error event does not fail a turn that later
+completes successfully.
+The author process uses `danger-full-access` with approvals disabled because Material Designer MCP
+mutations require that Codex permission profile. Its prompt limits work to this MCP. Reviewer turns use
+a read-only sandbox and are limited to inspecting their attached images.
+
+The terminal prints concise, truncated status lines for thinking, tool calls, agent messages, feedback,
+errors, and file creation. Full compact evidence is persisted to
+`artifacts/material-author-review/<timestamp>-<title>/events.jsonl`. Image and audio base64 bodies are
+replaced with mime type and byte-size metadata, and secret-shaped fields are redacted. Use `--log-dir`
+to put the complete run archive elsewhere.
+
+Each turn gets `round-<n>/<agent>-<phase>/evidence.jsonl` and `result.json` in the run archive. Author
+difference renders are computed at 1024px and stored under its `diffs/` directory as
+`<channel>-diff-<node-mode>.png`; other debug renders are discarded. The author alone performs these
+contribution checks.
+
+Every author delivery creates `<material-folder>/snapshot/round-<n>/` containing exactly one reviewer
+image named `render.png`, the serialized `document.json`, and MCP `snapshot.json` metadata. The final
+render is a 1024px standard render. A missing or incorrectly ordered render, snapshot, or document fails
+the round before review begins.
+
+The final graph gate requires fewer than 60 total nodes, a friendly contribution-oriented label on every
+node, and no unconnected, unreachable, superseded, or non-contributing nodes. The author uses the MCP
+`get_render` `difference` view and its statistics to check every non-output node. Revisions must simplify
+or replace failed branches before adding new work instead of accumulating patches on a rejected approach.
 
 Start `npm run dev`, open `http://material-designer.localhost`, and leave the tab open. Then run:
 
@@ -276,6 +307,18 @@ updated, refresh it once before starting the command.
 
 The defaults require a reviewer score of 85 and allow eight revision rounds. `--min-score` and
 `--max-rounds` change those gates; `--dry-run` validates and inventories the folder without starting an
-agent. Transient Codex transport failures (including 429 and 503 responses) retry four times with
-exponential backoff by default; use `--transport-retries` to change that limit. If the final round is
-rejected, the live draft remains unsaved and the command exits nonzero.
+agent or creating a log directory. Transient Codex transport failures (including 429 and 503 responses)
+retry four times with exponential backoff by default; use `--transport-retries` to change that limit.
+All attempts share the turn's `--timeout-minutes` deadline. If the final round is rejected, the live
+draft remains unsaved and the command exits nonzero; the event log still contains the complete diagnosis.
+
+The default author is `gpt-5.6-terra` at `high` effort, and the default reviewer is `gpt-5.6-sol` at
+`high` effort. `--author-model`, `--author-effort`, `--reviewer-model`, and `--reviewer-effort` are
+repeatable schedules. Values are consumed in each agent's turn order; when a run needs more turns than a
+schedule supplies, its last value is reused:
+
+```sh
+npm run material:author-review -- /path/to/material-task \
+  --author-model gpt-5.6-terra --author-effort high \
+  --reviewer-model gpt-5.6-sol --reviewer-effort high
+```

@@ -11,6 +11,7 @@
     "catalog": "node scripts/gen-catalog.mjs",
     "material:agent": "node scripts/material-agent-batch.mjs",
     "material:author-review": "node scripts/material-author-review.mjs",
+    "test:material-author-review": "node --test scripts/material-author-review.test.mjs",
     "bake:server": "node scripts/bake-server.mjs",
     "bake:blender": "node scripts/blender-bake.mjs",
     "compare:images": "node scripts/compare-material-images.mjs",
@@ -50,7 +51,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@openai/codex-sdk": "^0.153.4",
+    "@openai/codex": "0.153.4",
     "@tailwindcss/vite": "^4.3.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

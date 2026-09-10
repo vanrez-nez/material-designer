@@ -1,0 +1,52 @@
+{
+  "version": 4,
+  "nodes": [
+    {
+      "id": "pr",
+      "type": "shader-material",
+      "params": {
+        "materialType": "physical"
+      },
+      "position": {
+        "x": 27,
+        "y": 13
+      },
+      "enabled": true
+    },
+    {
+      "id": "out",
+      "type": "material-output",
+      "params": {},
+      "position": {
+        "x": 475,
+        "y": 12
+      },
+      "enabled": true
+    }
+  ],
+  "edges": [
+    {
+      "fromNode": "pr",
+      "fromOutput": "bsdf",
+      "toNode": "out",
+      "toInput": "surface"
+    }
+  ],
+  "metadata": {
+    "title": "Untitled 10"
+  },
+  "ui": {
+    "editor": {
+      "activeGroupPath": [],
+      "soloNode": null,
+      "view": {
+        "layoutArrangement": "right",
+        "transform": {
+          "x": 64.57608695652175,
+          "y": 272.8673913043478,
+          "k": 0.9934782608695653
+        }
+      }
+    }
+  }
+}
