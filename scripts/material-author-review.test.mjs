@@ -10,6 +10,7 @@ import {
   buildCodexArgs,
   compactOutput,
   createRunLogger,
+  diffableNodeIds,
   runCodex,
   runCodexAttempt,
   sanitizeEnvironment,
@@ -142,11 +143,15 @@ test("a completed turn survives an earlier stream error and logs every event", a
       } }));
       console.log(JSON.stringify({ type: "item.completed", item: {
         type: "mcp_tool_call", tool: "get_document", status: "completed", result: {
-          content: [{ type: "text", text: JSON.stringify({ nodes: [{ id: "node-a" }, { id: "output" }], edges: [] }) }]
+          content: [{ type: "text", text: JSON.stringify({ nodes: [
+            { id: "node-a", type: "tileable-noise" },
+            { id: "shader", type: "principled-bsdf" },
+            { id: "output", type: "material-output" }
+          ], edges: [] }) }]
         }
       } }));
       console.log(JSON.stringify({ type: "item.completed", item: {
-        type: "agent_message", text: ${JSON.stringify(JSON.stringify({ status: "revised", summary: "complete", savedVersionId: "", snapshotId: "snapshot-1", nodeCount: 2, contributionChecks: 1 }))}
+        type: "agent_message", text: ${JSON.stringify(JSON.stringify({ status: "revised", summary: "complete", savedVersionId: "", snapshotId: "snapshot-1", nodeCount: 3, contributionChecks: 1 }))}
       } }));
       console.log(JSON.stringify({ type: "turn.completed", usage: {} }));
     });
@@ -185,8 +190,16 @@ test("a completed turn survives an earlier stream error and logs every event", a
   assert.ok(existsSync(join(deliveryDirectory, "document.json")));
   assert.equal(logger.hasAuthorDelivery(
     { role: "author", phase: "authoring", round: 1 },
-    { snapshotId: "snapshot-1", nodeCount: 2, contributionChecks: 1 },
+    { snapshotId: "snapshot-1", nodeCount: 3, contributionChecks: 1 },
   ), true);
+});
+
+test("diffable node IDs exclude shader and output nodes", () => {
+  assert.deepEqual(diffableNodeIds({ nodes: [
+    { id: "noise", type: "tileable-noise" },
+    { id: "shader", type: "principled-bsdf" },
+    { id: "output", type: "material-output" },
+  ] }), ["noise"]);
 });
 
 test("terminal transport retry resumes the captured thread with a continuation prompt", async () => {

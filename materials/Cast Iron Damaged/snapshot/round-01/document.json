@@ -2,18 +2,6 @@
   "version": 4,
   "nodes": [
     {
-      "id": "pr",
-      "type": "shader-material",
-      "params": {
-        "materialType": "physical"
-      },
-      "position": {
-        "x": 27,
-        "y": 13
-      },
-      "enabled": true
-    },
-    {
       "id": "out",
       "type": "material-output",
       "params": {},
@@ -21,15 +9,561 @@
         "x": 475,
         "y": 12
       },
-      "enabled": true
+      "enabled": true,
+      "label": "Finished Cast Iron"
+    },
+    {
+      "id": "tileable-noise-h2r25i",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "perlin-fbm",
+        "preset": "stone-analytic",
+        "scale": 3,
+        "aspect": 1,
+        "octaves": 5,
+        "gain": 0.58,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": -900,
+        "y": -340
+      },
+      "enabled": true,
+      "label": "Broad Metal Mottling"
+    },
+    {
+      "id": "color-ramp-0t7l5i",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#080a0b",
+        "colorB": "#3b4142",
+        "low": 0.18,
+        "high": 0.82
+      },
+      "position": {
+        "x": -680,
+        "y": -340
+      },
+      "enabled": true,
+      "label": "Gunmetal Body Tones"
+    },
+    {
+      "id": "tileable-noise-aa14p6",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "perlin-fbm",
+        "preset": "erosion-analytic",
+        "scale": 6,
+        "aspect": 1,
+        "octaves": 4,
+        "gain": 0.67,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": -900,
+        "y": -80
+      },
+      "enabled": true,
+      "label": "Weathered Rust Coverage"
+    },
+    {
+      "id": "math-zlcics",
+      "type": "math",
+      "params": {
+        "op": "multiply",
+        "factor": 0.52,
+        "c": 0.5
+      },
+      "position": {
+        "x": -680,
+        "y": -80
+      },
+      "enabled": true,
+      "label": "Low Coverage Rust Mask"
+    },
+    {
+      "id": "tileable-noise-mrab4a",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "value",
+        "preset": "erosion",
+        "scale": 19,
+        "aspect": 1,
+        "octaves": 3,
+        "gain": 0.62,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": -900,
+        "y": 100
+      },
+      "enabled": true,
+      "label": "Rust Island Erosion"
+    },
+    {
+      "id": "math-igjfrq",
+      "type": "math",
+      "params": {
+        "op": "multiply",
+        "factor": 0.72,
+        "c": 0.5
+      },
+      "position": {
+        "x": -680,
+        "y": 100
+      },
+      "enabled": true,
+      "label": "Eroded Rust Islands"
+    },
+    {
+      "id": "math-7sfvoy",
+      "type": "math",
+      "params": {
+        "op": "multiply",
+        "factor": 1,
+        "c": 0.5
+      },
+      "position": {
+        "x": -450,
+        "y": 0
+      },
+      "enabled": true,
+      "label": "Layered Rust Clusters"
+    },
+    {
+      "id": "color-ramp-m2lngh",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#211611",
+        "colorB": "#70422d",
+        "low": 0.08,
+        "high": 0.48
+      },
+      "position": {
+        "x": -220,
+        "y": 100
+      },
+      "enabled": true,
+      "label": "Muted Rust Tone"
+    },
+    {
+      "id": "tileable-noise-cgt8ii",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "wavelet",
+        "preset": "stone",
+        "scale": 27,
+        "aspect": 1,
+        "octaves": 2,
+        "gain": 0.45,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": -900,
+        "y": 310
+      },
+      "enabled": true,
+      "label": "Sparse Rubbed Specks"
+    },
+    {
+      "id": "math-ph38wm",
+      "type": "math",
+      "params": {
+        "op": "multiply",
+        "factor": 0.16,
+        "c": 0.5
+      },
+      "position": {
+        "x": -680,
+        "y": 310
+      },
+      "enabled": true,
+      "label": "Pale Wear Mask"
+    },
+    {
+      "id": "constant-color-pkwlr1",
+      "type": "constant-color",
+      "params": {
+        "color": "#687070"
+      },
+      "position": {
+        "x": -450,
+        "y": 300
+      },
+      "enabled": true,
+      "label": "Soft Rubbed Gray"
+    },
+    {
+      "id": "blend-v157x9",
+      "type": "blend",
+      "params": {
+        "mode": "mix",
+        "opacity": 0.48
+      },
+      "position": {
+        "x": -220,
+        "y": -260
+      },
+      "enabled": true,
+      "label": "Worn Gunmetal Surface"
+    },
+    {
+      "id": "blend-ymyhrc",
+      "type": "blend",
+      "params": {
+        "mode": "mix",
+        "opacity": 0.82
+      },
+      "position": {
+        "x": 0,
+        "y": -100
+      },
+      "enabled": true,
+      "label": "Oxidized Iron Color"
+    },
+    {
+      "id": "levels-9wdnw4",
+      "type": "levels",
+      "params": {
+        "min": 0.48,
+        "max": 0.79,
+        "invert": false
+      },
+      "position": {
+        "x": -210,
+        "y": 210
+      },
+      "enabled": true,
+      "label": "Oxide Roughness"
+    },
+    {
+      "id": "levels-j1cvrs",
+      "type": "levels",
+      "params": {
+        "min": 0.18,
+        "max": 0.88,
+        "invert": true
+      },
+      "position": {
+        "x": -210,
+        "y": 270
+      },
+      "enabled": true,
+      "label": "Exposed Metal Response"
+    },
+    {
+      "id": "levels-kbfdve",
+      "type": "levels",
+      "params": {
+        "min": 0.72,
+        "max": 0.98,
+        "invert": true
+      },
+      "position": {
+        "x": -210,
+        "y": 330
+      },
+      "enabled": true,
+      "label": "Oxide Crevice Occlusion"
+    },
+    {
+      "id": "tileable-noise-bs4sp7",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "value",
+        "preset": "stone-analytic",
+        "scale": 72,
+        "aspect": 1,
+        "octaves": 1,
+        "gain": 0.48,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": -650,
+        "y": 520
+      },
+      "enabled": true,
+      "label": "Fine Cast Grain"
+    },
+    {
+      "id": "tileable-noise-n778g7",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "value",
+        "preset": "none",
+        "scale": 115,
+        "aspect": 1,
+        "octaves": 1,
+        "gain": 0.42,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": -900,
+        "y": 520
+      },
+      "enabled": true,
+      "label": "Shallow Casting Pits"
+    },
+    {
+      "id": "math-nw1f9s",
+      "type": "math",
+      "params": {
+        "op": "multiply",
+        "factor": 1,
+        "c": 0.5
+      },
+      "position": {
+        "x": -420,
+        "y": 520
+      },
+      "enabled": true,
+      "label": "Pebbled Relief"
+    },
+    {
+      "id": "normal-from-height-7a5nf9",
+      "type": "normal-from-height",
+      "params": {
+        "strength": 0.28
+      },
+      "position": {
+        "x": -200,
+        "y": 510
+      },
+      "enabled": true,
+      "label": "Fine Casting Normals"
+    },
+    {
+      "id": "principled-bsdf-6iu1n7",
+      "type": "principled-bsdf",
+      "params": {
+        "baseColor": "#cccccc",
+        "metallic": 0,
+        "roughness": 0.5,
+        "ior": 1.5,
+        "alpha": 1,
+        "coat": 0,
+        "coatRoughness": 0.03,
+        "sheen": 0,
+        "sheenRoughness": 0.3,
+        "transmission": 0,
+        "emission": "#000000",
+        "emissionStrength": 1
+      },
+      "position": {
+        "x": 250,
+        "y": 0
+      },
+      "enabled": true,
+      "label": "Blackened Cast Iron"
+    },
+    {
+      "id": "math-q9f1e1",
+      "type": "math",
+      "params": {
+        "op": "multiply",
+        "factor": 0.014,
+        "c": 0.5
+      },
+      "position": {
+        "x": -190,
+        "y": 610
+      },
+      "enabled": true,
+      "label": "Shallow Grain Height"
     }
   ],
   "edges": [
     {
-      "fromNode": "pr",
+      "fromNode": "tileable-noise-h2r25i",
+      "fromOutput": "field",
+      "toNode": "color-ramp-0t7l5i",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "color-ramp-0t7l5i",
+      "fromOutput": "color",
+      "toNode": "blend-v157x9",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-cgt8ii",
+      "fromOutput": "field",
+      "toNode": "math-ph38wm",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "math-ph38wm",
+      "fromOutput": "field",
+      "toNode": "blend-v157x9",
+      "toInput": "mask"
+    },
+    {
+      "fromNode": "constant-color-pkwlr1",
+      "fromOutput": "color",
+      "toNode": "blend-v157x9",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "blend-v157x9",
+      "fromOutput": "color",
+      "toNode": "blend-ymyhrc",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-aa14p6",
+      "fromOutput": "field",
+      "toNode": "math-zlcics",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-mrab4a",
+      "fromOutput": "field",
+      "toNode": "math-igjfrq",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "math-zlcics",
+      "fromOutput": "field",
+      "toNode": "math-7sfvoy",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "math-igjfrq",
+      "fromOutput": "field",
+      "toNode": "math-7sfvoy",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-7sfvoy",
+      "fromOutput": "field",
+      "toNode": "color-ramp-m2lngh",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "color-ramp-m2lngh",
+      "fromOutput": "color",
+      "toNode": "blend-ymyhrc",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-7sfvoy",
+      "fromOutput": "field",
+      "toNode": "blend-ymyhrc",
+      "toInput": "mask"
+    },
+    {
+      "fromNode": "blend-ymyhrc",
+      "fromOutput": "color",
+      "toNode": "principled-bsdf-6iu1n7",
+      "toInput": "baseColor"
+    },
+    {
+      "fromNode": "math-7sfvoy",
+      "fromOutput": "field",
+      "toNode": "levels-9wdnw4",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-9wdnw4",
+      "fromOutput": "field",
+      "toNode": "principled-bsdf-6iu1n7",
+      "toInput": "roughness"
+    },
+    {
+      "fromNode": "math-7sfvoy",
+      "fromOutput": "field",
+      "toNode": "levels-j1cvrs",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-j1cvrs",
+      "fromOutput": "field",
+      "toNode": "principled-bsdf-6iu1n7",
+      "toInput": "metallic"
+    },
+    {
+      "fromNode": "math-7sfvoy",
+      "fromOutput": "field",
+      "toNode": "levels-kbfdve",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-kbfdve",
+      "fromOutput": "field",
+      "toNode": "principled-bsdf-6iu1n7",
+      "toInput": "ambientOcclusion"
+    },
+    {
+      "fromNode": "tileable-noise-bs4sp7",
+      "fromOutput": "field",
+      "toNode": "math-nw1f9s",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-n778g7",
+      "fromOutput": "field",
+      "toNode": "math-nw1f9s",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "normal-from-height-7a5nf9",
+      "fromOutput": "normal",
+      "toNode": "principled-bsdf-6iu1n7",
+      "toInput": "normal"
+    },
+    {
+      "fromNode": "principled-bsdf-6iu1n7",
       "fromOutput": "bsdf",
       "toNode": "out",
       "toInput": "surface"
+    },
+    {
+      "fromNode": "math-nw1f9s",
+      "fromOutput": "field",
+      "toNode": "math-q9f1e1",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "math-q9f1e1",
+      "fromOutput": "field",
+      "toNode": "normal-from-height-7a5nf9",
+      "toInput": "height"
+    },
+    {
+      "fromNode": "math-q9f1e1",
+      "fromOutput": "field",
+      "toNode": "principled-bsdf-6iu1n7",
+      "toInput": "height"
     }
   ],
   "metadata": {

@@ -35,6 +35,7 @@ const DOCUMENT_MUTATION_TOOLS = new Set([
   "add_node", "remove_node", "set_param", "set_label", "connect_edge", "disconnect_edge",
   "load_document", "set_output_resolution", "restore_snapshot",
 ]);
+const NON_DIFFABLE_NODE_TYPES = new Set(["principled-bsdf", "material-output"]);
 const PARENT_CODEX_ENV_KEYS = new Set([
   "CODEX_ACCESS_TOKEN",
   "CODEX_API_KEY",
@@ -238,7 +239,7 @@ Boundaries and requirements:
 - Keep the complete graph below 60 nodes, including shader and output nodes. Prefer the simplest graph that achieves the reference.
 - Give every node a concise, friendly, contribution-oriented display title with set_label, such as "Large Rust Pits" or "Fine Roughness Breakup". Never leave generic, blank, duplicated, or numbered-only titles.
 - Before finishing, trace every node's downstream path to Material Output and remove every unconnected, unreachable, unused, superseded, or redundant node.
-- Verify every non-output node's visible contribution yourself with get_render using {nodeId, view:"difference", size:1024, maxDim:1024, profile:"standard", scale:1}. Use the returned difference statistics. If the result is all zero, retry at scale 2 and, when relevant, on the final PBR channel that node is intended to affect. Every difference render must remain at size 1024 and maxDim 1024. A node that remains all zero does not belong in the graph: remove it or rework it, then check again. Material Output itself is exempt from the difference call but must be connected.
+- Verify every diff-capable data node's visible contribution yourself with get_render using {nodeId, view:"difference", size:1024, maxDim:1024, profile:"standard", scale:1}. Use the returned difference statistics. If the result is all zero, retry at scale 2 and, when relevant, on the final PBR channel that node is intended to affect. Every difference render must remain at size 1024 and maxDim 1024. A node that remains all zero does not belong in the graph: remove it or rework it, then check again. The principled-bsdf shader and material-output nodes are exempt because MCP isolation does not support shader/output nodes; both must still be connected.
 - Preserve seamless tiling. Avoid obvious procedural regularity, implausible scale, clipped values, and details that contradict the references.
 - Before finishing, call regenerate and inspect any useful debug renders yourself. These debug renders are not reviewer evidence.
 - When the graph is final, call get_render exactly once with {size:1024, maxDim:1024, profile:"standard", scale:1} and no nodeId, view, or channel. This is the sole reviewer-facing render.png.
@@ -249,7 +250,7 @@ The eventual library title is ${JSON.stringify(title)}.
 
 ${brief}
 
-Author the live MCP document now. Return status "revised", a concise summary, an empty savedVersionId, the exact snapshotId returned by create_snapshot, the final total nodeCount, and the number of distinct final non-output nodes checked in contributionChecks. Return "blocked" only if the MCP remains unavailable after retrying; use an empty snapshotId and zero counts when blocked.`;
+Author the live MCP document now. Return status "revised", a concise summary, an empty savedVersionId, the exact snapshotId returned by create_snapshot, the final total nodeCount, and the number of distinct final diff-capable data nodes checked in contributionChecks. Do not include principled-bsdf or material-output in contributionChecks. Return "blocked" only if the MCP remains unavailable after retrying; use an empty snapshotId and zero counts when blocked.`;
 }
 
 function authorRevisionPrompt(round, review, minScore) {
@@ -259,9 +260,9 @@ ${JSON.stringify(review, null, 2)}
 
 Use only material-designer MCP calls. Do not write files or save a version. Before adding nodes, step back and decide which existing parts work, which are redundant, and whether the rejected approach should be simplified or replaced. Do not keep patching corrective branches onto a wrong approach; remove or rewire failed work first, and keep the node count flat or lower unless a genuinely necessary replacement requires otherwise.
 
-The finished graph must contain fewer than 60 total nodes. Give every node a concise, friendly, contribution-oriented title with set_label. Remove every unconnected, unreachable, unused, superseded, or redundant node. For every non-output node, verify visible contribution yourself with get_render {nodeId, view:"difference", size:1024, maxDim:1024, profile:"standard", scale:1}; investigate an all-zero result at scale 2 and on its intended final PBR channel, always keeping size and maxDim at 1024, then remove or rework any node that remains all zero.
+The finished graph must contain fewer than 60 total nodes. Give every node a concise, friendly, contribution-oriented title with set_label. Remove every unconnected, unreachable, unused, superseded, or redundant node. For every diff-capable data node, verify visible contribution yourself with get_render {nodeId, view:"difference", size:1024, maxDim:1024, profile:"standard", scale:1}; investigate an all-zero result at scale 2 and on its intended final PBR channel, always keeping size and maxDim at 1024, then remove or rework any node that remains all zero. The principled-bsdf shader and material-output nodes are exempt because MCP isolation does not support shader/output nodes; both must still be connected.
 
-After cleanup, call regenerate and inspect any useful debug renders yourself. Then call get_render exactly once with {size:1024, maxDim:1024, profile:"standard", scale:1} and no nodeId, view, or channel; this is the sole reviewer-facing render.png. Immediately afterward call create_snapshot with label "Author delivery round ${round}", then call get_document as your final MCP tool call. Do not mutate after producing the final render or snapshot. The acceptance bar is ${minScore}/100. Return status "revised", a concise summary, an empty savedVersionId, the exact snapshotId, final total nodeCount, and the number of distinct final non-output nodes checked in contributionChecks; use "blocked" only for a genuine MCP failure, with an empty snapshotId and zero counts.`;
+After cleanup, call regenerate and inspect any useful debug renders yourself. Then call get_render exactly once with {size:1024, maxDim:1024, profile:"standard", scale:1} and no nodeId, view, or channel; this is the sole reviewer-facing render.png. Immediately afterward call create_snapshot with label "Author delivery round ${round}", then call get_document as your final MCP tool call. Do not mutate after producing the final render or snapshot. The acceptance bar is ${minScore}/100. Return status "revised", a concise summary, an empty savedVersionId, the exact snapshotId, final total nodeCount, and the number of distinct final diff-capable data nodes checked in contributionChecks; do not count principled-bsdf or material-output. Use "blocked" only for a genuine MCP failure, with an empty snapshotId and zero counts.`;
 }
 
 function reviewerInitialPrompt(brief, minScore) {
@@ -484,6 +485,14 @@ function toolArguments(event) {
   try { return JSON.parse(value); } catch { return {}; }
 }
 
+function diffableNodeIds(document) {
+  if (!Array.isArray(document?.nodes)) return [];
+  return document.nodes
+    .filter((node) => !NON_DIFFABLE_NODE_TYPES.has(node?.type))
+    .map((node) => node?.id)
+    .filter((id) => typeof id === "string" && id);
+}
+
 function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
   mkdirSync(logRoot, { recursive: true, mode: 0o700 });
   const stamp = now.toISOString().replace(/[:.]/g, "-");
@@ -524,6 +533,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       renderPath: deliveryDirectory ? join(deliveryDirectory, "render.png") : "",
       diffNames: new Map(),
       diffNodeIds: new Set(),
+      document: null,
       hasDocument: false,
       finalRenderCount: 0,
       snapshotId: "",
@@ -562,6 +572,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
         state.hasDocument = false;
         state.finalRenderCount = 0;
         state.diffNodeIds.clear();
+        state.document = null;
         state.snapshotId = "";
         state.documentAfterSnapshot = false;
         state.snapshotAfterFinalRender = false;
@@ -618,6 +629,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       const document = materialDocumentFromEvent(event);
       if (document && state.deliveryDirectory) {
         writeFileSync(state.documentPath, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600 });
+        state.document = document;
         state.hasDocument = true;
         state.documentAfterSnapshot = Boolean(state.snapshotId);
         artifacts.push(state.documentPath);
@@ -652,13 +664,27 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       }, context);
       return relative(directory, resultPath);
     },
-    hasAuthorDelivery(context, result) {
+    authorDeliveryErrors(context, result) {
       const state = getTurnState(context);
-      const expectedChecks = Math.max(0, result.nodeCount - 1);
-      return state.hasDocument && state.documentAfterSnapshot && state.snapshotAfterFinalRender
-        && state.finalRenderCount === 1 && state.snapshotId === result.snapshotId
-        && state.diffNodeIds.size === expectedChecks && result.contributionChecks === expectedChecks
-        && state.policyErrors.length === 0;
+      const errors = [...state.policyErrors];
+      if (!state.hasDocument || !state.document) errors.push("Missing final document.json.");
+      if (!state.documentAfterSnapshot) errors.push("Final get_document did not follow create_snapshot.");
+      if (!state.snapshotAfterFinalRender) errors.push("create_snapshot did not follow the sole final render.");
+      if (state.finalRenderCount !== 1) errors.push(`Expected exactly one final render; archived ${state.finalRenderCount}.`);
+      if (!state.snapshotId) errors.push("Missing MCP snapshot.");
+      else if (state.snapshotId !== result.snapshotId) {
+        errors.push(`Reported snapshotId ${result.snapshotId || "<empty>"} does not match ${state.snapshotId}.`);
+      }
+      const nodes = Array.isArray(state.document?.nodes) ? state.document.nodes : [];
+      if (nodes.length !== result.nodeCount) {
+        errors.push(`Reported nodeCount ${result.nodeCount} does not match document node count ${nodes.length}.`);
+      }
+      const missingDiffs = diffableNodeIds(state.document).filter((id) => !state.diffNodeIds.has(id));
+      if (missingDiffs.length) errors.push(`Missing successful 1024px difference renders for: ${missingDiffs.join(", ")}.`);
+      return errors;
+    },
+    hasAuthorDelivery(context, result) {
+      return this.authorDeliveryErrors(context, result).length === 0;
     },
     delivery(context) {
       const state = getTurnState(context);
@@ -1037,11 +1063,8 @@ async function main(argv = process.argv.slice(2)) {
     );
     if (authorTurn.result.status === "blocked") throw new Error(`Author blocked: ${authorTurn.result.summary}`);
     if (!authorTurn.result.snapshotId) throw new Error(`Author round ${round} did not create a delivery snapshot.`);
-    if (!logger.hasAuthorDelivery(authorContext, authorTurn.result)) {
-      throw new Error(
-        `Author round ${round} did not archive exactly one 1024px render.png followed by a matching MCP snapshot and document.json.`,
-      );
-    }
+    const deliveryErrors = logger.authorDeliveryErrors(authorContext, authorTurn.result);
+    if (deliveryErrors.length) throw new Error(`Author round ${round} delivery invalid: ${deliveryErrors.join(" ")}`);
     const delivery = logger.delivery(authorContext);
 
     reviewerThread.id = "";
@@ -1127,6 +1150,7 @@ export {
   buildCodexArgs,
   compactOutput,
   createRunLogger,
+  diffableNodeIds,
   main,
   modelForTurn,
   parseArgs,

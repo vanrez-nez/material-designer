@@ -292,7 +292,9 @@ the round before review begins.
 
 The final graph gate requires fewer than 60 total nodes, a friendly contribution-oriented label on every
 node, and no unconnected, unreachable, superseded, or non-contributing nodes. The author uses the MCP
-`get_render` `difference` view and its statistics to check every non-output node. Revisions must simplify
+`get_render` `difference` view and its statistics to check every diff-capable data node. The
+`principled-bsdf` shader and `material-output` nodes are connected but exempt because MCP isolation does
+not support shader/output nodes. Revisions must simplify
 or replace failed branches before adding new work instead of accumulating patches on a rejected approach.
 
 Start `npm run dev`, open `http://material-designer.localhost`, and leave the tab open. Then run:
