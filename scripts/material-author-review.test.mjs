@@ -10,7 +10,6 @@ import {
   buildCodexArgs,
   compactOutput,
   createRunLogger,
-  diffableNodeIds,
   runCodex,
   runCodexAttempt,
   sanitizeEnvironment,
@@ -184,7 +183,7 @@ test("a completed turn survives an earlier stream error and logs every event", a
   assert.ok(existsSync(join(turnDirectory, "diffs", "lit-diff-node-a.png")));
   assert.ok(existsSync(join(turnDirectory, "evidence.jsonl")));
   assert.ok(existsSync(join(turnDirectory, "result.json")));
-  const deliveryDirectory = join(root, "snapshot", "round-01");
+  const deliveryDirectory = join(logger.directory, "round-01", "author-authoring", "snapshot");
   assert.ok(existsSync(join(deliveryDirectory, "render.png")));
   assert.ok(existsSync(join(deliveryDirectory, "snapshot.json")));
   assert.ok(existsSync(join(deliveryDirectory, "document.json")));
@@ -192,14 +191,6 @@ test("a completed turn survives an earlier stream error and logs every event", a
     { role: "author", phase: "authoring", round: 1 },
     { snapshotId: "snapshot-1", nodeCount: 3, contributionChecks: 1 },
   ), true);
-});
-
-test("diffable node IDs exclude shader and output nodes", () => {
-  assert.deepEqual(diffableNodeIds({ nodes: [
-    { id: "noise", type: "tileable-noise" },
-    { id: "shader", type: "principled-bsdf" },
-    { id: "output", type: "material-output" },
-  ] }), ["noise"]);
 });
 
 test("terminal transport retry resumes the captured thread with a continuation prompt", async () => {

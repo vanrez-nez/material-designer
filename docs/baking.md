@@ -283,12 +283,14 @@ to put the complete run archive elsewhere.
 Each turn gets `round-<n>/<agent>-<phase>/evidence.jsonl` and `result.json` in the run archive. Author
 difference renders are computed at 1024px and stored under its `diffs/` directory as
 `<channel>-diff-<node-mode>.png`; other debug renders are discarded. The author alone performs these
-contribution checks.
+contribution checks. Diff artifacts are author-only working evidence and are never supplied to the
+reviewer or used as a reviewer-facing delivery gate.
 
-Every author delivery creates `<material-folder>/snapshot/round-<n>/` containing exactly one reviewer
-image named `render.png`, the serialized `document.json`, and MCP `snapshot.json` metadata. The final
-render is a 1024px standard render. A missing or incorrectly ordered render, snapshot, or document fails
-the round before review begins.
+Every author delivery creates
+`artifacts/material-author-review/<run>/round-<n>/author-<phase>/snapshot/` containing exactly one
+reviewer image named `render.png`, the serialized `document.json`, and MCP `snapshot.json` metadata.
+Nothing is written into the material source folder. The final render is a 1024px standard render. A
+missing or incorrectly ordered render, snapshot, or document fails the round before review begins.
 
 The final graph gate requires fewer than 60 total nodes, a friendly contribution-oriented label on every
 node, and no unconnected, unreachable, superseded, or non-contributing nodes. The author uses the MCP
@@ -306,6 +308,10 @@ npm run material:author-review -- /path/to/material-task --title "Material title
 The in-page bridge connects to a local port pool so the persistent author and reviewer threads can each
 use their own Codex MCP server. If the dev page was already open when this runner was installed or
 updated, refresh it once before starting the command.
+
+The runner keeps a dedicated MCP probe open for the duration of the workflow and calls `get_document`
+immediately before every author, reviewer, and save turn. If the tab bridge does not return a valid live
+document within the preflight window, the runner exits without starting that agent turn.
 
 The defaults require a reviewer score of 85 and allow eight revision rounds. `--min-score` and
 `--max-rounds` change those gates; `--dry-run` validates and inventories the folder without starting an

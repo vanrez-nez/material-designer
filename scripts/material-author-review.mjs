@@ -16,6 +16,8 @@ import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import sharp from "sharp";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -27,6 +29,8 @@ const DEFAULT_LOG_ROOT = join(ROOT, "artifacts", "material-author-review");
 const CODEX_PROVIDER_ID = "material_author_review_http";
 const CHATGPT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
 const RUN_LOG_SCHEMA_VERSION = 1;
+const MCP_PREFLIGHT_TIMEOUT_MS = 10_000;
+const MCP_PREFLIGHT_RETRY_MS = 500;
 const DEFAULT_AUTHOR_MODEL = "gpt-5.6-terra";
 const DEFAULT_REVIEWER_MODEL = "gpt-5.6-sol";
 const DEFAULT_REASONING_EFFORT = "high";
@@ -35,7 +39,6 @@ const DOCUMENT_MUTATION_TOOLS = new Set([
   "add_node", "remove_node", "set_param", "set_label", "connect_edge", "disconnect_edge",
   "load_document", "set_output_resolution", "restore_snapshot",
 ]);
-const NON_DIFFABLE_NODE_TYPES = new Set(["principled-bsdf", "material-output"]);
 const PARENT_CODEX_ENV_KEYS = new Set([
   "CODEX_ACCESS_TOKEN",
   "CODEX_API_KEY",
@@ -453,8 +456,12 @@ function collectEventImages(value, images = [], seen = new WeakSet()) {
 function materialDocumentFromEvent(event) {
   if (event.type !== "item.completed" || event.item?.type !== "mcp_tool_call"
       || event.item.tool !== "get_document" || event.item.status !== "completed") return null;
-  const candidates = [event.item.result?.structuredContent, event.item.result];
-  for (const block of event.item.result?.content ?? []) {
+  return materialDocumentFromResult(event.item.result);
+}
+
+function materialDocumentFromResult(result) {
+  const candidates = [result?.structuredContent, result];
+  for (const block of result?.content ?? []) {
     if (block.type !== "text" || typeof block.text !== "string") continue;
     try { candidates.push(JSON.parse(block.text)); } catch { /* Non-JSON MCP text is not a document. */ }
   }
@@ -463,6 +470,79 @@ function materialDocumentFromEvent(event) {
     if (document && Array.isArray(document.nodes) && Array.isArray(document.edges)) return document;
   }
   return null;
+}
+
+function mcpResultError(result) {
+  if (!result?.isError) return "";
+  const message = (result.content ?? [])
+    .filter((block) => block.type === "text" && typeof block.text === "string")
+    .map((block) => block.text)
+    .join(" ");
+  return message.replace(/^Error:\s*/i, "") || "MCP tool returned an error.";
+}
+
+async function createMaterialMcpProbe(env, options = {}) {
+  const timeoutMs = options.timeoutMs ?? MCP_PREFLIGHT_TIMEOUT_MS;
+  const retryMs = options.retryMs ?? MCP_PREFLIGHT_RETRY_MS;
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [MATERIAL_MCP_PATH],
+    cwd: ROOT,
+    env: {
+      MD_CALL_TIMEOUT_MS: env.MD_CALL_TIMEOUT_MS || "20000",
+      MD_WS_PORT: env.MD_WS_PORT || "51787",
+      MD_WS_PORT_SPAN: env.MD_WS_PORT_SPAN || "16",
+    },
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "material-author-review-preflight", version: "0.1.0" });
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    await transport.close();
+    throw new Error(`Could not start the Material Designer MCP preflight: ${error.message}`);
+  }
+
+  return {
+    async getDocument() {
+      const deadline = Date.now() + timeoutMs;
+      let lastError = "Material Designer MCP did not respond.";
+      do {
+        try {
+          const result = await client.callTool(
+            { name: "get_document", arguments: {} },
+            undefined,
+            { timeout: Math.min(5_000, Math.max(1, deadline - Date.now())) },
+          );
+          const resultError = mcpResultError(result);
+          if (resultError) throw new Error(resultError);
+          const document = materialDocumentFromResult(result);
+          if (!document) throw new Error("get_document returned no valid material document.");
+          return document;
+        } catch (error) {
+          lastError = error.message || String(error);
+        }
+        if (Date.now() + retryMs < deadline) {
+          await new Promise((resolveWait) => setTimeout(resolveWait, retryMs));
+        }
+      } while (Date.now() < deadline);
+      throw new Error(lastError);
+    },
+    close: () => client.close(),
+  };
+}
+
+async function requireMaterialMcp(probe, logger, turnName) {
+  logOrchestrator(logger, `checking Material Designer MCP before ${turnName}`);
+  try {
+    const document = await probe.getDocument();
+    logOrchestrator(logger, `Material Designer MCP ready before ${turnName}: ${document.nodes.length} nodes`);
+    return document;
+  } catch (error) {
+    throw new Error(
+      `Material Designer MCP preflight failed before ${turnName}; no agent turn was started: ${error.message}`,
+    );
+  }
 }
 
 function snapshotFromEvent(event) {
@@ -483,14 +563,6 @@ function toolArguments(event) {
   if (!value) return {};
   if (typeof value === "object") return value;
   try { return JSON.parse(value); } catch { return {}; }
-}
-
-function diffableNodeIds(document) {
-  if (!Array.isArray(document?.nodes)) return [];
-  return document.nodes
-    .filter((node) => !NON_DIFFABLE_NODE_TYPES.has(node?.type))
-    .map((node) => node?.id)
-    .filter((id) => typeof id === "string" && id);
 }
 
 function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
@@ -521,7 +593,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       && (context.phase === "authoring" || context.phase === "revision");
     const diffsDirectory = isAuthorDelivery ? join(turnDirectory, "diffs") : "";
     mkdirSync(diffsDirectory || turnDirectory, { recursive: true, mode: 0o700 });
-    const deliveryDirectory = isAuthorDelivery ? join(taskFolder, "snapshot", `round-${round}`) : "";
+    const deliveryDirectory = isAuthorDelivery ? join(turnDirectory, "snapshot") : "";
     if (deliveryDirectory) mkdirSync(deliveryDirectory, { recursive: true });
     const state = {
       directory: turnDirectory,
@@ -532,7 +604,6 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       snapshotPath: deliveryDirectory ? join(deliveryDirectory, "snapshot.json") : "",
       renderPath: deliveryDirectory ? join(deliveryDirectory, "render.png") : "",
       diffNames: new Map(),
-      diffNodeIds: new Set(),
       document: null,
       hasDocument: false,
       finalRenderCount: 0,
@@ -571,7 +642,6 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       if (DOCUMENT_MUTATION_TOOLS.has(completedTool)) {
         state.hasDocument = false;
         state.finalRenderCount = 0;
-        state.diffNodeIds.clear();
         state.document = null;
         state.snapshotId = "";
         state.documentAfterSnapshot = false;
@@ -593,7 +663,6 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
           state.policyErrors.push(`Difference render for ${args.nodeId || "unknown node"} was not requested at 1024px.`);
         }
         if (context.role === "author") {
-          if (typeof args.nodeId === "string" && args.nodeId) state.diffNodeIds.add(args.nodeId);
           const channel = slugify(args.channel || "lit");
           const modeParts = [args.nodeId || "node"];
           if (args.profile && args.profile !== "standard") modeParts.push(args.profile);
@@ -615,7 +684,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
         state.finalRenderCount += images.length;
         for (const image of images) {
           await sharp(Buffer.from(image.data, "base64")).resize(1024, 1024).png().toFile(state.renderPath);
-          artifacts.push(state.renderPath);
+          artifacts.push(relative(directory, state.renderPath));
         }
       }
       const snapshot = snapshotFromEvent(event);
@@ -624,7 +693,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
         state.snapshotId = snapshot.id;
         state.documentAfterSnapshot = false;
         state.snapshotAfterFinalRender = state.finalRenderCount === 1;
-        artifacts.push(state.snapshotPath);
+        artifacts.push(relative(directory, state.snapshotPath));
       }
       const document = materialDocumentFromEvent(event);
       if (document && state.deliveryDirectory) {
@@ -632,7 +701,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
         state.document = document;
         state.hasDocument = true;
         state.documentAfterSnapshot = Boolean(state.snapshotId);
-        artifacts.push(state.documentPath);
+        artifacts.push(relative(directory, state.documentPath));
       }
       const envelope = record({
         source: "codex",
@@ -679,8 +748,6 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       if (nodes.length !== result.nodeCount) {
         errors.push(`Reported nodeCount ${result.nodeCount} does not match document node count ${nodes.length}.`);
       }
-      const missingDiffs = diffableNodeIds(state.document).filter((id) => !state.diffNodeIds.has(id));
-      if (missingDiffs.length) errors.push(`Missing successful 1024px difference renders for: ${missingDiffs.join(", ")}.`);
       return errors;
     },
     hasAuthorDelivery(context, result) {
@@ -1034,20 +1101,23 @@ async function main(argv = process.argv.slice(2)) {
     },
   });
   assertChatGptLogin(env, logger);
-  const brief = buildBrief(opts.taskFolder, files.markdown, files.images);
-  const authorThread = { id: "", model: "", effort: "" };
-  const reviewerThread = { id: "", model: "", effort: "" };
-  let authorTurnIndex = 0;
-  let reviewerTurnIndex = 0;
-  let previousReview = null;
-  const timeoutMs = opts.timeoutMinutes * 60_000;
+  const mcpProbe = await createMaterialMcpProbe(env);
+  try {
+    const brief = buildBrief(opts.taskFolder, files.markdown, files.images);
+    const authorThread = { id: "", model: "", effort: "" };
+    const reviewerThread = { id: "", model: "", effort: "" };
+    let authorTurnIndex = 0;
+    let reviewerTurnIndex = 0;
+    let previousReview = null;
+    const timeoutMs = opts.timeoutMinutes * 60_000;
 
-  for (let round = 1; round <= opts.maxRounds; round += 1) {
+    for (let round = 1; round <= opts.maxRounds; round += 1) {
     authorThread.model = modelForTurn(opts.authorModels, authorTurnIndex);
     authorThread.effort = modelForTurn(opts.authorEfforts, authorTurnIndex);
     authorTurnIndex += 1;
     const authorPhase = round === 1 ? "authoring" : "revision";
     const authorContext = { role: "author", phase: authorPhase, round };
+    await requireMaterialMcp(mcpProbe, logger, `author ${authorPhase} round ${round}`);
     logOrchestrator(logger, `round ${round}/${opts.maxRounds}: authoring`, authorContext);
     const authorTurn = await runCodex({
       ...authorContext, thread: authorThread,
@@ -1072,6 +1142,7 @@ async function main(argv = process.argv.slice(2)) {
     reviewerThread.effort = modelForTurn(opts.reviewerEfforts, reviewerTurnIndex);
     reviewerTurnIndex += 1;
     const reviewerContext = { role: "reviewer", phase: "review", round };
+    await requireMaterialMcp(mcpProbe, logger, `reviewer round ${round}`);
     logOrchestrator(logger, `round ${round}/${opts.maxRounds}: independent visual review`, reviewerContext);
     const reviewerTurn = await runCodex({
       ...reviewerContext, thread: reviewerThread,
@@ -1105,6 +1176,7 @@ async function main(argv = process.argv.slice(2)) {
     authorThread.model = modelForTurn(opts.authorModels, authorTurnIndex);
     authorThread.effort = modelForTurn(opts.authorEfforts, authorTurnIndex);
     authorTurnIndex += 1;
+    await requireMaterialMcp(mcpProbe, logger, `author save round ${round}`);
     const saveTurn = await runCodex({
       role: "author", phase: "save", round, thread: authorThread,
       prompt: savePrompt(opts.title, round, previousReview),
@@ -1123,8 +1195,11 @@ async function main(argv = process.argv.slice(2)) {
       `saved ${summary.title} as ${summary.savedVersionId} after ${summary.rounds} round(s), reviewer score ${summary.reviewerScore}`,
     );
     return summary;
+    }
+    throw new Error(`Reviewer did not accept within ${opts.maxRounds} rounds. The live draft was not saved.`);
+  } finally {
+    await mcpProbe.close();
   }
-  throw new Error(`Reviewer did not accept within ${opts.maxRounds} rounds. The live draft was not saved.`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH) {
@@ -1149,8 +1224,8 @@ export {
   acceptedByGate,
   buildCodexArgs,
   compactOutput,
+  createMaterialMcpProbe,
   createRunLogger,
-  diffableNodeIds,
   main,
   modelForTurn,
   parseArgs,
