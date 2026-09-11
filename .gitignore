@@ -5,3 +5,4 @@ bake
 __pycache__
 /catalog
 artifacts
+.env

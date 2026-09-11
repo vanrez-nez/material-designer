@@ -3,6 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
   appendFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -27,10 +28,21 @@ const CODEX_CLI_PATH = join(dirname(require.resolve("@openai/codex/package.json"
 const MATERIAL_MCP_PATH = join(ROOT, "scripts", "material-mcp-server.mjs");
 const DEFAULT_LOG_ROOT = join(ROOT, "artifacts", "material-author-review");
 const CODEX_PROVIDER_ID = "material_author_review_http";
+const OPENROUTER_PROVIDER_ID = "material_author_review_openrouter";
 const CHATGPT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_AUTH_COMMAND_SOURCE =
+  'process.stdout.write((process.env.OPENROUTER_API_KEY || "") + "\\n")';
+const OPENROUTER_BASE_INSTRUCTIONS =
+  "You are a coding agent running in Codex CLI. Follow the provided instructions, use the available tools, "
+  + "and continue until the requested task is complete.";
 const RUN_LOG_SCHEMA_VERSION = 1;
 const MCP_PREFLIGHT_TIMEOUT_MS = 10_000;
 const MCP_PREFLIGHT_RETRY_MS = 500;
+const DEFAULT_AGENT_IDLE_TIMEOUT_MINUTES = 5;
+const AGENT_HEARTBEAT_MS = 30_000;
+const MATERIAL_MCP_TOOL_TIMEOUT_SECONDS = 240;
+const MAX_AUTHOR_DELIVERY_RETRIES = 2;
 const DEFAULT_AUTHOR_MODEL = "gpt-5.6-terra";
 const DEFAULT_REVIEWER_MODEL = "gpt-5.6-sol";
 const DEFAULT_REASONING_EFFORT = "high";
@@ -53,10 +65,22 @@ const PARENT_CODEX_ENV_KEYS = new Set([
 ]);
 const SECRET_KEY = /(?:authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|password|secret)/i;
 const TRANSPORT_ERROR = /\b(?:408|425|429|500|502|503|504)\b|service unavailable|server_is_overloaded|temporarily overloaded|failed to connect|connection (?:reset|termination|closed)|stream disconnected|upstream connect|unexpected eof|socket hang up/i;
+const PROVIDER_TOOL_HISTORY_ERROR = /request validation errors:.*tool_calls.*namespace|extra inputs are not permitted.*tool_calls.*namespace/is;
 const CONTINUE_AFTER_TRANSPORT_FAILURE = `Continue the most recent interrupted instruction after a transport failure.
 Do not repeat MCP mutations or saves that already succeeded. Inspect the current live document or prior tool results as needed, finish the requested work, and return only the required structured response.`;
+const CONTINUE_ON_FRESH_THREAD_AFTER_PROVIDER_HISTORY_FAILURE = `A previous author thread made MCP mutations successfully, but the external model provider could not continue that thread because it rejected Codex's accumulated tool-history encoding.
+This is a fresh replacement thread. Treat the currently open Material Designer document as authoritative. Start with get_registry and get_document, continue the existing graph without rebuilding or duplicating it, then complete cleanup, contribution audits, the final render, snapshot, and final document delivery required by the task below.`;
 const REVIEWER_CONTINUE_AFTER_TRANSPORT_FAILURE = `Continue the interrupted visual review after a transport failure.
 Use only the attached current render.png and reference images. Do not call tools or discuss the graph. Finish and return only the required structured verdict.`;
+// Reduced from .claude/skills/material-graph-authoring/SKILL.md. Keep this compact because every
+// fresh author revision needs the method, while the live document carries the implementation state.
+const MATERIAL_AUTHORING_PRINCIPLES = `Material-design principles:
+- Treat the material as a causal model of a physical surface: identify the substrate and the processes acting on it, then express those processes as a small set of structural masks or fields.
+- Build structure in grayscale from coarse to fine: establish macro forms, then mesostructure, then restrained micro detail. Do not try to rescue weak structure with color or uniform noise.
+- Reuse the same structural fields across base color, roughness, height, normal, metallic, and AO so the channels remain physically correlated. Derive normal from the height field that actually drives relief, and derive cavity darkening from that same structure where appropriate.
+- Apply color after the structure reads correctly. Use the shared masks to describe believable material layers rather than independent decorative channel chains.
+- Build for seamless baking with tileable sources and warps, and judge scale and repetition against the references.
+- Preserve successful structure during revision. Diagnose which existing branch causes a visible failure, then retune, simplify, rewire, or replace that branch; do not restart the material or stack corrective branches onto a failed direction.`;
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 const REVIEW_EVIDENCE_KEYS = [
   "renderInspected",
@@ -132,17 +156,19 @@ Prerequisites:
   1. Run: npm run dev
   2. Open http://material-designer.localhost and leave the tab open.
   3. Ensure the material-designer MCP is registered for Codex.
+  4. Configure MATERIAL_AUTHOR_MODEL and MATERIAL_REVIEWER_MODEL in the project-root .env.
 
 Options:
   --title <title>             Saved MCP library title (default: folder name)
   --max-rounds <n>            Author/reviewer rounds before failing (default: 8)
   --min-score <0..100>        Reviewer score required for acceptance (default: 85)
   --timeout-minutes <n>       Timeout for each agent turn (default: 30)
+  --idle-timeout-minutes <n>  Retry after no agent events (default: 5)
   --transport-retries <n>     Retries for transient 429/5xx failures (default: 4)
-  --author-model <model>      Agent 1 model (default: gpt-5.6-terra); repeat for a schedule
-  --author-effort <effort>    Agent 1 effort (default: high); repeat for a schedule
-  --reviewer-model <model>    Agent 2 model (default: gpt-5.6-sol); repeat for a schedule
-  --reviewer-effort <effort>  Agent 2 effort (default: high); repeat for a schedule
+  --author-model <model>      Override .env Agent 1 model; prefix OpenRouter IDs with openrouter:
+  --author-effort <effort>    Override .env Agent 1 effort; repeat for a schedule
+  --reviewer-model <model>    Override .env Agent 2 model; prefix OpenRouter IDs with openrouter:
+  --reviewer-effort <effort>  Override .env Agent 2 effort; repeat for a schedule
   --log-dir <path>            Event log root (default: artifacts/material-author-review)
   --dry-run                   Validate inputs and print the execution plan only
   --help                      Show this help
@@ -150,14 +176,26 @@ Options:
 Example:
   npm run material:author-review -- /path/to/rusty-copper --title "Rusty Copper"
 
+OpenRouter example:
+  # Put OPENROUTER_API_KEY=... in the project-root .env, then run:
+  npm run material:author-review -- /path/to/rusty-copper \
+    --reviewer-model openrouter:anthropic/claude-sonnet-4.5
+
 Repeated model and effort options apply in turn order. When a schedule is shorter
 than the run, its last value is reused for later turns.
 `);
 }
 
-function parseArgs(argv) {
+function envSchedule(value) {
+  if (typeof value !== "string") return [];
+  return value.split(",").map((entry) => entry.trim()).filter(Boolean);
+}
+
+function parseArgs(argv, environment = process.env) {
   const opts = {
     taskFolder: "", title: "", maxRounds: 8, minScore: 85, timeoutMinutes: 30,
+    idleTimeoutMinutes: Number(environment.MATERIAL_AGENT_IDLE_TIMEOUT_MINUTES)
+      || DEFAULT_AGENT_IDLE_TIMEOUT_MINUTES,
     transportRetries: 4, authorModels: [], authorEfforts: [], reviewerModels: [], reviewerEfforts: [],
     logDir: DEFAULT_LOG_ROOT, dryRun: false,
   };
@@ -172,6 +210,7 @@ function parseArgs(argv) {
     else if (arg === "--max-rounds") opts.maxRounds = Number(value());
     else if (arg === "--min-score") opts.minScore = Number(value());
     else if (arg === "--timeout-minutes") opts.timeoutMinutes = Number(value());
+    else if (arg === "--idle-timeout-minutes") opts.idleTimeoutMinutes = Number(value());
     else if (arg === "--transport-retries") opts.transportRetries = Number(value());
     else if (arg === "--author-model") opts.authorModels.push(value());
     else if (arg === "--author-effort") opts.authorEfforts.push(value());
@@ -193,18 +232,34 @@ function parseArgs(argv) {
   if (!Number.isFinite(opts.timeoutMinutes) || opts.timeoutMinutes <= 0) {
     throw new Error("--timeout-minutes must be greater than zero.");
   }
+  if (!Number.isFinite(opts.idleTimeoutMinutes) || opts.idleTimeoutMinutes <= 0) {
+    throw new Error("--idle-timeout-minutes must be greater than zero.");
+  }
   if (!Number.isInteger(opts.transportRetries) || opts.transportRetries < 0) {
     throw new Error("--transport-retries must be a non-negative integer.");
+  }
+  if (!opts.authorModels.length) {
+    const schedule = envSchedule(environment.MATERIAL_AUTHOR_MODEL);
+    opts.authorModels.push(...(schedule.length ? schedule : [DEFAULT_AUTHOR_MODEL]));
+  }
+  if (!opts.reviewerModels.length) {
+    const schedule = envSchedule(environment.MATERIAL_REVIEWER_MODEL);
+    opts.reviewerModels.push(...(schedule.length ? schedule : [DEFAULT_REVIEWER_MODEL]));
+  }
+  if (!opts.authorEfforts.length) {
+    const schedule = envSchedule(environment.MATERIAL_AUTHOR_EFFORT);
+    opts.authorEfforts.push(...(schedule.length ? schedule : [DEFAULT_REASONING_EFFORT]));
+  }
+  if (!opts.reviewerEfforts.length) {
+    const schedule = envSchedule(environment.MATERIAL_REVIEWER_EFFORT);
+    opts.reviewerEfforts.push(...(schedule.length ? schedule : [DEFAULT_REASONING_EFFORT]));
   }
   for (const effort of [...opts.authorEfforts, ...opts.reviewerEfforts]) {
     if (!REASONING_EFFORTS.has(effort)) {
       throw new Error(`Invalid reasoning effort ${JSON.stringify(effort)}. Use low, medium, high, xhigh, max, or ultra.`);
     }
   }
-  if (!opts.authorModels.length) opts.authorModels.push(DEFAULT_AUTHOR_MODEL);
-  if (!opts.reviewerModels.length) opts.reviewerModels.push(DEFAULT_REVIEWER_MODEL);
-  if (!opts.authorEfforts.length) opts.authorEfforts.push(DEFAULT_REASONING_EFFORT);
-  if (!opts.reviewerEfforts.length) opts.reviewerEfforts.push(DEFAULT_REASONING_EFFORT);
+  for (const model of [...opts.authorModels, ...opts.reviewerModels]) parseModelSpec(model);
   opts.title ||= basename(opts.taskFolder);
   opts.logDir = isAbsolute(opts.logDir) ? opts.logDir : resolve(process.cwd(), opts.logDir);
   return opts;
@@ -234,17 +289,24 @@ function buildBrief(taskFolder, markdownFiles, imageFiles) {
 function authorInitialPrompt(brief, title, minScore) {
   return `You are Agent 1, the material author. Create one excellent procedural material in the currently open Material Designer document.
 
+${MATERIAL_AUTHORING_PRINCIPLES}
+
+MANDATORY EXECUTION: Use the Material Designer tools now. Your first tool calls must be get_registry and get_document, followed immediately by a small useful graph mutation. If the document is still the two-node starter, begin with add_node. If it already contains authored work from an interrupted attempt, continue and clean up that graph instead of rebuilding or duplicating it. Do not pause to plan or serialize the complete graph before beginning. Do not return a plan, promise future work, or claim any work that is not proven by completed MCP calls. A response without the required MCP-backed delivery artifacts is invalid and will be returned to you for completion.
+
 Boundaries and requirements:
 - Use only the material-designer MCP. Do not use shell commands, browser automation, filesystem writes, source edits, generated files, or any other MCP.
 - All graph creation and editing must happen through MCP mutation tools. Start with get_registry and get_document; never guess ports or parameter contracts.
+- The get_registry response is authoritative. Never call list_mcp_resources or list_mcp_resource_templates, and never probe type or parameter names by attempting invalid mutations or adding disposable nodes.
+- Build the graph incrementally with add_node, set_label, set_param, connect_edge, and the other focused MCP mutation tools. Make useful mutations as soon as discovery completes. Do not compose a complete graph in one load_document call.
 - Do not save a version yet. The runner will explicitly tell you when Agent 2 accepts it.
 - Build a purposeful PBR graph ending in principled-bsdf -> material-output. Connect base color, roughness, normal, metallic, ambient occlusion, and useful height/detail where appropriate.
 - Keep the complete graph below 60 nodes, including shader and output nodes. Prefer the simplest graph that achieves the reference.
 - Give every node a concise, friendly, contribution-oriented display title with set_label, such as "Large Rust Pits" or "Fine Roughness Breakup". Never leave generic, blank, duplicated, or numbered-only titles.
 - Before finishing, trace every node's downstream path to Material Output and remove every unconnected, unreachable, unused, superseded, or redundant node.
-- Verify every diff-capable data node's visible contribution yourself with get_render using {nodeId, view:"difference", size:1024, maxDim:1024, profile:"standard", scale:1}. Use the returned difference statistics. If the result is all zero, retry at scale 2 and, when relevant, on the final PBR channel that node is intended to affect. Every difference render must remain at size 1024 and maxDim 1024. A node that remains all zero does not belong in the graph: remove it or rework it, then check again. The principled-bsdf shader and material-output nodes are exempt because MCP isolation does not support shader/output nodes; both must still be connected.
+- Verify every diff-capable data node's visible contribution with audit_node_contributions in batches of up to 8 nodeIds. That tool always renders and archives lossless 1024px difference PNGs but returns only compact statistics to preserve your context. If a result is all zero, retry that node in another audit batch at scale 2 and, when relevant, on its intended final PBR channel. A node that remains all zero does not belong in the graph: remove it or rework it, then audit the changed branch again. Do not use individual get_render difference calls for the routine audit; reserve one for a genuinely ambiguous result whose image you must inspect. The principled-bsdf shader and material-output nodes are exempt because MCP isolation does not support shader/output nodes; both must still be connected.
 - Preserve seamless tiling. Avoid obvious procedural regularity, implausible scale, clipped values, and details that contradict the references.
 - Before finishing, call regenerate and inspect any useful debug renders yourself. These debug renders are not reviewer evidence.
+- Use at most two debug-render inspection and correction cycles before moving to contribution audits and delivery. Do not repeatedly tune the graph without finishing the required artifacts.
 - When the graph is final, call get_render exactly once with {size:1024, maxDim:1024, profile:"standard", scale:1} and no nodeId, view, or channel. This is the sole reviewer-facing render.png.
 - Immediately after that final render, call create_snapshot with label "Author delivery round 1", then call get_document as your final MCP tool call. Do not mutate after producing the final render or delivery snapshot.
 - The acceptance bar is ${minScore}/100; a merely valid graph is insufficient.
@@ -253,19 +315,62 @@ The eventual library title is ${JSON.stringify(title)}.
 
 ${brief}
 
-Author the live MCP document now. Return status "revised", a concise summary, an empty savedVersionId, the exact snapshotId returned by create_snapshot, the final total nodeCount, and the number of distinct final diff-capable data nodes checked in contributionChecks. Do not include principled-bsdf or material-output in contributionChecks. Return "blocked" only if the MCP remains unavailable after retrying; use an empty snapshotId and zero counts when blocked.`;
+Author the live MCP document now. After all tool work is complete, return only a JSON object with status "revised", a concise summary, an empty savedVersionId, the exact snapshotId returned by create_snapshot, the final total nodeCount, and the number of distinct final diff-capable data nodes checked in contributionChecks. Do not include principled-bsdf or material-output in contributionChecks. Return status "blocked" only if the MCP remains unavailable after retrying; use an empty snapshotId and zero counts when blocked.`;
 }
 
-function authorRevisionPrompt(round, review, minScore) {
-  return `Agent 2 rejected round ${round - 1}. Revise the same live MCP document to address this report:
+function priorFeedbackLedger(reviewHistory) {
+  const prior = reviewHistory.slice(0, -1);
+  if (!prior.length) return "- No earlier reviewer rounds before the most recent verdict.";
+  return prior.map(({ round, review }) => {
+    const requested = review.requiredChanges?.length
+      ? review.requiredChanges.map((change) => truncateStatus(change, 180)).join("; ")
+      : "No required changes recorded.";
+    return `- Iteration ${round}, score ${review.score}/100: ${truncateStatus(review.summary, 260)} Required: ${requested}`;
+  }).join("\n");
+}
 
-${JSON.stringify(review, null, 2)}
+function authorRevisionPrompt(round, maxRounds, reviewHistory, previousAuthorSummary, minScore, brief) {
+  const latest = reviewHistory.at(-1);
+  if (!latest) throw new Error(`Missing reviewer history before author iteration ${round}.`);
+  return `You are continuing the same material in author iteration ${round} of at most ${maxRounds}. This is cumulative work, not a new material task. The live MCP document is the current implementation produced by the preceding iterations. Work on top of it and move it toward the unchanged reference objective.
 
-Use only material-designer MCP calls. Do not write files or save a version. Before adding nodes, step back and decide which existing parts work, which are redundant, and whether the rejected approach should be simplified or replaced. Do not keep patching corrective branches onto a wrong approach; remove or rewire failed work first, and keep the node count flat or lower unless a genuinely necessary replacement requires otherwise.
+${MATERIAL_AUTHORING_PRINCIPLES}
 
-The finished graph must contain fewer than 60 total nodes. Give every node a concise, friendly, contribution-oriented title with set_label. Remove every unconnected, unreachable, unused, superseded, or redundant node. For every diff-capable data node, verify visible contribution yourself with get_render {nodeId, view:"difference", size:1024, maxDim:1024, profile:"standard", scale:1}; investigate an all-zero result at scale 2 and on its intended final PBR channel, always keeping size and maxDim at 1024, then remove or rework any node that remains all zero. The principled-bsdf shader and material-output nodes are exempt because MCP isolation does not support shader/output nodes; both must still be connected.
+Earlier feedback trajectory:
+${priorFeedbackLedger(reviewHistory)}
 
-After cleanup, call regenerate and inspect any useful debug renders yourself. Then call get_render exactly once with {size:1024, maxDim:1024, profile:"standard", scale:1} and no nodeId, view, or channel; this is the sole reviewer-facing render.png. Immediately afterward call create_snapshot with label "Author delivery round ${round}", then call get_document as your final MCP tool call. Do not mutate after producing the final render or snapshot. The acceptance bar is ${minScore}/100. Return status "revised", a concise summary, an empty savedVersionId, the exact snapshotId, final total nodeCount, and the number of distinct final diff-capable data nodes checked in contributionChecks; do not count principled-bsdf or material-output. Use "blocked" only for a genuine MCP failure, with an empty snapshotId and zero counts.`;
+Most recent reviewer feedback, from iteration ${latest.round}:
+
+${JSON.stringify(latest.review, null, 2)}
+
+Previous author delivery summary:
+${previousAuthorSummary}
+
+This is only a fresh conversation thread to cap token growth; the material itself was not reset. The original reference images are attached again, the complete task brief is included below, and the live MCP document is the authoritative accumulated graph state. Start by calling get_document and inspect one current render. Identify what already works, preserve it, and change the smallest responsible branches needed to address the latest feedback while respecting the earlier trajectory. Do not rebuild or change direction merely because earlier conversation is absent.
+
+MANDATORY EXECUTION: Do not return a plan, promise future work, or claim any work that is not proven by completed MCP calls. Use only material-designer MCP calls. Never call list_mcp_resources or list_mcp_resource_templates, and never probe type or parameter names with invalid or disposable mutations. Do not write files or save a version. Before editing, step back and decide which existing parts work, which are redundant, and whether the rejected approach should be simplified or replaced. Apply focused incremental MCP mutations instead of composing a complete replacement document. Do not keep patching corrective branches onto a wrong approach; remove or rewire failed work first, and keep the node count flat or lower unless a genuinely necessary replacement requires otherwise.
+
+The finished graph must contain fewer than 60 total nodes. Give every node a concise, friendly, contribution-oriented title with set_label or in the document supplied to load_document. Remove every unconnected, unreachable, unused, superseded, or redundant node. Audit every diff-capable data node with audit_node_contributions in batches of up to 8 nodeIds; it archives lossless 1024px PNGs while returning compact statistics. Investigate an all-zero result at scale 2 and on its intended final PBR channel, then remove or rework any node that remains all zero and re-audit the changed branch. Do not use individual get_render difference calls for the routine audit. The principled-bsdf shader and material-output nodes are exempt because MCP isolation does not support shader/output nodes; both must still be connected.
+
+After cleanup, call regenerate and inspect only the debug renders needed to judge the revision. Then call get_render exactly once with {size:1024, maxDim:1024, profile:"standard", scale:1} and no nodeId, view, or channel; this is the sole reviewer-facing render.png. Immediately afterward call create_snapshot with label "Author delivery round ${round}", then call get_document as your final MCP tool call. Do not mutate after producing the final render or snapshot. The acceptance bar is ${minScore}/100. After all tool work is complete, return only a JSON object with status "revised", a concise summary, an empty savedVersionId, the exact snapshotId, final total nodeCount, and the number of distinct final diff-capable data nodes checked in contributionChecks; do not count principled-bsdf or material-output. Use status "blocked" only for a genuine MCP failure, with an empty snapshotId and zero counts.
+
+${brief}`;
+}
+
+function authorDeliveryRecoveryPrompt(round, errors) {
+  return `Your previous response was rejected because it did not complete the MCP-backed author delivery. The reviewer has not started.
+
+Missing or invalid delivery evidence:
+${errors.map((error) => `- ${error}`).join("\n")}
+
+Continue the existing author task now. Your first action in this turn must be a material-designer get_document tool call. Never call list_mcp_resources or list_mcp_resource_templates, and never probe type or parameter names with invalid or disposable mutations. If the document does not yet contain the authored material, build it now with focused incremental MCP mutations instead of composing one complete replacement document. Complete all original graph cleanup, friendly labels, fewer-than-60-node limit, and batched audit_node_contributions checks. Do not save a version.
+
+Finish with this exact MCP sequence and no mutation afterward:
+1. get_render with {size:1024, maxDim:1024, profile:"standard", scale:1} and no nodeId, view, or channel.
+2. create_snapshot with label "Author delivery round ${round}".
+3. get_document as the final MCP tool call.
+
+Only then return a JSON object with status "revised", a concise summary, an empty savedVersionId, the exact snapshotId, actual final nodeCount, and actual contributionChecks. Do not claim completion without completed tool calls.`;
 }
 
 function reviewerInitialPrompt(brief, minScore) {
@@ -296,14 +401,25 @@ Use only material-designer MCP. Call get_document to confirm the live document s
 
 Accepted review:\n${JSON.stringify(review, null, 2)}
 
-Return status "saved", a concise summary, and the exact library id in savedVersionId. On failure return "blocked" with an empty id.`;
+After the tool calls complete, return only a JSON object with status "saved", a concise summary, and the exact library id in savedVersionId. On failure return status "blocked" with an empty id.`;
 }
 
 function parseStructured(raw, label) {
-  try { return JSON.parse(raw); }
-  catch (error) {
-    throw new Error(`${label} did not return valid structured JSON: ${error.message}. Response: ${truncateStatus(raw, 700)}`);
+  const candidates = [raw];
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  if (fenced) candidates.push(fenced);
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) candidates.push(raw.slice(firstBrace, lastBrace + 1));
+  let lastError = null;
+  for (const candidate of candidates) {
+    try { return JSON.parse(candidate); }
+    catch (error) { lastError = error; }
   }
+  throw new Error(
+    `${label} did not return valid structured JSON: ${lastError?.message || "unknown parse error"}. `
+    + `Response: ${truncateStatus(raw, 700)}`,
+  );
 }
 
 function acceptedByGate(review, minScore) {
@@ -324,6 +440,12 @@ function sanitizeEnvironment(source = process.env) {
   );
 }
 
+function loadProjectEnvironment() {
+  const path = join(ROOT, ".env");
+  if (existsSync(path)) process.loadEnvFile(path);
+  return path;
+}
+
 function tomlLiteral(value) {
   if (typeof value === "string") return JSON.stringify(value);
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -335,27 +457,64 @@ function configOverride(key, value) {
   return ["--config", `${key}=${tomlLiteral(value)}`];
 }
 
-function buildCodexConfigArgs(env, role = "author") {
+function parseModelSpec(value) {
+  if (typeof value !== "string" || !value.trim()) throw new Error("Model IDs cannot be empty.");
+  if (!value.startsWith("openrouter:")) return { provider: "chatgpt", model: value };
+  const model = value.slice("openrouter:".length);
+  if (!model || !model.includes("/")) {
+    throw new Error(
+      `Invalid OpenRouter model ${JSON.stringify(value)}. Use openrouter:<provider>/<model>.`,
+    );
+  }
+  return { provider: "openrouter", model };
+}
+
+function buildOpenRouterProviderConfigArgs() {
+  return [
+    ...configOverride("model_provider", OPENROUTER_PROVIDER_ID),
+    ...configOverride(`model_providers.${OPENROUTER_PROVIDER_ID}.name`, "OpenRouter"),
+    ...configOverride(`model_providers.${OPENROUTER_PROVIDER_ID}.base_url`, OPENROUTER_BASE_URL),
+    ...configOverride(`model_providers.${OPENROUTER_PROVIDER_ID}.wire_api`, "responses"),
+    ...configOverride(`model_providers.${OPENROUTER_PROVIDER_ID}.auth.command`, process.execPath),
+    ...configOverride(
+      `model_providers.${OPENROUTER_PROVIDER_ID}.auth.args`,
+      ["-e", OPENROUTER_AUTH_COMMAND_SOURCE],
+    ),
+    ...configOverride(`model_providers.${OPENROUTER_PROVIDER_ID}.supports_websockets`, false),
+  ];
+}
+
+function buildCodexConfigArgs(env, role = "author", provider = "chatgpt") {
   const mcpEnv = {
     MD_CALL_TIMEOUT_MS: env.MD_CALL_TIMEOUT_MS || "20000",
+    MD_MCP_COMPACT_IMAGES: "1",
     MD_WS_PORT: env.MD_WS_PORT || "51787",
     MD_WS_PORT_SPAN: env.MD_WS_PORT_SPAN || "16",
   };
+  if (env.MD_MCP_IMAGE_ARTIFACT_DIR) {
+    mcpEnv.MD_MCP_IMAGE_ARTIFACT_DIR = env.MD_MCP_IMAGE_ARTIFACT_DIR;
+  }
   const args = [
     ...configOverride("approval_policy", "never"),
     ...configOverride("sandbox_mode", role === "reviewer" ? "read-only" : "danger-full-access"),
-    ...configOverride("model_provider", CODEX_PROVIDER_ID),
-    ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.name`, "Material Author HTTPS"),
-    ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.base_url`, CHATGPT_CODEX_BASE_URL),
-    ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.wire_api`, "responses"),
-    ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.requires_openai_auth`, true),
-    ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.supports_websockets`, false),
     ...configOverride("features.apps", false),
     ...configOverride("features.memories", false),
     ...configOverride("features.multi_agent", false),
     ...configOverride("features.view_image", false),
     ...configOverride("web_search", "disabled"),
   ];
+  if (provider === "openrouter") {
+    args.push(...buildOpenRouterProviderConfigArgs());
+  } else {
+    args.push(
+      ...configOverride("model_provider", CODEX_PROVIDER_ID),
+      ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.name`, "Material Author HTTPS"),
+      ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.base_url`, CHATGPT_CODEX_BASE_URL),
+      ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.wire_api`, "responses"),
+      ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.requires_openai_auth`, true),
+      ...configOverride(`model_providers.${CODEX_PROVIDER_ID}.supports_websockets`, false),
+    );
+  }
   if (role !== "reviewer") {
     args.push(
       ...configOverride("mcp_servers.material-designer.command", process.execPath),
@@ -363,6 +522,7 @@ function buildCodexConfigArgs(env, role = "author") {
       ...configOverride("mcp_servers.material-designer.cwd", ROOT),
       ...configOverride("mcp_servers.material-designer.required", true),
       ...configOverride("mcp_servers.material-designer.default_tools_approval_mode", "approve"),
+      ...configOverride("mcp_servers.material-designer.tool_timeout_sec", MATERIAL_MCP_TOOL_TIMEOUT_SECONDS),
     );
     for (const [key, value] of Object.entries(mcpEnv)) {
       args.push(...configOverride(`mcp_servers.material-designer.env.${key}`, value));
@@ -371,14 +531,22 @@ function buildCodexConfigArgs(env, role = "author") {
   return args;
 }
 
-function buildCodexArgs({ env, images, model, effort, outputSchemaPath, threadId, role = "author" }) {
+function buildCodexArgs({
+  env, images, model, effort, outputSchemaPath, threadId, role = "author", modelCatalogPath = "",
+}) {
+  const selection = model ? parseModelSpec(model) : { provider: "chatgpt", model: "" };
   const args = [CODEX_CLI_PATH, "exec"];
   if (threadId) args.push("resume");
   args.push("--json", "--ignore-user-config", "--strict-config", "--skip-git-repo-check");
-  args.push(...buildCodexConfigArgs(env, role));
+  args.push(...buildCodexConfigArgs(env, role, selection.provider));
+  if (selection.provider === "openrouter" && modelCatalogPath) {
+    args.push(...configOverride("model_catalog_json", modelCatalogPath));
+  }
   if (effort) args.push(...configOverride("model_reasoning_effort", effort));
-  if (model) args.push("--model", model);
-  if (outputSchemaPath) args.push("--output-schema", outputSchemaPath);
+  if (selection.model) args.push("--model", selection.model);
+  if (outputSchemaPath && !(selection.provider === "openrouter" && role === "author")) {
+    args.push("--output-schema", outputSchemaPath);
+  }
   for (const image of images) args.push("--image", image);
   if (threadId) args.push(threadId);
   args.push("-");
@@ -457,6 +625,17 @@ function materialDocumentFromEvent(event) {
   if (event.type !== "item.completed" || event.item?.type !== "mcp_tool_call"
       || event.item.tool !== "get_document" || event.item.status !== "completed") return null;
   return materialDocumentFromResult(event.item.result);
+}
+
+function contributionAuditFromEvent(event) {
+  if (event.type !== "item.completed" || event.item?.type !== "mcp_tool_call"
+      || event.item.tool !== "audit_node_contributions" || event.item.status !== "completed") return null;
+  const candidates = [event.item.result?.structuredContent, event.item.result];
+  for (const block of event.item.result?.content ?? []) {
+    if (block.type !== "text" || typeof block.text !== "string") continue;
+    try { candidates.push(JSON.parse(block.text)); } catch { /* Non-JSON MCP text is not an audit result. */ }
+  }
+  return candidates.find((candidate) => Array.isArray(candidate?.checks)) ?? null;
 }
 
 function materialDocumentFromResult(result) {
@@ -639,6 +818,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       const artifacts = [];
       const completedTool = event.type === "item.completed" && event.item?.type === "mcp_tool_call"
         && event.item.status === "completed" ? event.item.tool : "";
+      const args = toolArguments(event);
       if (DOCUMENT_MUTATION_TOOLS.has(completedTool)) {
         state.hasDocument = false;
         state.finalRenderCount = 0;
@@ -655,9 +835,16 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
         state.policyErrors.push(`Reviewer used forbidden ${event.item.type}.`);
       }
 
-      const args = toolArguments(event);
       const images = collectEventImages(event);
-      if (completedTool === "get_render" && args.view === "difference") {
+      if (completedTool === "audit_node_contributions") {
+        if (context.role !== "author") state.policyErrors.push("Only the author may audit node contributions.");
+        const audit = contributionAuditFromEvent(event);
+        for (const check of audit?.checks ?? []) {
+          if (typeof check.artifact !== "string") continue;
+          const artifactPath = join(state.diffsDirectory, basename(check.artifact));
+          if (existsSync(artifactPath)) artifacts.push(relative(directory, artifactPath));
+        }
+      } else if (completedTool === "get_render" && args.view === "difference") {
         if (context.role !== "author") state.policyErrors.push("Only the author may produce difference renders.");
         if (args.size !== 1024 || args.maxDim !== 1024) {
           state.policyErrors.push(`Difference render for ${args.nodeId || "unknown node"} was not requested at 1024px.`);
@@ -681,7 +868,15 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
           && state.deliveryDirectory && !args.nodeId && !args.view && !args.channel
           && (args.profile === undefined || args.profile === "standard")
           && (args.scale === undefined || args.scale === 1) && args.size === 1024 && args.maxDim === 1024) {
-        state.finalRenderCount += images.length;
+        // render.png is a single rolling candidate: previews may use the same full-render signature,
+        // and each newer result replaces the older file. Delivery is bound to the last candidate by
+        // the subsequent snapshot instead of rejecting a turn for having inspected earlier candidates.
+        if (images.length) {
+          state.finalRenderCount = 1;
+          state.snapshotId = "";
+          state.documentAfterSnapshot = false;
+          state.snapshotAfterFinalRender = false;
+        }
         for (const image of images) {
           await sharp(Buffer.from(image.data, "base64")).resize(1024, 1024).png().toFile(state.renderPath);
           artifacts.push(relative(directory, state.renderPath));
@@ -739,7 +934,7 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
       if (!state.hasDocument || !state.document) errors.push("Missing final document.json.");
       if (!state.documentAfterSnapshot) errors.push("Final get_document did not follow create_snapshot.");
       if (!state.snapshotAfterFinalRender) errors.push("create_snapshot did not follow the sole final render.");
-      if (state.finalRenderCount !== 1) errors.push(`Expected exactly one final render; archived ${state.finalRenderCount}.`);
+      if (state.finalRenderCount !== 1) errors.push("Missing final 1024px render.png.");
       if (!state.snapshotId) errors.push("Missing MCP snapshot.");
       else if (state.snapshotId !== result.snapshotId) {
         errors.push(`Reported snapshotId ${result.snapshotId || "<empty>"} does not match ${state.snapshotId}.`);
@@ -760,6 +955,9 @@ function createRunLogger(logRoot, title, taskFolder, now = new Date()) {
     policyErrors(context) {
       return [...getTurnState(context).policyErrors];
     },
+    mcpImageArtifactDirectory(context) {
+      return getTurnState(context).diffsDirectory;
+    },
   };
 }
 
@@ -768,6 +966,17 @@ function logOrchestrator(logger, message, context = {}, level = "log") {
   const writer = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
   writer(`[orchestrator] ${safeMessage}`);
   logger?.record({ source: "orchestrator", level, message: safeMessage, ...context });
+}
+
+function logTurnUsage(logger, label, turn, context) {
+  const usage = turn?.usage ?? {};
+  const number = (value) => Number(value || 0).toLocaleString("en-US");
+  logOrchestrator(
+    logger,
+    `${label} usage: input ${number(usage.input_tokens)} (${number(usage.cached_input_tokens)} cached), `
+      + `output ${number(usage.output_tokens)}, MCP calls ${number(turn?.completedMcpCalls)}`,
+    context,
+  );
 }
 
 function eventPrefix(context) {
@@ -843,6 +1052,28 @@ function emitCodexStderr(logger, context, threadId, line) {
   }, context);
 }
 
+function emitAgentHeartbeat(logger, context, threadId, lastActivity, idleMs, elapsedMs, idleTimeoutMs) {
+  const idleSeconds = Math.floor(idleMs / 1000);
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  const timeoutSeconds = Math.ceil(idleTimeoutMs / 1000);
+  const message = `waiting after ${lastActivity}; no new event for ${idleSeconds}s `
+    + `(turn ${elapsedSeconds}s, retry at ${timeoutSeconds}s idle)`;
+  console.log(`${eventPrefix(context)} ${message}`);
+  logger?.record({
+    source: "orchestrator",
+    stream: "heartbeat",
+    threadId: threadId || "",
+    ...context,
+    event: {
+      type: "agent.waiting",
+      lastActivity,
+      idleSeconds,
+      elapsedSeconds,
+      idleTimeoutSeconds: timeoutSeconds,
+    },
+  }, context);
+}
+
 async function withSchemaFile(schema, callback) {
   const directory = mkdtempSync(join(tmpdir(), "material-author-review-schema-"));
   const path = join(directory, "schema.json");
@@ -879,21 +1110,188 @@ function assertChatGptLogin(env, logger) {
   logOrchestrator(logger, `authentication: ChatGPT subscription; ${version.stdout.trim() || "Codex CLI"}`);
 }
 
+function assertModelProviderAuthentication(opts, env, logger) {
+  const selections = [...opts.authorModels, ...opts.reviewerModels].map(parseModelSpec);
+  if (selections.some((selection) => selection.provider === "chatgpt")) {
+    assertChatGptLogin(env, logger);
+  }
+  if (selections.some((selection) => selection.provider === "openrouter")) {
+    if (!env.OPENROUTER_API_KEY) {
+      throw new Error(
+        "An OpenRouter model is scheduled but OPENROUTER_API_KEY is not set in the project .env or process environment.",
+      );
+    }
+    logOrchestrator(logger, "authentication: OpenRouter API key available");
+  }
+}
+
+function openRouterTurnConfigurations(opts) {
+  const configurations = [];
+  const add = (role, models, efforts, turnCount) => {
+    for (let turn = 0; turn < turnCount; turn += 1) {
+      const selection = parseModelSpec(modelForTurn(models, turn));
+      if (selection.provider !== "openrouter") continue;
+      configurations.push({ role, model: selection.model, effort: modelForTurn(efforts, turn) });
+    }
+  };
+  add("author", opts.authorModels, opts.authorEfforts, opts.maxRounds + 1);
+  add("reviewer", opts.reviewerModels, opts.reviewerEfforts, opts.maxRounds);
+  return [...new Map(configurations.map((item) => [
+    `${item.role}:${item.model}:${item.effort}`,
+    item,
+  ])).values()];
+}
+
+function validateOpenRouterModelSchedules(opts, catalog) {
+  const models = new Map((catalog?.data ?? []).map((model) => [model.id, model]));
+  return openRouterTurnConfigurations(opts).map((configuration) => {
+    const metadata = models.get(configuration.model);
+    if (!metadata) throw new Error(`OpenRouter model not found: ${configuration.model}.`);
+    const supportedParameters = new Set(metadata.supported_parameters ?? []);
+    const supportedEfforts = metadata.reasoning?.supported_efforts ?? [];
+    if (!supportedParameters.has("reasoning_effort") || !supportedEfforts.includes(configuration.effort)) {
+      throw new Error(
+        `OpenRouter model ${configuration.model} does not support effort ${JSON.stringify(configuration.effort)}; `
+        + `supported efforts: ${supportedEfforts.join(", ") || "none reported"}.`,
+      );
+    }
+    const structured = supportedParameters.has("structured_outputs")
+      || supportedParameters.has("response_format");
+    if (!structured) throw new Error(`OpenRouter model ${configuration.model} lacks structured-output support.`);
+    if (configuration.role === "author" && !supportedParameters.has("tools")) {
+      throw new Error(`OpenRouter author model ${configuration.model} lacks tool-calling support.`);
+    }
+    const inputModalities = metadata.architecture?.input_modalities ?? [];
+    if (configuration.role === "reviewer" && !inputModalities.includes("image")) {
+      throw new Error(`OpenRouter reviewer model ${configuration.model} lacks image input.`);
+    }
+    return { ...configuration, supportedEfforts };
+  });
+}
+
+function reasoningEffortDescription(effort) {
+  return ({
+    low: "Fast responses with lighter reasoning",
+    medium: "Balances speed and reasoning depth for everyday tasks",
+    high: "Greater reasoning depth for complex problems",
+    xhigh: "Extra high reasoning depth for complex problems",
+    max: "Maximum reasoning depth for the hardest problems",
+    ultra: "Maximum reasoning depth for extended tasks",
+  })[effort] || `${effort} reasoning`;
+}
+
+function buildOpenRouterCodexModelMetadata(model, priority = 101) {
+  const supportedEfforts = model.reasoning?.supported_efforts ?? [];
+  const defaultEffort = supportedEfforts.includes(model.reasoning?.default_effort)
+    ? model.reasoning.default_effort
+    : supportedEfforts[0] || "high";
+  const contextWindow = Number.isFinite(model.context_length) && model.context_length > 0
+    ? model.context_length
+    : 128_000;
+  const inputModalities = model.architecture?.input_modalities?.includes("image")
+    ? ["text", "image"]
+    : ["text"];
+  return {
+    slug: model.id,
+    display_name: model.name || model.id,
+    description: model.description || `OpenRouter model ${model.id}`,
+    default_reasoning_level: defaultEffort,
+    supported_reasoning_levels: supportedEfforts.map((effort) => ({
+      effort,
+      description: reasoningEffortDescription(effort),
+    })),
+    shell_type: "unified_exec",
+    visibility: "list",
+    supported_in_api: true,
+    priority,
+    additional_speed_tiers: [],
+    service_tiers: [],
+    availability_nux: null,
+    upgrade: null,
+    model_messages: null,
+    include_skills_usage_instructions: false,
+    include_plugin_usage_instructions: false,
+    include_apps_usage_instructions: false,
+    default_reasoning_summary: "auto",
+    support_verbosity: false,
+    default_verbosity: null,
+    apply_patch_tool_type: null,
+    web_search_tool_type: "text",
+    truncation_policy: { mode: "bytes", limit: 100_000 },
+    supports_image_detail_original: false,
+    context_window: contextWindow,
+    max_context_window: contextWindow,
+    effective_context_window_percent: 95,
+    experimental_supported_tools: [],
+    input_modalities: inputModalities,
+    supports_search_tool: false,
+    use_responses_lite: false,
+    node_repl_auto_review_required: false,
+    node_repl_disabled: false,
+    base_instructions: OPENROUTER_BASE_INSTRUCTIONS,
+  };
+}
+
+async function assertOpenRouterModelConfiguration(opts, env, logger, fetchImpl = fetch) {
+  const configurations = openRouterTurnConfigurations(opts);
+  if (!configurations.length) return [];
+  logOrchestrator(logger, "checking scheduled OpenRouter model capabilities");
+  let response;
+  try {
+    response = await fetchImpl(`${OPENROUTER_BASE_URL}/models`, {
+      headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    throw new Error(`Could not load the OpenRouter model catalog; no agent turn was started: ${error.message}`);
+  }
+  if (!response.ok) {
+    throw new Error(`OpenRouter model catalog returned HTTP ${response.status}; no agent turn was started.`);
+  }
+  const catalog = await response.json();
+  const validated = validateOpenRouterModelSchedules(opts, catalog);
+  for (const configuration of validated) {
+    logOrchestrator(
+      logger,
+      `OpenRouter ${configuration.role} model ready: ${configuration.model}/${configuration.effort}`,
+    );
+  }
+  const scheduledModelIds = new Set(configurations.map(({ model }) => model));
+  return (catalog.data ?? []).filter(({ id }) => scheduledModelIds.has(id));
+}
+
+function createOpenRouterCodexCatalog(models, logger) {
+  if (!models.length) return "";
+  const codexModels = models.map((model, index) => buildOpenRouterCodexModelMetadata(model, 101 + index));
+  const path = join(logger.directory, "openrouter-model-catalog.json");
+  writeFileSync(path, JSON.stringify({ models: codexModels }), { encoding: "utf8", mode: 0o600 });
+  logOrchestrator(logger, `Codex OpenRouter metadata ready: ${codexModels.length} model(s); ${path}`);
+  return path;
+}
+
 function makeAttemptError(message, details = {}) {
   const error = new Error(message);
-  error.retryable = details.retryable ?? TRANSPORT_ERROR.test(message);
+  const providerToolHistoryFailure = PROVIDER_TOOL_HISTORY_ERROR.test(message);
+  error.retryable = details.retryable ?? (providerToolHistoryFailure || TRANSPORT_ERROR.test(message));
+  error.failureKind = details.failureKind ?? (providerToolHistoryFailure ? "provider-tool-history" : undefined);
   Object.assign(error, details);
   return error;
 }
 
 async function runCodexAttempt({
-  role, phase, round, attempt, thread, prompt, images, schema, timeoutMs, env, logger,
+  role, phase, round, attempt, thread, prompt, images, schema, timeoutMs, idleTimeoutMs, env, logger,
+  modelCatalogPath,
   cliPath = CODEX_CLI_PATH, nodePath = process.execPath,
 }) {
   return withSchemaFile(schema, async (outputSchemaPath) => {
     const context = { role, phase, round, attempt };
+    const attemptEnv = logger?.mcpImageArtifactDirectory?.(context)
+      ? { ...env, MD_MCP_IMAGE_ARTIFACT_DIR: logger.mcpImageArtifactDirectory(context) }
+      : env;
     const args = buildCodexArgs({
-      env, images, model: thread.model, effort: thread.effort, outputSchemaPath, threadId: thread.id, role,
+      env: attemptEnv, images, model: thread.model, effort: thread.effort, outputSchemaPath,
+      threadId: thread.id, role,
+      modelCatalogPath,
     });
     logOrchestrator(
       logger,
@@ -903,30 +1301,74 @@ async function runCodexAttempt({
     );
 
     const childArgs = cliPath === CODEX_CLI_PATH ? args : [cliPath, ...args.slice(1)];
-    const child = spawn(nodePath, childArgs, { cwd: ROOT, env, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(nodePath, childArgs, { cwd: ROOT, env: attemptEnv, stdio: ["pipe", "pipe", "pipe"] });
     let spawnError = null;
     let stdinError = null;
     let stdoutError = null;
     let stderrError = null;
     let timedOut = false;
+    let idleTimedOut = false;
     let forceKillTimer = null;
     let finalResponse = "";
     let turnCompleted = false;
     let turnFailure = "";
     let lastStreamError = "";
     let completedMcpCalls = 0;
+    let turnUsage = {};
+    const startedAt = Date.now();
+    let lastActivityAt = startedAt;
+    let lastHeartbeatAt = startedAt;
+    let lastActivity = "starting the Codex turn";
     const stderrTail = [];
+
+    const noteActivity = (description) => {
+      lastActivityAt = Date.now();
+      lastHeartbeatAt = lastActivityAt;
+      lastActivity = description;
+    };
+
+    const terminate = () => {
+      child.kill("SIGTERM");
+      if (!forceKillTimer) {
+        forceKillTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+        forceKillTimer.unref();
+      }
+    };
 
     child.once("error", (error) => { spawnError = error; });
     child.stdin.on("error", (error) => { stdinError = error; });
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGTERM");
-      forceKillTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
-      forceKillTimer.unref();
+      terminate();
     }, timeoutMs);
     timer.unref();
+
+    const effectiveIdleTimeoutMs = idleTimeoutMs ?? DEFAULT_AGENT_IDLE_TIMEOUT_MINUTES * 60_000;
+    const monitorIntervalMs = Math.max(25, Math.min(1_000, effectiveIdleTimeoutMs));
+    const monitor = setInterval(() => {
+      const now = Date.now();
+      const idleMs = now - lastActivityAt;
+      if (idleMs >= effectiveIdleTimeoutMs) {
+        idleTimedOut = true;
+        clearInterval(monitor);
+        terminate();
+        return;
+      }
+      if (now - lastHeartbeatAt >= AGENT_HEARTBEAT_MS) {
+        lastHeartbeatAt = now;
+        emitAgentHeartbeat(
+          logger,
+          context,
+          thread.id,
+          lastActivity,
+          idleMs,
+          now - startedAt,
+          effectiveIdleTimeoutMs,
+        );
+      }
+    }, monitorIntervalMs);
+    monitor.unref();
 
     const stdout = createInterface({ input: child.stdout, crlfDelay: Infinity });
     const stderr = createInterface({ input: child.stderr, crlfDelay: Infinity });
@@ -934,6 +1376,7 @@ async function runCodexAttempt({
       try {
         for await (const line of stdout) {
           if (!line.trim()) continue;
+          noteActivity("receiving Codex output");
           let event;
           try {
             event = JSON.parse(line);
@@ -951,9 +1394,13 @@ async function runCodexAttempt({
           if (event.type === "item.completed" && event.item?.type === "error") {
             lastStreamError = event.item.message || "Codex item failed.";
           }
-          if (event.type === "turn.completed") turnCompleted = true;
+          if (event.type === "turn.completed") {
+            turnCompleted = true;
+            turnUsage = event.usage ?? {};
+          }
           if (event.type === "turn.failed") turnFailure = event.error?.message || "Codex turn failed.";
           if (event.type === "error") lastStreamError = event.message || "Codex stream error.";
+          lastActivity = formatCodexEvent(event);
           await emitCodexEvent(logger, context, thread.id, event);
         }
       } catch (error) {
@@ -965,6 +1412,7 @@ async function runCodexAttempt({
       try {
         for await (const line of stderr) {
           if (!line) continue;
+          noteActivity(`stderr: ${truncateStatus(line, 120)}`);
           stderrTail.push(line);
           if (stderrTail.length > 20) stderrTail.shift();
           emitCodexStderr(logger, context, thread.id, line);
@@ -981,11 +1429,18 @@ async function runCodexAttempt({
     child.stdin.end(prompt);
     const [{ code, signal }] = await Promise.all([closeTask, stdoutTask, stderrTask]);
     clearTimeout(timer);
+    clearInterval(monitor);
     if (forceKillTimer) clearTimeout(forceKillTimer);
     stdout.close();
     stderr.close();
 
     const details = { completedMcpCalls, threadId: thread.id };
+    if (idleTimedOut) {
+      throw makeAttemptError(
+        `${role} ${phase} produced no events for ${effectiveIdleTimeoutMs / 60000} minutes after ${lastActivity}.`,
+        { ...details, retryable: true, failureKind: "idle-timeout" },
+      );
+    }
     if (timedOut) {
       throw makeAttemptError(`${role} ${phase} timed out.`, { ...details, retryable: false });
     }
@@ -1010,13 +1465,14 @@ async function runCodexAttempt({
     const result = parseStructured(finalResponse, role);
     const resultArtifact = logger?.completeTurn(context, thread, result);
     if (resultArtifact) console.log(`${eventPrefix(context)} file created: ${resultArtifact}`);
-    return { thread, result };
+    return { thread, result, usage: turnUsage, completedMcpCalls };
   });
 }
 
 async function runCodex(options) {
   const deadline = Date.now() + options.timeoutMs;
   const retryBaseDelayMs = options.retryBaseDelayMs ?? 2_000;
+  let retryKind = "";
   for (let retry = 0; ; retry += 1) {
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
@@ -1025,24 +1481,35 @@ async function runCodex(options) {
       });
     }
     const isRetry = retry > 0;
+    const freshProviderThread = isRetry && retryKind === "provider-tool-history";
+    const resumeExistingThread = isRetry && Boolean(options.thread.id);
     try {
       return await runCodexAttempt({
         ...options,
         attempt: retry + 1,
-        prompt: isRetry && options.thread.id
+        prompt: freshProviderThread
+          ? `${CONTINUE_ON_FRESH_THREAD_AFTER_PROVIDER_HISTORY_FAILURE}\n\n${options.prompt}`
+          : resumeExistingThread
           ? (options.role === "reviewer" ? REVIEWER_CONTINUE_AFTER_TRANSPORT_FAILURE : CONTINUE_AFTER_TRANSPORT_FAILURE)
           : options.prompt,
-        images: isRetry && options.role === "author" ? [] : options.images,
+        images: resumeExistingThread && options.role === "author" ? [] : options.images,
         timeoutMs: remainingMs,
       });
     } catch (error) {
       if (!error.retryable || retry >= options.transportRetries) throw error;
+      retryKind = error.failureKind || "transport";
+      if (retryKind === "provider-tool-history") options.thread.id = "";
       const baseDelayMs = Math.min(30_000, retryBaseDelayMs * (2 ** retry));
       const delayMs = baseDelayMs + Math.floor((options.random?.() ?? Math.random()) * Math.min(1_000, baseDelayMs));
       const reason = String(error.message || error).split("\n", 1)[0];
+      const failureLabel = error.failureKind === "idle-timeout"
+        ? `${options.role} ${options.phase} idle watchdog`
+        : error.failureKind === "provider-tool-history"
+          ? `${options.role} ${options.phase} provider tool-history incompatibility`
+        : `transient ${options.role} ${options.phase} transport failure`;
       logOrchestrator(
         options.logger,
-        `transient ${options.role} ${options.phase} transport failure: ${reason}; `
+        `${failureLabel}: ${reason}; `
           + `retry ${retry + 1}/${options.transportRetries} in ${(delayMs / 1000).toFixed(1)}s`,
         { role: options.role, phase: options.phase, round: options.round, attempt: retry + 1 },
         "warn",
@@ -1061,7 +1528,8 @@ async function runCodex(options) {
 let activeLogger = null;
 
 async function main(argv = process.argv.slice(2)) {
-  const opts = parseArgs(argv);
+  const envPath = loadProjectEnvironment();
+  const opts = parseArgs(argv, process.env);
   if (!statSync(opts.taskFolder).isDirectory()) throw new Error(`Not a directory: ${opts.taskFolder}`);
   const files = collectFiles(opts.taskFolder);
   if (!files.markdown.length) throw new Error("The task folder contains no Markdown descriptions.");
@@ -1074,6 +1542,7 @@ async function main(argv = process.argv.slice(2)) {
   console.log(`[orchestrator] author efforts: ${opts.authorEfforts.join(" -> ")}`);
   console.log(`[orchestrator] reviewer models: ${opts.reviewerModels.join(" -> ") || "Codex default"}`);
   console.log(`[orchestrator] reviewer efforts: ${opts.reviewerEfforts.join(" -> ")}`);
+  console.log(`[orchestrator] idle watchdog: ${opts.idleTimeoutMinutes} minute(s)`);
   console.log(`[orchestrator] event log root: ${opts.logDir}`);
   if (opts.dryRun) return null;
 
@@ -1081,6 +1550,7 @@ async function main(argv = process.argv.slice(2)) {
   activeLogger = logger;
   const env = sanitizeEnvironment();
   logOrchestrator(logger, `event log: ${logger.path}`);
+  logOrchestrator(logger, `environment: ${existsSync(envPath) ? `loaded ${envPath}` : "project .env not found"}`);
   logger.record({
     source: "orchestrator",
     event: {
@@ -1092,6 +1562,7 @@ async function main(argv = process.argv.slice(2)) {
       minScore: opts.minScore,
       maxRounds: opts.maxRounds,
       timeoutMinutes: opts.timeoutMinutes,
+      idleTimeoutMinutes: opts.idleTimeoutMinutes,
       transportRetries: opts.transportRetries,
       authorModels: opts.authorModels,
       authorEfforts: opts.authorEfforts,
@@ -1100,7 +1571,9 @@ async function main(argv = process.argv.slice(2)) {
       transport: "https",
     },
   });
-  assertChatGptLogin(env, logger);
+  assertModelProviderAuthentication(opts, env, logger);
+  const openRouterModels = await assertOpenRouterModelConfiguration(opts, env, logger);
+  const modelCatalogPath = createOpenRouterCodexCatalog(openRouterModels, logger);
   const mcpProbe = await createMaterialMcpProbe(env);
   try {
     const brief = buildBrief(opts.taskFolder, files.markdown, files.images);
@@ -1109,9 +1582,15 @@ async function main(argv = process.argv.slice(2)) {
     let authorTurnIndex = 0;
     let reviewerTurnIndex = 0;
     let previousReview = null;
+    const reviewHistory = [];
+    let previousAuthorSummary = "";
     const timeoutMs = opts.timeoutMinutes * 60_000;
+    const idleTimeoutMs = opts.idleTimeoutMinutes * 60_000;
 
     for (let round = 1; round <= opts.maxRounds; round += 1) {
+    // Each visual revision gets a bounded context. The live document, full brief, references, and latest
+    // reviewer verdict carry forward the actual task state without replaying prior MCP image history.
+    authorThread.id = "";
     authorThread.model = modelForTurn(opts.authorModels, authorTurnIndex);
     authorThread.effort = modelForTurn(opts.authorEfforts, authorTurnIndex);
     authorTurnIndex += 1;
@@ -1119,22 +1598,64 @@ async function main(argv = process.argv.slice(2)) {
     const authorContext = { role: "author", phase: authorPhase, round };
     await requireMaterialMcp(mcpProbe, logger, `author ${authorPhase} round ${round}`);
     logOrchestrator(logger, `round ${round}/${opts.maxRounds}: authoring`, authorContext);
-    const authorTurn = await runCodex({
+    let authorTurn = await runCodex({
       ...authorContext, thread: authorThread,
       prompt: round === 1 ? authorInitialPrompt(brief, opts.title, opts.minScore)
-        : authorRevisionPrompt(round, previousReview, opts.minScore),
-      images: round === 1 ? files.images : [], schema: AUTHOR_SCHEMA, timeoutMs,
-      transportRetries: opts.transportRetries, env, logger,
+        : authorRevisionPrompt(
+          round,
+          opts.maxRounds,
+          reviewHistory,
+          previousAuthorSummary,
+          opts.minScore,
+          brief,
+        ),
+      images: files.images, schema: AUTHOR_SCHEMA, timeoutMs,
+      idleTimeoutMs,
+      transportRetries: opts.transportRetries, env, logger, modelCatalogPath,
     });
     logOrchestrator(
       logger,
       `author ${authorTurn.result.status}: ${authorTurn.result.summary}`,
       authorContext,
     );
+    logTurnUsage(logger, `author round ${round}`, authorTurn, authorContext);
     if (authorTurn.result.status === "blocked") throw new Error(`Author blocked: ${authorTurn.result.summary}`);
-    if (!authorTurn.result.snapshotId) throw new Error(`Author round ${round} did not create a delivery snapshot.`);
-    const deliveryErrors = logger.authorDeliveryErrors(authorContext, authorTurn.result);
+    let deliveryErrors = logger.authorDeliveryErrors(authorContext, authorTurn.result);
+    for (let deliveryRetry = 1;
+      deliveryErrors.length && deliveryRetry <= MAX_AUTHOR_DELIVERY_RETRIES;
+      deliveryRetry += 1) {
+      logOrchestrator(
+        logger,
+        `author round ${round} delivery incomplete; recovery ${deliveryRetry}/${MAX_AUTHOR_DELIVERY_RETRIES}: `
+          + deliveryErrors.join(" "),
+        authorContext,
+        "warn",
+      );
+      await requireMaterialMcp(mcpProbe, logger, `author delivery recovery ${deliveryRetry} round ${round}`);
+      authorTurn = await runCodex({
+        ...authorContext,
+        thread: authorThread,
+        prompt: authorDeliveryRecoveryPrompt(round, deliveryErrors),
+        images: [],
+        schema: AUTHOR_SCHEMA,
+        timeoutMs,
+        idleTimeoutMs,
+        transportRetries: opts.transportRetries,
+        env,
+        logger,
+        modelCatalogPath,
+      });
+      if (authorTurn.result.status === "blocked") throw new Error(`Author blocked: ${authorTurn.result.summary}`);
+      logOrchestrator(
+        logger,
+        `author recovery ${deliveryRetry} ${authorTurn.result.status}: ${authorTurn.result.summary}`,
+        authorContext,
+      );
+      logTurnUsage(logger, `author recovery ${deliveryRetry}`, authorTurn, authorContext);
+      deliveryErrors = logger.authorDeliveryErrors(authorContext, authorTurn.result);
+    }
     if (deliveryErrors.length) throw new Error(`Author round ${round} delivery invalid: ${deliveryErrors.join(" ")}`);
+    previousAuthorSummary = authorTurn.result.summary;
     const delivery = logger.delivery(authorContext);
 
     reviewerThread.id = "";
@@ -1149,11 +1670,14 @@ async function main(argv = process.argv.slice(2)) {
       prompt: round === 1 ? reviewerInitialPrompt(brief, opts.minScore)
         : reviewerNextPrompt(round, opts.minScore),
       images: [delivery.renderPath, ...files.images], schema: REVIEWER_SCHEMA, timeoutMs,
-      transportRetries: opts.transportRetries, env, logger,
+      idleTimeoutMs,
+      transportRetries: opts.transportRetries, env, logger, modelCatalogPath,
     });
     const reviewerPolicyErrors = logger.policyErrors(reviewerContext);
     if (reviewerPolicyErrors.length) throw new Error(reviewerPolicyErrors.join(" "));
     previousReview = reviewerTurn.result;
+    reviewHistory.push({ round, review: previousReview });
+    logTurnUsage(logger, `reviewer round ${round}`, reviewerTurn, reviewerContext);
     const accepted = acceptedByGate(previousReview, opts.minScore);
     logOrchestrator(
       logger,
@@ -1173,6 +1697,7 @@ async function main(argv = process.argv.slice(2)) {
     if (!accepted) continue;
 
     logOrchestrator(logger, "reviewer accepted; saving the live MCP document", { round, phase: "save" });
+    authorThread.id = "";
     authorThread.model = modelForTurn(opts.authorModels, authorTurnIndex);
     authorThread.effort = modelForTurn(opts.authorEfforts, authorTurnIndex);
     authorTurnIndex += 1;
@@ -1181,7 +1706,10 @@ async function main(argv = process.argv.slice(2)) {
       role: "author", phase: "save", round, thread: authorThread,
       prompt: savePrompt(opts.title, round, previousReview),
       images: [], schema: SAVE_SCHEMA, timeoutMs, transportRetries: opts.transportRetries, env, logger,
+      idleTimeoutMs,
+      modelCatalogPath,
     });
+    logTurnUsage(logger, "author save", saveTurn, { role: "author", phase: "save", round });
     if (saveTurn.result.status !== "saved" || !saveTurn.result.savedVersionId) {
       throw new Error(`Accepted document was not saved: ${saveTurn.result.summary}`);
     }
@@ -1222,14 +1750,22 @@ export {
   REVIEWER_SCHEMA,
   SAVE_SCHEMA,
   acceptedByGate,
+  authorInitialPrompt,
+  authorRevisionPrompt,
+  assertOpenRouterModelConfiguration,
   buildCodexArgs,
+  buildOpenRouterCodexModelMetadata,
   compactOutput,
+  createOpenRouterCodexCatalog,
   createMaterialMcpProbe,
   createRunLogger,
   main,
   modelForTurn,
+  loadProjectEnvironment,
+  parseModelSpec,
   parseArgs,
   runCodex,
   runCodexAttempt,
   sanitizeEnvironment,
+  validateOpenRouterModelSchedules,
 };

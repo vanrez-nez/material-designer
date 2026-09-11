@@ -175,6 +175,31 @@ The numbers are calculated at `size` before `maxDim` downscaling and before draw
 These statistics measure the rendered image, including material on both the sphere and plane and unchanged
 background pixels. They indicate visual contribution, not graph importance or shader cost.
 
+## `audit_node_contributions`
+
+Author-review agents should use `audit_node_contributions` instead of issuing one `get_render` tool call per
+node. A call accepts at most eight data-node ids and runs the same lossless 1024px `difference` render for each
+node:
+
+```json
+{
+  "nodeIds": ["broad-rust", "fine-grain", "roughness-breakup"],
+  "scale": 1,
+  "profile": "standard"
+}
+```
+
+The MCP server writes each original difference result as a 1024px PNG in the author turn's artifact directory,
+using names such as `lit-diff-broad-rust.png`. It returns no image content to the model. Instead, one compact
+text response contains `changedPercent`, `meanPercent`, `p95Percent`, and `maxPercent` for every node, plus the
+artifact filename, zero-contribution ids, and failures. This preserves the exact evidence while preventing
+dozens of images from being retained and replayed in the agent context.
+
+Use repeated batches to cover the final graph. Retry an all-zero node with `scale: 2` or with its intended final
+PBR `channel`; remove or rework a node that remains zero. Shader and material-output nodes remain exempt.
+The batch tool is available to the author-review runner because that runner supplies its artifact directory;
+interactive MCP clients should continue to use `get_render` when they need to see an individual difference image.
+
 ### Fast interpretation
 
 - All zeros means no visible contribution under that render profile, channel, scale, and resolution.

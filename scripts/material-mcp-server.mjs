@@ -11,12 +11,18 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import sharp from "sharp";
 import { WebSocketServer, WebSocket } from "ws";
 
 const WS_HOST = "127.0.0.1";
 const WS_PORT = Number.parseInt(process.env.MD_WS_PORT || "51787", 10);
 const WS_PORT_SPAN = Number.parseInt(process.env.MD_WS_PORT_SPAN || "16", 10);
 const CALL_TIMEOUT_MS = Number.parseInt(process.env.MD_CALL_TIMEOUT_MS || "20000", 10);
+const COMPACT_IMAGE_RESPONSES = process.env.MD_MCP_COMPACT_IMAGES === "1";
+const IMAGE_ARTIFACT_DIR = process.env.MD_MCP_IMAGE_ARTIFACT_DIR || "";
+const CONTRIBUTION_AUDIT_BATCH_LIMIT = 8;
 
 // ---------------------------------------------------------------------------------------------------------
 // WebSocket bridge to the page
@@ -213,6 +219,30 @@ const tools = [
     }),
   },
   {
+    name: "audit_node_contributions",
+    description: "Batch-check up to 8 data nodes with 1024px difference renders. The runner archives each lossless PNG, while the MCP response returns only compact numeric difference statistics so images do not accumulate in the agent context. Use repeated batches to audit a complete graph; retry zero results at scale 2 or on the relevant final PBR channel.",
+    inputSchema: OBJ(
+      {
+        nodeIds: {
+          type: "array",
+          minItems: 1,
+          maxItems: CONTRIBUTION_AUDIT_BATCH_LIMIT,
+          uniqueItems: true,
+          items: { type: "string" },
+          description: "1-8 diff-capable data node ids",
+        },
+        scale: { type: "number", description: "UV tiling factor, default 1" },
+        profile: { type: "string", description: "lighting profile, default standard" },
+        channel: {
+          type: "string",
+          enum: ["baseColor", "normal", "emission", "roughness", "metallic", "ambientOcclusion"],
+          description: "optional raw final-PBR channel",
+        },
+      },
+      ["nodeIds"],
+    ),
+  },
+  {
     name: "get_viewport",
     description: "Capture the live on-screen viewport (current camera + lighting) as an LLM-optimized image.",
     inputSchema: OBJ({
@@ -252,6 +282,75 @@ function isImageResult(r) {
   return r && typeof r === "object" && typeof r.base64 === "string" && typeof r.mime === "string";
 }
 
+function artifactSlug(value) {
+  return String(value).normalize("NFKD").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase()
+    || "node";
+}
+
+function nextArtifactPath(baseName) {
+  const first = join(IMAGE_ARTIFACT_DIR, `${baseName}.png`);
+  if (!existsSync(first)) return { path: first, filename: `${baseName}.png` };
+  for (let occurrence = 2; ; occurrence += 1) {
+    const filename = `${baseName}-${occurrence}.png`;
+    const path = join(IMAGE_ARTIFACT_DIR, filename);
+    if (!existsSync(path)) return { path, filename };
+  }
+}
+
+async function auditNodeContributions(args) {
+  if (!IMAGE_ARTIFACT_DIR) {
+    throw new Error("audit_node_contributions requires the author-review artifact directory.");
+  }
+  const nodeIds = Array.isArray(args.nodeIds) ? [...new Set(args.nodeIds)] : [];
+  if (!nodeIds.length || nodeIds.length > CONTRIBUTION_AUDIT_BATCH_LIMIT
+      || nodeIds.some((nodeId) => typeof nodeId !== "string" || !nodeId)) {
+    throw new Error(`nodeIds must contain 1-${CONTRIBUTION_AUDIT_BATCH_LIMIT} unique node ids.`);
+  }
+  mkdirSync(IMAGE_ARTIFACT_DIR, { recursive: true, mode: 0o700 });
+  const scale = typeof args.scale === "number" ? args.scale : 1;
+  const profile = typeof args.profile === "string" ? args.profile : "standard";
+  const channel = typeof args.channel === "string" ? args.channel : undefined;
+  const checks = [];
+  const failures = [];
+  for (const nodeId of nodeIds) {
+    try {
+      const result = await callPage("get_render", {
+        nodeId,
+        view: "difference",
+        size: 1024,
+        maxDim: 1024,
+        scale,
+        profile,
+        ...(channel ? { channel } : {}),
+      });
+      if (!isImageResult(result) || !result.stats) throw new Error("difference render returned no image or statistics");
+      const mode = [nodeId];
+      if (profile !== "standard") mode.push(profile);
+      if (scale !== 1) mode.push(`scale-${scale}`);
+      const baseName = `${artifactSlug(channel || "lit")}-diff-${artifactSlug(mode.join("-"))}`;
+      const artifact = nextArtifactPath(baseName);
+      await sharp(Buffer.from(result.base64, "base64")).resize(1024, 1024).png().toFile(artifact.path);
+      checks.push({ ...result.stats, artifact: artifact.filename });
+    } catch (error) {
+      failures.push({ nodeId, error: error?.message || String(error) });
+    }
+  }
+  const zeroContribution = checks
+    .filter((check) => check.changedPixels === 0 && check.maxPercent === 0)
+    .map((check) => check.nodeId);
+  return {
+    size: 1024,
+    maxDim: 1024,
+    scale,
+    profile,
+    channel: channel || "lit",
+    checkedCount: checks.length,
+    zeroContribution,
+    failures,
+    checks,
+  };
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // MCP server (stdio)
 // ---------------------------------------------------------------------------------------------------------
@@ -269,11 +368,24 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
   }
   try {
-    const result = await callPage(name, args ?? {});
+    const result = name === "audit_node_contributions"
+      ? await auditNodeContributions(args ?? {})
+      : await callPage(name, args ?? {});
     if (isImageResult(result)) {
+      let imageData = result.base64;
+      let imageMime = result.mime;
+      // Long author turns can inspect dozens of 1024px renders. Keep their model context below
+      // provider payload limits while the orchestrator still archives every response as PNG.
+      if (COMPACT_IMAGE_RESPONSES && imageMime === "image/png") {
+        const compact = await sharp(Buffer.from(imageData, "base64"))
+          .webp({ quality: 78, effort: 4 })
+          .toBuffer();
+        imageData = compact.toString("base64");
+        imageMime = "image/webp";
+      }
       const content = [];
       if (result.stats) content.push({ type: "text", text: JSON.stringify({ difference: result.stats }, null, 2) });
-      content.push({ type: "image", data: result.base64, mimeType: result.mime });
+      content.push({ type: "image", data: imageData, mimeType: imageMime });
       return { content };
     }
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };

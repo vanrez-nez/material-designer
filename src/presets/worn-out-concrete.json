@@ -1,0 +1,798 @@
+{
+  "version": 4,
+  "nodes": [
+    {
+      "id": "out",
+      "type": "material-output",
+      "params": {
+        "outputResolution": "2048"
+      },
+      "position": {
+        "x": 4940,
+        "y": 805
+      },
+      "enabled": true,
+      "label": "Material Output"
+    },
+    {
+      "id": "tileable-noise-kx2ta7",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "perlin-fbm",
+        "preset": "erosion-analytic",
+        "scale": 1.2000000000000002,
+        "aspect": 4.5,
+        "octaves": 2,
+        "gain": 0.48,
+        "lacunarity": 5,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "512"
+      },
+      "position": {
+        "x": 908,
+        "y": 184
+      },
+      "enabled": true,
+      "label": "Broad Worn Coating"
+    },
+    {
+      "id": "tileable-noise-kci1px",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "perlin-fbm",
+        "preset": "none",
+        "scale": 1.5,
+        "aspect": 8,
+        "octaves": 4,
+        "gain": 1,
+        "lacunarity": 2,
+        "antialias": 0.38999999999999996,
+        "gaborFreq": 2.4000000000000004,
+        "gaborAniso": 0.8300000000000001,
+        "gaborOrient": 2.4,
+        "tileSize": "512"
+      },
+      "position": {
+        "x": 908,
+        "y": 527
+      },
+      "enabled": true,
+      "label": "Connected Coating Drift"
+    },
+    {
+      "id": "tileable-noise-awg1m6",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "gabor",
+        "preset": "none",
+        "scale": 11.5,
+        "aspect": 8,
+        "octaves": 5,
+        "gain": 0.52,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 0.9999999999999998,
+        "gaborAniso": 0.69,
+        "gaborOrient": 0,
+        "tileSize": "512"
+      },
+      "position": {
+        "x": 908,
+        "y": 846
+      },
+      "enabled": true,
+      "label": "Dragged Erosive Wear"
+    },
+    {
+      "id": "tileable-noise-qzg0xp",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "wavelet",
+        "preset": "none",
+        "scale": 22,
+        "aspect": 9,
+        "octaves": 5,
+        "gain": 0.46,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 1,
+        "gaborAniso": 0.94,
+        "gaborOrient": 2.2,
+        "tileSize": "512"
+      },
+      "position": {
+        "x": 908,
+        "y": 1141
+      },
+      "enabled": true,
+      "label": "Crossed Fine Abrasion"
+    },
+    {
+      "id": "tileable-noise-41uu08",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "simplex",
+        "preset": "none",
+        "scale": 105,
+        "aspect": 1,
+        "octaves": 6,
+        "gain": 1,
+        "lacunarity": 2,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "off"
+      },
+      "position": {
+        "x": 1804,
+        "y": 1079
+      },
+      "enabled": true,
+      "label": "Dense Mineral Grain"
+    },
+    {
+      "id": "tileable-noise-5a6nr4",
+      "type": "tileable-noise",
+      "params": {
+        "noiseType": "worley",
+        "preset": "none",
+        "scale": 97,
+        "aspect": 1,
+        "octaves": 2,
+        "gain": 0.24999999999999997,
+        "lacunarity": 5,
+        "antialias": 1,
+        "gaborFreq": 2,
+        "gaborAniso": 1,
+        "gaborOrient": 0.785398,
+        "tileSize": "512"
+      },
+      "position": {
+        "x": 2252,
+        "y": 506
+      },
+      "enabled": true,
+      "label": "Scattered Aggregate"
+    },
+    {
+      "id": "math-40pj86",
+      "type": "math",
+      "params": {
+        "op": "mix",
+        "factor": 0.6799999999999999,
+        "c": 1
+      },
+      "position": {
+        "x": 1356,
+        "y": 458
+      },
+      "enabled": true,
+      "label": "Connected Coating Remnants"
+    },
+    {
+      "id": "math-o76lan",
+      "type": "math",
+      "params": {
+        "op": "mix",
+        "factor": 0.36,
+        "c": 0.51
+      },
+      "position": {
+        "x": 1356,
+        "y": 811
+      },
+      "enabled": true,
+      "label": "Crossed Abrasion Trails"
+    },
+    {
+      "id": "math-5957rd",
+      "type": "math",
+      "params": {
+        "op": "mix",
+        "factor": 0.48,
+        "c": 0.14
+      },
+      "position": {
+        "x": 1804,
+        "y": 742
+      },
+      "enabled": true,
+      "label": "Traffic Wear Structure"
+    },
+    {
+      "id": "constant-field-ennzux",
+      "type": "constant-field",
+      "params": {
+        "value": 0.54
+      },
+      "position": {
+        "x": 1804,
+        "y": 1398
+      },
+      "enabled": true,
+      "label": "Exposure Balance"
+    },
+    {
+      "id": "height-blend-o59ico",
+      "type": "height-blend",
+      "params": {
+        "transition": 0.5,
+        "width": 0.045,
+        "breakup": 0.38
+      },
+      "position": {
+        "x": 2252,
+        "y": 978
+      },
+      "enabled": true,
+      "label": "Ragged Exposed Concrete"
+    },
+    {
+      "id": "color-ramp-iu0556",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#060809",
+        "colorB": "#192225",
+        "low": 0.47000000000000003,
+        "high": 0.79
+      },
+      "position": {
+        "x": 2252,
+        "y": 12
+      },
+      "enabled": true,
+      "label": "Charcoal Coating Colors"
+    },
+    {
+      "id": "color-ramp-8uhqmy",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#27231e",
+        "colorB": "#5a4c3a",
+        "low": 0.35000000000000003,
+        "high": 0.8
+      },
+      "position": {
+        "x": 2252,
+        "y": 259
+      },
+      "enabled": true,
+      "label": "Warm Concrete Colors"
+    },
+    {
+      "id": "blend-ajyngt",
+      "type": "blend",
+      "params": {
+        "mode": "mix",
+        "opacity": 1
+      },
+      "position": {
+        "x": 2700,
+        "y": 196
+      },
+      "enabled": true,
+      "label": "Worn Layer Color"
+    },
+    {
+      "id": "constant-field-hg22ul",
+      "type": "constant-field",
+      "params": {
+        "value": 0.69
+      },
+      "position": {
+        "x": 2252,
+        "y": 825
+      },
+      "enabled": true,
+      "label": "Rare Aggregate Threshold"
+    },
+    {
+      "id": "math-wbbicg",
+      "type": "math",
+      "params": {
+        "op": "greater-than",
+        "factor": 0.5,
+        "c": 0.5
+      },
+      "position": {
+        "x": 2700,
+        "y": 686
+      },
+      "enabled": true,
+      "label": "Sparse Mineral Specks"
+    },
+    {
+      "id": "color-ramp-ewcn5c",
+      "type": "color-ramp",
+      "params": {
+        "colorA": "#1c1b18",
+        "colorB": "#584f42",
+        "low": 0.16,
+        "high": 1
+      },
+      "position": {
+        "x": 2700,
+        "y": 439
+      },
+      "enabled": true,
+      "label": "Muted Aggregate Colors"
+    },
+    {
+      "id": "blend-38m18t",
+      "type": "blend",
+      "params": {
+        "mode": "mix",
+        "opacity": 0
+      },
+      "position": {
+        "x": 3148,
+        "y": 619
+      },
+      "enabled": true,
+      "label": "Embedded Mineral Color"
+    },
+    {
+      "id": "levels-wzlh3d",
+      "type": "levels",
+      "params": {
+        "min": 0.505,
+        "max": 0.535,
+        "invert": true
+      },
+      "position": {
+        "x": 2700,
+        "y": 1105
+      },
+      "enabled": true,
+      "label": "Shallow Layer Step"
+    },
+    {
+      "id": "levels-wfqa4c",
+      "type": "levels",
+      "params": {
+        "min": 0.48499999999999993,
+        "max": 0.525,
+        "invert": false
+      },
+      "position": {
+        "x": 2700,
+        "y": 1328
+      },
+      "enabled": true,
+      "label": "Compacted Fine Relief"
+    },
+    {
+      "id": "math-qh6owr",
+      "type": "math",
+      "params": {
+        "op": "mix",
+        "factor": 0.32,
+        "c": 0.45
+      },
+      "position": {
+        "x": 3148,
+        "y": 1214
+      },
+      "enabled": true,
+      "label": "Layered Surface Height"
+    },
+    {
+      "id": "levels-tdh30s",
+      "type": "levels",
+      "params": {
+        "min": 0.4,
+        "max": 0.9500000000000001,
+        "invert": true
+      },
+      "position": {
+        "x": 1356,
+        "y": 1435
+      },
+      "enabled": true,
+      "label": "Sparse Chip Depressions"
+    },
+    {
+      "id": "math-592a5s",
+      "type": "math",
+      "params": {
+        "op": "mix",
+        "factor": 0.09,
+        "c": 0.08
+      },
+      "position": {
+        "x": 3596,
+        "y": 1179
+      },
+      "enabled": true,
+      "label": "Pitted Shallow Height"
+    },
+    {
+      "id": "normal-from-height-m18ad5",
+      "type": "normal-from-height",
+      "params": {
+        "strength": 0.10500000000000001
+      },
+      "position": {
+        "x": 4044,
+        "y": 1046
+      },
+      "enabled": true,
+      "label": "Concrete Surface Normal"
+    },
+    {
+      "id": "levels-ffug9o",
+      "type": "levels",
+      "params": {
+        "min": 0.73,
+        "max": 0.9400000000000001,
+        "invert": false
+      },
+      "position": {
+        "x": 2700,
+        "y": 931
+      },
+      "enabled": true,
+      "label": "Wear Driven Roughness"
+    },
+    {
+      "id": "levels-iq0b3d",
+      "type": "levels",
+      "params": {
+        "min": 0.8,
+        "max": 0.95,
+        "invert": false
+      },
+      "position": {
+        "x": 2252,
+        "y": 1245
+      },
+      "enabled": true,
+      "label": "Porous Grain Roughness"
+    },
+    {
+      "id": "math-7h50js",
+      "type": "math",
+      "params": {
+        "op": "mix",
+        "factor": 0.5,
+        "c": 0.28
+      },
+      "position": {
+        "x": 3148,
+        "y": 969
+      },
+      "enabled": true,
+      "label": "Dry Floor Roughness"
+    },
+    {
+      "id": "levels-2jebae",
+      "type": "levels",
+      "params": {
+        "min": 0.4999999999999999,
+        "max": 0.93,
+        "invert": false
+      },
+      "position": {
+        "x": 4044,
+        "y": 1172
+      },
+      "enabled": true,
+      "label": "Subtle Cavity Occlusion"
+    },
+    {
+      "id": "principled-bsdf-dsj2qz",
+      "type": "principled-bsdf",
+      "params": {
+        "baseColor": "#303332",
+        "metallic": 0,
+        "roughness": 0.86,
+        "ior": 1.46,
+        "alpha": 1,
+        "coat": 0,
+        "coatRoughness": 0.03,
+        "sheen": 0,
+        "sheenRoughness": 0.3,
+        "transmission": 0,
+        "emission": "#000000",
+        "emissionStrength": 1
+      },
+      "position": {
+        "x": 4492,
+        "y": 806
+      },
+      "enabled": true,
+      "label": "Old Concrete PBR"
+    }
+  ],
+  "edges": [
+    {
+      "fromNode": "tileable-noise-kx2ta7",
+      "fromOutput": "field",
+      "toNode": "math-40pj86",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-kci1px",
+      "fromOutput": "field",
+      "toNode": "math-40pj86",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "tileable-noise-awg1m6",
+      "fromOutput": "field",
+      "toNode": "math-o76lan",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "tileable-noise-qzg0xp",
+      "fromOutput": "field",
+      "toNode": "math-o76lan",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-40pj86",
+      "fromOutput": "field",
+      "toNode": "math-5957rd",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "math-o76lan",
+      "fromOutput": "field",
+      "toNode": "math-5957rd",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-5957rd",
+      "fromOutput": "field",
+      "toNode": "height-blend-o59ico",
+      "toInput": "heightA"
+    },
+    {
+      "fromNode": "constant-field-ennzux",
+      "fromOutput": "field",
+      "toNode": "height-blend-o59ico",
+      "toInput": "heightB"
+    },
+    {
+      "fromNode": "tileable-noise-41uu08",
+      "fromOutput": "field",
+      "toNode": "height-blend-o59ico",
+      "toInput": "breakup"
+    },
+    {
+      "fromNode": "color-ramp-iu0556",
+      "fromOutput": "color",
+      "toNode": "blend-ajyngt",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "color-ramp-8uhqmy",
+      "fromOutput": "color",
+      "toNode": "blend-ajyngt",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "height-blend-o59ico",
+      "fromOutput": "fac",
+      "toNode": "blend-ajyngt",
+      "toInput": "mask"
+    },
+    {
+      "fromNode": "tileable-noise-5a6nr4",
+      "fromOutput": "field",
+      "toNode": "math-wbbicg",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "constant-field-hg22ul",
+      "fromOutput": "field",
+      "toNode": "math-wbbicg",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "tileable-noise-5a6nr4",
+      "fromOutput": "field",
+      "toNode": "color-ramp-ewcn5c",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "blend-ajyngt",
+      "fromOutput": "color",
+      "toNode": "blend-38m18t",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "color-ramp-ewcn5c",
+      "fromOutput": "color",
+      "toNode": "blend-38m18t",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "height-blend-o59ico",
+      "fromOutput": "fac",
+      "toNode": "levels-wzlh3d",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "tileable-noise-41uu08",
+      "fromOutput": "field",
+      "toNode": "levels-wfqa4c",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-wzlh3d",
+      "fromOutput": "field",
+      "toNode": "math-qh6owr",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "levels-wfqa4c",
+      "fromOutput": "field",
+      "toNode": "math-qh6owr",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-qh6owr",
+      "fromOutput": "field",
+      "toNode": "math-592a5s",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "levels-tdh30s",
+      "fromOutput": "field",
+      "toNode": "math-592a5s",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-592a5s",
+      "fromOutput": "field",
+      "toNode": "normal-from-height-m18ad5",
+      "toInput": "height"
+    },
+    {
+      "fromNode": "height-blend-o59ico",
+      "fromOutput": "fac",
+      "toNode": "levels-ffug9o",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "tileable-noise-41uu08",
+      "fromOutput": "field",
+      "toNode": "levels-iq0b3d",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "levels-ffug9o",
+      "fromOutput": "field",
+      "toNode": "math-7h50js",
+      "toInput": "a"
+    },
+    {
+      "fromNode": "levels-iq0b3d",
+      "fromOutput": "field",
+      "toNode": "math-7h50js",
+      "toInput": "b"
+    },
+    {
+      "fromNode": "math-592a5s",
+      "fromOutput": "field",
+      "toNode": "levels-2jebae",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "blend-38m18t",
+      "fromOutput": "color",
+      "toNode": "principled-bsdf-dsj2qz",
+      "toInput": "baseColor"
+    },
+    {
+      "fromNode": "math-7h50js",
+      "fromOutput": "field",
+      "toNode": "principled-bsdf-dsj2qz",
+      "toInput": "roughness"
+    },
+    {
+      "fromNode": "normal-from-height-m18ad5",
+      "fromOutput": "normal",
+      "toNode": "principled-bsdf-dsj2qz",
+      "toInput": "normal"
+    },
+    {
+      "fromNode": "levels-2jebae",
+      "fromOutput": "field",
+      "toNode": "principled-bsdf-dsj2qz",
+      "toInput": "ambientOcclusion"
+    },
+    {
+      "fromNode": "math-592a5s",
+      "fromOutput": "field",
+      "toNode": "principled-bsdf-dsj2qz",
+      "toInput": "height"
+    },
+    {
+      "fromNode": "principled-bsdf-dsj2qz",
+      "fromOutput": "bsdf",
+      "toNode": "out",
+      "toInput": "surface"
+    },
+    {
+      "fromNode": "math-wbbicg",
+      "fromOutput": "field",
+      "toNode": "levels-tdh30s",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "math-40pj86",
+      "fromOutput": "field",
+      "toNode": "color-ramp-iu0556",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "math-o76lan",
+      "fromOutput": "field",
+      "toNode": "color-ramp-8uhqmy",
+      "toInput": "field"
+    },
+    {
+      "fromNode": "tileable-noise-41uu08",
+      "fromOutput": "field",
+      "toNode": "blend-38m18t",
+      "toInput": "mask"
+    }
+  ],
+  "metadata": {
+    "title": "Untitled 17"
+  },
+  "ui": {
+    "editor": {
+      "activeGroupPath": [],
+      "soloNode": null,
+      "view": {
+        "layoutArrangement": "right",
+        "transform": {
+          "x": -3080.9827849842573,
+          "y": 260.8098766885055,
+          "k": 1.3967734191464538
+        }
+      }
+    },
+    "settings": {
+      "materialState": {
+        "debugNormals": false
+      },
+      "projectionState": {
+        "tiling": 1,
+        "triplanar": false,
+        "worldPerTile": 1.2,
+        "sharpness": 8,
+        "parallax": 0
+      },
+      "sceneState": {
+        "toneMapping": 4,
+        "exposure": 1,
+        "dirIntensity": 3,
+        "dirColor": "#ffffff",
+        "dirPosition": {
+          "x": 3,
+          "y": 4,
+          "z": 5
+        },
+        "ambIntensity": 0.35,
+        "ambColor": "#ffffff",
+        "envIntensity": 0.1,
+        "shadowSoftness": 4,
+        "shadowDarkness": 1
+      },
+      "rendererConfig": {
+        "antialias": true,
+        "samples": 8,
+        "pixelRatio": 2,
+        "transparentBg": false
+      }
+    }
+  }
+}

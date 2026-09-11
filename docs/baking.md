@@ -294,7 +294,8 @@ missing or incorrectly ordered render, snapshot, or document fails the round bef
 
 The final graph gate requires fewer than 60 total nodes, a friendly contribution-oriented label on every
 node, and no unconnected, unreachable, superseded, or non-contributing nodes. The author uses the MCP
-`get_render` `difference` view and its statistics to check every diff-capable data node. The
+`audit_node_contributions` batches and their `get_render`-equivalent difference statistics to check every
+diff-capable data node. The
 `principled-bsdf` shader and `material-output` nodes are connected but exempt because MCP isolation does
 not support shader/output nodes. Revisions must simplify
 or replace failed branches before adding new work instead of accumulating patches on a rejected approach.
@@ -330,3 +331,43 @@ npm run material:author-review -- /path/to/material-task \
   --author-model gpt-5.6-terra --author-effort high \
   --reviewer-model gpt-5.6-sol --reviewer-effort high
 ```
+
+Author and reviewer model setup is read from the project-root `.env`. Prefix an OpenRouter model slug
+with `openrouter:`:
+
+```dotenv
+OPENROUTER_API_KEY=sk-or-...
+MATERIAL_AUTHOR_MODEL=gpt-5.6-terra
+MATERIAL_AUTHOR_EFFORT=high
+MATERIAL_REVIEWER_MODEL=openrouter:deepseek/deepseek-v4.1-flash
+MATERIAL_REVIEWER_EFFORT=high
+```
+
+The runner loads this `.env` before building the child-agent environment; an already-exported process
+variable retains precedence. Comma-separated model or effort values define a turn schedule. Explicit
+`--author-model`, `--author-effort`, `--reviewer-model`, and `--reviewer-effort` options override their
+corresponding `.env` schedules. Plain model IDs use the ChatGPT subscription provider, so both providers
+can appear in the same schedule:
+
+```sh
+npm run material:author-review -- /path/to/material-task \
+  --author-model gpt-5.6-terra \
+  --author-model openrouter:anthropic/claude-sonnet-4.5 \
+  --reviewer-model openrouter:google/gemini-2.5-pro
+```
+
+OpenRouter author models must support tool calling and structured outputs. Reviewer models must support
+image input and structured outputs. Before any agent turn, the runner checks OpenRouter's live model
+catalog and rejects unsupported model/effort pairs. For `deepseek/deepseek-v4.1-flash`, the supported
+efforts are `low`, `high`, and `max`. The generated Codex provider uses command-backed authentication
+to read `OPENROUTER_API_KEY` from the child environment. Before starting an agent, the runner converts
+the scheduled entries from OpenRouter's validated live catalog into Codex metadata and writes them to
+`openrouter-model-catalog.json` in the run artifact folder. Every OpenRouter turn receives that file
+through `model_catalog_json`, avoiding dependence on Codex's shared catalog cache and its
+fallback-metadata warning. The OpenRouter provider uses its Responses endpoint; retries, MCP tools,
+sandboxing, snapshots, result schemas, and evidence capture remain controlled by Codex CLI.
+
+Tool-using OpenRouter author and save turns do not receive Codex CLI's `--output-schema`, because some
+external models complete the structured response immediately instead of calling MCP when both features
+are requested together. Their final response is still parsed and validated by the runner. Reviewer turns,
+which never use tools, continue to use the CLI output schema.

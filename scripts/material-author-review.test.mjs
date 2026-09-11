@@ -7,13 +7,37 @@ import test from "node:test";
 import {
   AUTHOR_SCHEMA,
   CONTINUE_AFTER_TRANSPORT_FAILURE,
+  authorInitialPrompt,
+  authorRevisionPrompt,
+  assertOpenRouterModelConfiguration,
   buildCodexArgs,
   compactOutput,
   createRunLogger,
+  parseArgs,
+  parseModelSpec,
   runCodex,
   runCodexAttempt,
   sanitizeEnvironment,
+  validateOpenRouterModelSchedules,
 } from "./material-author-review.mjs";
+
+test("author prompts preserve material principles and cumulative revision history", () => {
+  const initial = authorInitialPrompt("brief", "Test Material", 85);
+  assert.match(initial, /causal model of a physical surface/);
+  assert.match(initial, /Build structure in grayscale from coarse to fine/);
+
+  const history = [
+    { round: 1, review: { score: 40, summary: "Too flat.", requiredChanges: ["Add depth."] } },
+    { round: 2, review: { score: 62, summary: "Depth improved; color is cold.", requiredChanges: ["Warm the substrate."] } },
+  ];
+  const revision = authorRevisionPrompt(3, 8, history, "Preserved the working relief.", 85, "brief");
+  assert.match(revision, /iteration 3 of at most 8/);
+  assert.match(revision, /This is cumulative work, not a new material task/);
+  assert.match(revision, /Iteration 1, score 40\/100: Too flat/);
+  assert.match(revision, /Most recent reviewer feedback, from iteration 2/);
+  assert.match(revision, /Depth improved; color is cold/);
+  assert.match(revision, /material itself was not reset/);
+});
 
 function silenceConsole(callback) {
   const original = { log: console.log, error: console.error, warn: console.warn };
@@ -35,6 +59,7 @@ test("sanitized child environment keeps MCP settings but removes parent auth and
   assert.deepEqual(sanitizeEnvironment({
     PATH: "/bin",
     MD_WS_PORT: "6000",
+    OPENROUTER_API_KEY: "openrouter-secret",
     OPENAI_API_KEY: "sk-secret",
     CODEX_API_KEY: "secret",
     CODEX_SESSION_ID: "parent-session",
@@ -42,6 +67,7 @@ test("sanitized child environment keeps MCP settings but removes parent auth and
   }), {
     PATH: "/bin",
     MD_WS_PORT: "6000",
+    OPENROUTER_API_KEY: "openrouter-secret",
   });
 });
 
@@ -76,6 +102,100 @@ test("Codex invocation is self-contained and forces ChatGPT Responses over HTTPS
   }).join("\n");
   assert.doesNotMatch(reviewerArgs, /mcp_servers\.material-designer/);
   assert.match(reviewerArgs, /sandbox_mode="read-only"/);
+});
+
+test("OpenRouter model specs keep Codex as the harness and select the external provider", () => {
+  const args = buildCodexArgs({
+    env: { OPENROUTER_API_KEY: "test-key" },
+    images: ["/tmp/render.png"],
+    model: "openrouter:anthropic/claude-sonnet-4.5",
+    effort: "high",
+    outputSchemaPath: "/tmp/schema.json",
+    threadId: "",
+    role: "reviewer",
+    modelCatalogPath: "/tmp/openrouter-model-catalog.json",
+  });
+  const joined = args.join("\n");
+  const modelIndex = args.indexOf("--model");
+
+  assert.equal(args[modelIndex + 1], "anthropic/claude-sonnet-4.5");
+  assert.match(joined, /model_provider="material_author_review_openrouter"/);
+  assert.match(joined, /base_url="https:\/\/openrouter\.ai\/api\/v1"/);
+  assert.match(joined, /wire_api="responses"/);
+  assert.match(joined, /model_providers\.material_author_review_openrouter\.auth\.command=/);
+  assert.match(joined, /model_providers\.material_author_review_openrouter\.auth\.args=/);
+  assert.match(joined, /OPENROUTER_API_KEY/);
+  assert.match(joined, /model_catalog_json="\/tmp\/openrouter-model-catalog\.json"/);
+  assert.doesNotMatch(joined, /env_key=/);
+  assert.doesNotMatch(joined, /test-key/);
+  assert.doesNotMatch(joined, /chatgpt\.com\/backend-api\/codex/);
+  assert.doesNotMatch(joined, /mcp_servers\.material-designer/);
+  assert.deepEqual(parseModelSpec("openrouter:google/gemini-2.5-pro"), {
+    provider: "openrouter",
+    model: "google/gemini-2.5-pro",
+  });
+  assert.throws(() => parseModelSpec("openrouter:"), /provider.*model/);
+
+  const authorArgs = buildCodexArgs({
+    env: { OPENROUTER_API_KEY: "test-key" },
+    images: [],
+    model: "openrouter:deepseek/deepseek-v4.1-flash",
+    effort: "high",
+    outputSchemaPath: "/tmp/author-schema.json",
+    threadId: "",
+    role: "author",
+    modelCatalogPath: "/tmp/openrouter-model-catalog.json",
+  });
+  assert.doesNotMatch(authorArgs.join("\n"), /--output-schema/);
+});
+
+test("model and effort schedules load from the environment with CLI overrides", () => {
+  const environment = {
+    MATERIAL_AUTHOR_MODEL: "gpt-5.6-terra,openrouter:anthropic/claude-sonnet-4.5",
+    MATERIAL_AUTHOR_EFFORT: "high,medium",
+    MATERIAL_REVIEWER_MODEL: "openrouter:google/gemini-2.5-pro",
+    MATERIAL_REVIEWER_EFFORT: "low",
+  };
+  const configured = parseArgs(["/tmp/material"], environment);
+
+  assert.deepEqual(configured.authorModels, ["gpt-5.6-terra", "openrouter:anthropic/claude-sonnet-4.5"]);
+  assert.deepEqual(configured.authorEfforts, ["high", "medium"]);
+  assert.deepEqual(configured.reviewerModels, ["openrouter:google/gemini-2.5-pro"]);
+  assert.deepEqual(configured.reviewerEfforts, ["low"]);
+
+  const overridden = parseArgs([
+    "/tmp/material", "--author-model", "gpt-5.6-sol", "--reviewer-effort", "xhigh",
+  ], environment);
+  assert.deepEqual(overridden.authorModels, ["gpt-5.6-sol"]);
+  assert.deepEqual(overridden.reviewerEfforts, ["xhigh"]);
+});
+
+test("OpenRouter effort validation uses live per-model capabilities", async () => {
+  const catalog = { data: [{
+    id: "deepseek/deepseek-v4.1-flash",
+    architecture: { input_modalities: ["text", "image"] },
+    supported_parameters: ["reasoning", "reasoning_effort", "structured_outputs", "tools"],
+    reasoning: { supported_efforts: ["max", "high", "low"], default_effort: "high" },
+  }] };
+  const options = {
+    maxRounds: 2,
+    authorModels: ["openrouter:deepseek/deepseek-v4.1-flash"],
+    authorEfforts: ["high"],
+    reviewerModels: ["openrouter:deepseek/deepseek-v4.1-flash"],
+    reviewerEfforts: ["low"],
+  };
+
+  assert.equal(validateOpenRouterModelSchedules(options, catalog).length, 2);
+  assert.throws(
+    () => validateOpenRouterModelSchedules({ ...options, reviewerEfforts: ["medium"] }, catalog),
+    /does not support effort "medium".*max, high, low/,
+  );
+  await silenceConsole(() => assertOpenRouterModelConfiguration(
+    options,
+    { OPENROUTER_API_KEY: "test-key" },
+    null,
+    async () => ({ ok: true, json: async () => catalog }),
+  ));
 });
 
 test("event output compacts binary payloads and redacts secret-shaped fields", () => {
@@ -126,6 +246,12 @@ test("a completed turn survives an earlier stream error and logs every event", a
       console.log(JSON.stringify({ type: "item.completed", item: {
         type: "mcp_tool_call", tool: "get_render", status: "completed",
         arguments: { nodeId: "node-a", view: "difference", size: 1024, maxDim: 1024, profile: "standard", scale: 1 },
+        result: { content: [{ type: "image", mimeType: "image/png", data: ${JSON.stringify(png)} }]
+        }
+      } }));
+      console.log(JSON.stringify({ type: "item.completed", item: {
+        type: "mcp_tool_call", tool: "get_render", status: "completed",
+        arguments: { size: 1024, maxDim: 1024, profile: "standard", scale: 1 },
         result: { content: [{ type: "image", mimeType: "image/png", data: ${JSON.stringify(png)} }]
         }
       } }));
@@ -246,4 +372,115 @@ test("terminal transport retry resumes the captured thread with a continuation p
   assert.equal(state.attempts[1].input, CONTINUE_AFTER_TRANSPORT_FAILURE);
   assert.deepEqual(state.attempts[1].argv.slice(0, 2), ["exec", "resume"]);
   assert.ok(state.attempts[1].argv.includes("thread-retry"));
+});
+
+test("idle watchdog terminates a silent turn and resumes it", async () => {
+  const root = mkdtempSync(join(tmpdir(), "material-author-review-idle-test-"));
+  const statePath = join(root, "state.json");
+  const fakeCli = writeFakeCli(root, `
+    import { existsSync, readFileSync, writeFileSync } from "node:fs";
+    let input = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => { input += chunk; });
+    process.stdin.on("end", () => {
+      const statePath = process.env.FAKE_CODEX_STATE_PATH;
+      const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")) : { attempts: [] };
+      state.attempts.push({ argv: process.argv.slice(2), input });
+      writeFileSync(statePath, JSON.stringify(state));
+      console.log(JSON.stringify({ type: "thread.started", thread_id: "thread-idle" }));
+      if (state.attempts.length === 1) {
+        setInterval(() => {}, 1000);
+        return;
+      }
+      console.log(JSON.stringify({ type: "item.completed", item: {
+        type: "agent_message", text: ${JSON.stringify(JSON.stringify({
+          status: "revised", summary: "resumed after idle", savedVersionId: "", snapshotId: "snapshot-1",
+          nodeCount: 2, contributionChecks: 0,
+        }))}
+      } }));
+      console.log(JSON.stringify({ type: "turn.completed", usage: {} }));
+    });
+  `);
+  const thread = { id: "", model: "" };
+
+  const turn = await silenceConsole(() => runCodex({
+    role: "author",
+    phase: "authoring",
+    round: 1,
+    thread,
+    prompt: "initial prompt",
+    images: [],
+    schema: AUTHOR_SCHEMA,
+    timeoutMs: 3_000,
+    idleTimeoutMs: 300,
+    transportRetries: 1,
+    retryBaseDelayMs: 1,
+    random: () => 0,
+    env: { ...process.env, FAKE_CODEX_STATE_PATH: statePath },
+    cliPath: fakeCli,
+  }));
+
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(turn.result.summary, "resumed after idle");
+  assert.equal(state.attempts.length, 2);
+  assert.equal(state.attempts[1].input, CONTINUE_AFTER_TRANSPORT_FAILURE);
+  assert.ok(state.attempts[1].argv.includes("thread-idle"));
+});
+
+test("provider tool-history incompatibility retries on a fresh thread", async () => {
+  const root = mkdtempSync(join(tmpdir(), "material-author-review-provider-history-test-"));
+  const statePath = join(root, "state.json");
+  const fakeCli = writeFakeCli(root, `
+    import { existsSync, readFileSync, writeFileSync } from "node:fs";
+    let input = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => { input += chunk; });
+    process.stdin.on("end", () => {
+      const statePath = process.env.FAKE_CODEX_STATE_PATH;
+      const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")) : { attempts: [] };
+      state.attempts.push({ argv: process.argv.slice(2), input });
+      writeFileSync(statePath, JSON.stringify(state));
+      if (state.attempts.length === 1) {
+        console.log(JSON.stringify({ type: "thread.started", thread_id: "thread-incompatible" }));
+        console.log(JSON.stringify({ type: "turn.failed", error: {
+          message: "509 request validation errors: Extra inputs are not permitted, field: messages[4].tool_calls[0].namespace"
+        } }));
+        return;
+      }
+      console.log(JSON.stringify({ type: "thread.started", thread_id: "thread-fresh" }));
+      console.log(JSON.stringify({ type: "item.completed", item: {
+        type: "agent_message", text: ${JSON.stringify(JSON.stringify({
+          status: "revised", summary: "continued live document", savedVersionId: "", snapshotId: "snapshot-1",
+          nodeCount: 2, contributionChecks: 0,
+        }))}
+      } }));
+      console.log(JSON.stringify({ type: "turn.completed", usage: {} }));
+    });
+  `);
+  const thread = { id: "", model: "" };
+
+  const turn = await silenceConsole(() => runCodex({
+    role: "author",
+    phase: "authoring",
+    round: 1,
+    thread,
+    prompt: "original material task",
+    images: [],
+    schema: AUTHOR_SCHEMA,
+    timeoutMs: 2_000,
+    idleTimeoutMs: 1_000,
+    transportRetries: 1,
+    retryBaseDelayMs: 1,
+    random: () => 0,
+    env: { ...process.env, FAKE_CODEX_STATE_PATH: statePath },
+    cliPath: fakeCli,
+  }));
+
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(turn.result.summary, "continued live document");
+  assert.equal(state.attempts.length, 2);
+  assert.equal(state.attempts[1].argv.includes("resume"), false);
+  assert.match(state.attempts[1].input, /fresh replacement thread/);
+  assert.match(state.attempts[1].input, /original material task/);
+  assert.equal(thread.id, "thread-fresh");
 });
