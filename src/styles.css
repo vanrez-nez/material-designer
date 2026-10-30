@@ -379,7 +379,23 @@ body {
   flex: 1 1 100% !important;
 }
 
+/* Each pane is its own rounded container; the gaps between them hold the resize handles. Half the gap
+   pads the layout and half pads each pane's panel, so every gap is even. */
+.workspace-body {
+  padding: var(--tp-space-1);
+}
+
+.workspace-layout [data-panel]:has(> .workspace-pane) {
+  padding: var(--tp-space-1);
+}
+
+.workspace-layout--maximized [data-panel]:has(> .workspace-pane--hidden-by-maximize) {
+  padding: 0;
+}
+
 .workspace-pane {
+  border: var(--tp-border-width) solid var(--tp-border);
+  border-radius: var(--tp-radius-lg);
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -412,9 +428,9 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--tp-text-xs);
-  font-weight: var(--tp-font-medium);
-  color: var(--tp-muted-foreground);
+  font-size: var(--tp-text-sm);
+  font-weight: var(--tp-font-normal);
+  color: var(--tp-foreground);
 }
 
 
@@ -977,4 +993,9 @@ body {
   100% {
     left: 100%;
   }
+}
+
+/* The title button keeps clear space between its pencil and the document name. */
+.document-title__name::part(button) {
+  gap: var(--tp-space-2);
 }

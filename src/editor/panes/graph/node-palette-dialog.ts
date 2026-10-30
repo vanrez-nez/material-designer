@@ -78,8 +78,9 @@ export class AddNodeControl {
       col.appendChild(head);
       for (const item of group.items) {
         const itemButton = document.createElement("tp-button") as TpButton;
+        itemButton.className = "node-palette-dialog__item";
         itemButton.variant = "ghost";
-        itemButton.size = "sm";
+        itemButton.size = "xs";
         itemButton.textContent = item.label;
         itemButton.addEventListener("click", () => {
           this.close();

@@ -121,9 +121,13 @@ export class FloatingWidget {
         collapsible.appendChild(this.summaryEl);
       }
       collapsible.appendChild(this.body);
+      // The summary repeats the body in brief, so it shows beside the title only while collapsed.
+      if (this.summaryEl) this.summaryEl.hidden = !collapsed;
       collapsible.addEventListener("tp-open-change", (event) => {
         if (event.target !== collapsible) return;
-        this.persistCollapsed(!(event as CustomEvent<{ value: boolean }>).detail.value);
+        const open = (event as CustomEvent<{ value: boolean }>).detail.value;
+        if (this.summaryEl) this.summaryEl.hidden = open;
+        this.persistCollapsed(!open);
       });
       this.collapsible = collapsible;
       this.root.appendChild(collapsible);
@@ -196,6 +200,7 @@ export class FloatingWidget {
 
   setCollapsed(collapsed: boolean): void {
     if (this.collapsible) this.collapsible.open = !collapsed;
+    if (this.collapsible && this.summaryEl) this.summaryEl.hidden = !collapsed;
     this.persistCollapsed(collapsed);
   }
 

@@ -27,6 +27,12 @@
   block-size: 100%;
 }
 
+/* The workspace pane is the container: the widget draws no frame of its own inside it. */
+.fe-flow::part(flow) {
+  border: 0;
+  border-radius: 0;
+}
+
 /* Usage hint in the canvas's bottom-end panel. */
 .ne-canvas__tip {
   padding: var(--tp-space-1) var(--tp-space-2);

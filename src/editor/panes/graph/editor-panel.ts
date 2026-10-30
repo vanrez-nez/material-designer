@@ -100,10 +100,9 @@ export class EditorPanel {
     flow.className = 'fe-flow'
     flow.label = 'Material graph'
     flow.background = 'dots'
-    // Wheel zooms toward the pointer and dragging the background pans; Shift + wheel pans (onShiftWheel) and
-    // Shift + drag draws a selection marquee.
+    // Wheel zooms toward the pointer and Shift + wheel pans (onShiftWheel). Dragging a node moves it, and a
+    // press on the empty canvas clears the selection (dragging there draws a selection marquee).
     flow.wheel = 'zoom'
-    flow.defaultTool = 'pan'
     flow.minZoom = MIN_ZOOM
     flow.maxZoom = MAX_ZOOM
     // Nodes keep their full content (their parameter panes) at every zoom.

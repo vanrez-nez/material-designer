@@ -27,8 +27,13 @@
   white-space: nowrap;
 }
 
+.floating-widget__summary[hidden] {
+  display: none;
+}
+
 .floating-widget__summary {
   flex: 1;
+  font-size: var(--tp-text-xs);
   min-width: 0;
   text-align: end;
   color: var(--tp-muted-foreground);

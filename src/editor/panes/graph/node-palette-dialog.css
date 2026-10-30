@@ -1,4 +1,11 @@
-/* Node palette: a TweakPad dialog scoped to the graph pane (container modality), one column per category. */
+/* Node palette: a TweakPad dialog scoped to the graph pane (container modality), one column per category.
+   The dialog takes the width its columns need (one row when the pane allows), up to the pane's width; its
+   content renders in the portal host the dialog places in the canvas. */
+.ne-canvas > [data-dialog-portal]::part(dialog-content) {
+  inline-size: max-content;
+  max-inline-size: 100%;
+}
+
 .node-palette-dialog__columns {
   display: flex;
   flex-wrap: wrap;
@@ -29,3 +36,8 @@
 .node-palette-dialog__col-head[data-category="converter"] { color: #79b3b3; }
 .node-palette-dialog__col-head[data-category="shader"] { color: #86c796; }
 
+
+/* Items read as a left-aligned list under their category. */
+.node-palette-dialog__item::part(button) {
+  justify-content: flex-start;
+}
