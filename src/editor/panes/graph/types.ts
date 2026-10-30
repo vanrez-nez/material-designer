@@ -1,10 +1,7 @@
 // The generic config contract the editor consumes. This module is intentionally decoupled
 // from any specific domain (e.g. the material graph): callers describe their graph as plain data
 // plus a `mountControls` hook, and the editor renders it. The material side supplies this via an
-// adapter (material-editor-config.ts), so the Rete wrapper stays reusable inside the graph pane.
-
-/** Where the editor panel is anchored. */
-export type DockMode = 'left' | 'top' | 'bottom'
+// adapter (material-editor-config.ts), so the editor panel stays reusable inside the graph pane.
 
 export type EditorSocketConfig = {
   /** Unique-per-node key the connections reference. */

@@ -201,7 +201,7 @@ function PaneFrame({
             variant="ghost"
             onClick={() => setMaximizedPane(maximized ? null : paneId)}
           >
-            {maximized ? <X className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+            {maximized ? <X /> : <Maximize2 />}
           </Button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 
+import { Alert } from "@/components/ui/primitives/alert";
 import { Button } from "@/components/ui/primitives/button";
 import { Checkbox } from "@/components/ui/primitives/checkbox";
 import {
@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/primitives/dialog";
+import { Field } from "@/components/ui/primitives/field";
 import {
   Select,
   SelectContent,
@@ -106,7 +107,7 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
 
   return (
     <Dialog open={open} onOpenChange={(next) => (isExporting ? undefined : onOpenChange(next))}>
-      <DialogContent className="sm:max-w-md" showCloseButton={!isExporting}>
+      <DialogContent showCloseButton={!isExporting}>
         <DialogHeader>
           <DialogTitle>Export Textures</DialogTitle>
           <DialogDescription>
@@ -114,18 +115,14 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col">
-              <span className="text-sm">Texture size</span>
-              <span className="text-xs text-muted-foreground">Resolution for every exported map.</span>
-            </div>
+        <div className="texture-export__form">
+          <Field description="Resolution for every exported map." label="Texture size" orientation="horizontal">
             <Select
               disabled={isExporting}
               value={String(size)}
               onValueChange={(value) => setSize(Number(value))}
             >
-              <SelectTrigger aria-label="Texture size" className="w-32 bg-background" size="sm">
+              <SelectTrigger size="sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -136,38 +133,30 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-sm">Channels</span>
-            <div className="grid gap-2 rounded-md border bg-muted/20 p-3">
-              {TEXTURE_CHANNELS.map((channel) => {
-                const id = `texture-export-${channel.id}`;
-                const connected = available.has(channel.socket);
-
-                return (
-                  <label
-                    key={channel.id}
-                    className="flex cursor-pointer items-center justify-between gap-3 rounded-sm py-1 text-sm has-disabled:cursor-not-allowed has-disabled:text-muted-foreground"
-                    htmlFor={id}
-                  >
-                    <span>{channel.label}</span>
-                    <Checkbox
-                      checked={selected.has(channel.socket)}
-                      disabled={isExporting || !connected}
-                      id={id}
-                      onCheckedChange={(checked) => setChannel(channel.socket, checked === true)}
-                    />
-                  </label>
-                );
-              })}
+          <Field legend="Channels" legendScale="field">
+            <div slot="group" className="texture-export__channels">
+              {TEXTURE_CHANNELS.map((channel) => (
+                <Field
+                  key={channel.id}
+                  disabled={isExporting || !available.has(channel.socket)}
+                  label={channel.label}
+                  orientation="horizontal"
+                >
+                  <Checkbox
+                    checked={selected.has(channel.socket)}
+                    onCheckedChange={(checked) => setChannel(channel.socket, checked)}
+                  />
+                </Field>
+              ))}
             </div>
-          </div>
+          </Field>
 
           {error ? (
-            <p className="text-xs text-destructive" role="alert">
+            <Alert announcement="assertive" severity="danger" title="Texture export failed">
               {error}
-            </p>
+            </Alert>
           ) : null}
         </div>
 
@@ -177,8 +166,12 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
               Cancel
             </Button>
           </DialogClose>
-          <Button disabled={exportDisabled} type="button" onClick={() => void handleExport()}>
-            {isExporting ? <Loader2 className="animate-spin" /> : null}
+          <Button
+            disabled={exportDisabled}
+            loading={isExporting}
+            type="button"
+            onClick={() => void handleExport()}
+          >
             Export
           </Button>
         </DialogFooter>

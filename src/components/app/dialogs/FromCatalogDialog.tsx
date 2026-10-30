@@ -10,7 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/primitives/dialog";
-import { cn } from "@/lib/utils";
+import { DescriptionList, DescriptionListItem } from "@/components/ui/primitives/description-list";
+import { EmptyState } from "@/components/ui/primitives/empty-state";
+import { ScrollArea } from "@/components/ui/primitives/scroll-area";
+import { Spinner } from "@/components/ui/primitives/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
 import {
   categoryCounts,
   loadCatalog,
@@ -77,69 +81,62 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
           <DialogDescription>Browse the material catalog by category.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex h-[60vh] gap-4">
-          {/* Left column: category sidebar. */}
-          <div className="w-48 shrink-0 overflow-y-auto rounded-md border p-1">
-            {(catalog?.categories ?? []).map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                className={cn(
-                  "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent",
-                  categoryId === category.id && "bg-accent font-medium",
-                )}
-                onClick={() => setCategoryId(category.id)}
-              >
-                <span className="truncate">{category.label}</span>
-                <span className="text-xs text-muted-foreground">({counts[category.id] ?? 0})</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Right column: thumbnail grid for the selected category. */}
-          <div className="min-w-0 flex-1 overflow-y-auto rounded-md border p-3">
-            {!catalog ? (
-              <p className="text-sm text-muted-foreground">Loading catalog…</p>
-            ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-3">
-              {materials.map((material) => (
-                <button
-                  key={material.id}
-                  type="button"
-                  className={cn(
-                    "group flex flex-col overflow-hidden rounded-md border text-left transition-colors hover:border-ring",
-                    selectedId === material.id && "border-primary ring-1 ring-primary",
-                  )}
-                  onClick={() => setSelectedId(material.id)}
-                  onDoubleClick={() => openMaterial(material)}
-                >
-                  <img
-                    src={`${import.meta.env.BASE_URL}${material.thumbnail}`}
-                    alt={material.name}
-                    className="aspect-square w-full object-cover"
-                    draggable={false}
-                  />
-                  <span className="truncate px-2 py-1.5 text-xs">{material.name}</span>
-                </button>
+        <div className="catalog-browser">
+          <ScrollArea className="toggle-list" label="Categories">
+            <ToggleGroup label="Category" onValueChange={setCategoryId} orientation="vertical" value={categoryId}>
+              {(catalog?.categories ?? []).map((category) => (
+                <ToggleGroupItem key={category.id} value={category.id}>
+                  <span className="toggle-list__name">{category.label}</span>
+                  <span className="toggle-list__detail">{counts[category.id] ?? 0}</span>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
+          </ScrollArea>
+
+          <ScrollArea className="catalog-browser__materials" label="Materials">
+            {!catalog ? (
+              <EmptyState mediaTreatment="icon" title="Loading catalog…">
+                <Spinner label="" slot="media" />
+              </EmptyState>
+            ) : (
+              <ToggleGroup
+                className="catalog-grid"
+                label="Material"
+                onValueChange={setSelectedId}
+                value={selectedId ?? ""}
+                variant="outline"
+              >
+                {materials.map((material) => (
+                  <ToggleGroupItem
+                    key={material.id}
+                    className="catalog-card"
+                    value={material.id}
+                    onDoubleClick={() => openMaterial(material)}
+                  >
+                    <img
+                      src={`${import.meta.env.BASE_URL}${material.thumbnail}`}
+                      alt=""
+                      className="catalog-card__image"
+                      draggable={false}
+                    />
+                    <span className="catalog-card__name">{material.name}</span>
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
             )}
-          </div>
+          </ScrollArea>
         </div>
 
-        <DialogFooter className="sm:items-center sm:justify-between">
-          <div className="min-w-0 truncate text-xs">
-            {selected ? (
-              <>
-                <span className="text-foreground">Name:</span>{" "}
-                <span className="text-muted-foreground/60">{selected.name}</span>
-                <span className="ml-3 text-foreground">Nodes:</span>{" "}
-                <span className="text-muted-foreground/60">{selected.nodeCount}</span>
-                <span className="ml-3 text-foreground">Textures:</span>{" "}
-                <span className="text-muted-foreground/60">{selected.textures.length}</span>
-              </>
-            ) : null}
-          </div>
+        <DialogFooter className="justify-between">
+          {selected ? (
+            <DescriptionList orientation="horizontal">
+              <DescriptionListItem label="Name">{selected.name}</DescriptionListItem>
+              <DescriptionListItem label="Nodes">{selected.nodeCount}</DescriptionListItem>
+              <DescriptionListItem label="Textures">{selected.textures.length}</DescriptionListItem>
+            </DescriptionList>
+          ) : (
+            <span />
+          )}
           <div className="flex gap-2">
             <DialogClose asChild>
               <Button type="button" variant="ghost">

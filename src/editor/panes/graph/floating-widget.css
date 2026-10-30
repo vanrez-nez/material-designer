@@ -1,15 +1,15 @@
-/* Reusable floating panel for the graph canvas overlays (bake widget, zoom controls, add-node).
-   Dark panel idiom shared with the editor (editor.css). Positioned by inline styles (8 anchors). */
+/* Floating overlay panel over the graph and scene canvases (zoom, add-node, scene and bake widgets).
+   Positioned by inline styles (8 anchors); the controls inside are TweakPad components. */
 .floating-widget {
   position: absolute;
   z-index: 5;
-  background: #202227;
-  color: #d6d9df;
-  border: 1px solid #3a3d44;
-  border-radius: 8px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  font-family: system-ui, sans-serif;
-  font-size: 11px;
+  border: var(--tp-border-width) solid var(--tp-border);
+  border-radius: var(--tp-radius-lg);
+  background: var(--tp-popover);
+  color: var(--tp-popover-foreground);
+  box-shadow: var(--tp-shadow-lg);
+  font-family: var(--tp-font-sans);
+  font-size: var(--tp-text-xs);
   user-select: none;
   overflow: hidden;
 }
@@ -17,136 +17,41 @@
 .floating-widget__header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: #2a2c31;
-  border-bottom: 1px solid #3a3d44;
-}
-.floating-widget__header--collapsible {
-  cursor: pointer;
-}
-.floating-widget--collapsed .floating-widget__header {
-  border-bottom: none;
+  gap: var(--tp-space-1-5);
+  padding: var(--tp-space-1-5) var(--tp-space-2);
+  border-bottom: var(--tp-border-width) solid var(--tp-border);
 }
 
 .floating-widget__title {
-  font-weight: 600;
-  color: #c8ccd4;
+  font-weight: var(--tp-font-semibold);
   white-space: nowrap;
 }
+
 .floating-widget__summary {
   flex: 1;
-  text-align: right;
-  color: #8b919c;
+  min-width: 0;
+  text-align: end;
+  color: var(--tp-muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .floating-widget--busy .floating-widget__summary {
-  color: #5b8fd6;
-}
-.floating-widget__chevron {
-  color: #8b919c;
-  transition: transform 0.15s ease;
-}
-.floating-widget--collapsed .floating-widget__chevron {
-  transform: rotate(-90deg);
+  color: var(--tp-primary);
 }
 
 .floating-widget__body {
   display: flex;
-  gap: 6px;
+  gap: var(--tp-space-1);
+  padding: var(--tp-space-1);
 }
+
 .floating-widget__body--vertical {
   flex-direction: column;
-  padding: 8px;
 }
+
 .floating-widget__body--horizontal {
   flex-direction: row;
   align-items: center;
-  padding: 4px;
-}
-.floating-widget--collapsed .floating-widget__body {
-  display: none;
-}
-
-/* Compact button used by button-group widgets (zoom, add-node). Matches .ne-dock__btn. */
-.fw__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 24px;
-  min-width: 26px;
-  padding: 0 5px;
-  background: #34373e;
-  border: 1px solid #3a3d44;
-  border-radius: 4px;
-  color: #c8ccd4;
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-}
-.fw__btn:hover {
-  background: #3f434b;
-}
-.fw__btn:active {
-  background: #454b54;
-}
-/* Checked/toggled-on state (matches the editor's .ne-dock__btn.is-active accent). */
-.fw__btn--active {
-  background: #5b8fd6;
-  border-color: #5b8fd6;
-  color: #fff;
-}
-.fw__btn--active:hover {
-  background: #6a99da;
-}
-
-/* Native <select> used inside a widget body (e.g. the model picker). Matches the .fw__btn idiom. */
-.fw__select {
-  height: 24px;
-  max-width: 160px;
-  padding: 0 6px;
-  background: #34373e;
-  border: 1px solid #3a3d44;
-  border-radius: 4px;
-  color: #c8ccd4;
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-}
-.fw__select:hover {
-  background: #3f434b;
-}
-.fw__select:focus-visible {
-  outline: none;
-  border-color: #5b8fd6;
-}
-.floating-widget--busy .fw__select,
-.fw__select:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* Divider to group buttons within a widget body; orientation follows the body class. */
-.floating-widget__sep {
-  background: #3a3d44;
-  flex: none;
-  align-self: stretch;
-}
-.floating-widget__body--vertical .floating-widget__sep {
-  height: 1px;
-  margin: 2px 0;
-}
-.floating-widget__body--horizontal .floating-widget__sep {
-  width: 1px;
-  margin: 0 2px;
-}
-.fw__btn .lucide-icon {
-  display: block;
-  fill: none;
-  pointer-events: none;
-  stroke: currentColor;
-  stroke-width: 2;
 }

@@ -10,14 +10,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/primitives/dialog";
+import { EmptyState } from "@/components/ui/primitives/empty-state";
+import { ScrollArea } from "@/components/ui/primitives/scroll-area";
+import { Time } from "@/components/ui/primitives/time";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/primitives/tooltip";
-import { cn } from "@/lib/utils";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/datetime";
 import { listDocuments, useDocumentLibraryStore } from "@/store/document-library";
 
 type OpenDocumentDialogProps = {
@@ -31,19 +33,11 @@ export function OpenDocumentDialog({ onOpen, onOpenChange, open }: OpenDocumentD
   const activeId = useDocumentLibraryStore((state) => state.activeId);
   const entries = useMemo(() => listDocuments(documents), [documents]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Re-render periodically while open so the relative "last modified" text stays fresh.
-  const [, setTick] = useState(0);
 
   useEffect(() => {
     if (!open) return;
     setSelectedId(activeId ?? entries[0]?.id ?? null);
   }, [open, activeId, entries]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const interval = setInterval(() => setTick((tick) => tick + 1), 30_000);
-    return () => clearInterval(interval);
-  }, [open]);
 
   function handleOpen(): void {
     if (!selectedId) return;
@@ -53,56 +47,47 @@ export function OpenDocumentDialog({ onOpen, onOpenChange, open }: OpenDocumentD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Open Document</DialogTitle>
           <DialogDescription>Pick a saved document to open.</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[60vh] overflow-y-auto rounded-md border">
-          {entries.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">No saved documents yet.</p>
-          ) : (
+        {entries.length === 0 ? (
+          <EmptyState title="No saved documents yet." />
+        ) : (
+          <ScrollArea className="toggle-list open-document-list" label="Saved documents">
             <TooltipProvider>
-              <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 bg-muted/40 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">Title</th>
-                    <th className="px-3 py-2 text-right font-medium">Last modified</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      className={cn(
-                        "cursor-pointer border-t border-border/60 transition-colors hover:bg-accent",
-                        selectedId === entry.id && "bg-accent",
-                      )}
-                      aria-selected={selectedId === entry.id}
-                      onClick={() => setSelectedId(entry.id)}
-                      onDoubleClick={() => {
-                        setSelectedId(entry.id);
-                        onOpen(entry.id);
-                        onOpenChange(false);
-                      }}
-                    >
-                      <td className="truncate px-3 py-2">{entry.title}</td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-default">{formatRelativeTime(entry.updatedAt)}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>{formatAbsoluteDateTime(entry.updatedAt)}</TooltipContent>
-                        </Tooltip>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ToggleGroup
+                label="Saved documents"
+                onValueChange={setSelectedId}
+                orientation="vertical"
+                value={selectedId ?? ""}
+              >
+                {entries.map((entry) => (
+                  <Tooltip key={entry.id}>
+                    <TooltipTrigger asChild>
+                      <ToggleGroupItem
+                          value={entry.id}
+                        onDoubleClick={() => {
+                          setSelectedId(entry.id);
+                          onOpen(entry.id);
+                          onOpenChange(false);
+                        }}
+                      >
+                        <span className="toggle-list__name">{entry.title}</span>
+                        <Time className="toggle-list__detail" value={entry.updatedAt} />
+                      </ToggleGroupItem>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <Time mode="absolute" value={entry.updatedAt} />
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </ToggleGroup>
             </TooltipProvider>
-          )}
-        </div>
+          </ScrollArea>
+        )}
 
         <DialogFooter>
           <DialogClose asChild>

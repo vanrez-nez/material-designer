@@ -221,7 +221,6 @@ const {
   setTiling,
   getTiling,
 } = setupTweakpane({
-  app,
   graphHost,
   paneHost,
   renderer,

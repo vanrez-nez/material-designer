@@ -5,8 +5,9 @@ import { GithubMark } from "@/components/app/GithubMark";
 import type { MaterialAppServices } from "@/components/app/services";
 import { Button } from "@/components/ui/primitives/button";
 import { Checkbox } from "@/components/ui/primitives/checkbox";
+import { EmptyState } from "@/components/ui/primitives/empty-state";
+import { Time } from "@/components/ui/primitives/time";
 import { REPO_URL } from "@/lib/constants";
-import { formatCompactRelativeTime } from "@/lib/datetime";
 import { getLoadProgress, subscribeLoadProgress } from "@/lib/load-progress";
 import { splashHidden, setSplashHidden } from "@/lib/splash-prefs";
 import { cn } from "@/lib/utils";
@@ -106,9 +107,9 @@ export function SplashScreen({
       <div className="splash__dialog">
         <div className="splash__image" style={{ backgroundImage: `url('${imgUrl}')` }} />
         <div className="splash__panel" onClick={(event) => event.stopPropagation()}>
-        <button className="splash__close" type="button" aria-label="Close" onClick={close}>
-          <X className="size-4" />
-        </button>
+        <Button aria-label="Close" className="splash__close" size="icon-sm" variant="ghost" onClick={close}>
+          <X />
+        </Button>
 
         <div className="splash__brand">
           Material Designer
@@ -126,7 +127,7 @@ export function SplashScreen({
           </Button>
           <Button asChild variant="ghost">
             <a href={REPO_URL} target="_blank" rel="noreferrer">
-              <GithubMark className="size-4" />
+              <GithubMark />
               GitHub Repository
             </a>
           </Button>
@@ -135,34 +136,28 @@ export function SplashScreen({
         <div className="splash__recent">
           <div className="splash__recent-title">Recent files</div>
           {recent.length === 0 ? (
-            <div className="splash__recent-empty">No recent files yet</div>
+            <EmptyState title="No recent files yet" />
           ) : (
             recent.map((entry) => (
-              <button
+              <Button
                 key={entry.id}
                 className="splash__recent-item"
-                type="button"
+                variant="ghost"
                 onClick={() => {
                   openDocument(entry.id);
                   close();
                 }}
               >
                 <span className="splash__recent-name">{truncateTitle(entry.title)}</span>
-                <span className="splash__recent-time">
-                  {formatCompactRelativeTime(entry.updatedAt)}
-                </span>
-              </button>
+                <Time className="splash__recent-time" relativeStyle="narrow" value={entry.updatedAt} />
+              </Button>
             ))
           )}
         </div>
 
-        <label className="splash__dontshow">
-          <Checkbox
-            checked={dontShow}
-            onCheckedChange={(checked) => handleDontShow(checked === true)}
-          />
+        <Checkbox className="splash__dontshow" checked={dontShow} onCheckedChange={handleDontShow}>
           Do not show this screen again
-        </label>
+        </Checkbox>
         </div>
         <div
           className={cn(

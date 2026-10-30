@@ -112,9 +112,9 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
   }
 
   // Wrap a mutating command so the state before it is always recoverable. After the mutation lands in the
-  // store, redraw the imperative node canvas — the store drives the preview reactively, but the Rete editor
+  // store, redraw the imperative node canvas — the store drives the preview reactively, but the graph editor
   // view only refreshes on an explicit rebuild. Without this, MCP edits show in the preview but not in the
-  // graph until a reload. Rebuilds coalesce (EditorPanel.queueRebuild), so bursts collapse to one redraw.
+  // graph until a reload. Rebuilds coalesce (EditorPanel.open), so bursts collapse to one redraw.
   async function mutating<T>(label: string, fn: () => T | Promise<T>): Promise<T> {
     takeSnapshot(label, "auto");
     const result = await fn();

@@ -19,12 +19,11 @@ export function TexturePreviewPaneToolbar() {
         variant="ghost"
         onClick={() => setZoom(1)}
       >
-        <RotateCcw className="size-3.5" />
+        <RotateCcw />
       </Button>
-      <label className="workspace-pane__switch">
-        <Switch checked={seams} size="sm" onCheckedChange={setSeams} />
-        <span>Seams</span>
-      </label>
+      <Switch checked={seams} size="sm" onCheckedChange={setSeams}>
+        Seams
+      </Switch>
     </div>
   );
 }

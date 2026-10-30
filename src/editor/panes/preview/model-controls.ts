@@ -1,4 +1,5 @@
-import { Upload, createElement as createLucideElement, type IconNode } from "lucide";
+import { Upload } from "lucide";
+import type { TpButton, TpNativeSelect } from "@tweakpad/ui";
 
 import { FloatingWidget } from "@/editor/panes/graph/floating-widget";
 import { MODEL_PRESETS } from "./model-presets";
@@ -17,8 +18,8 @@ export interface ModelControlsOptions {
 // Reuses the graph editor's FloatingWidget (same look as the zoom / scene controls).
 export class ModelControls {
   private readonly widget: FloatingWidget;
-  private readonly select: HTMLSelectElement;
-  private readonly loadButton: HTMLButtonElement;
+  private readonly select: TpNativeSelect;
+  private readonly loadButton: TpButton;
   private readonly fileInput: HTMLInputElement;
   private customOption: HTMLOptionElement | null = null;
 
@@ -41,14 +42,15 @@ export class ModelControls {
     });
     this.widget.root.appendChild(this.fileInput);
 
-    this.loadButton = this.addButton(Upload, "Load custom .obj model", () => this.fileInput.click());
+    this.loadButton = this.widget.addButton(Upload, "Load custom .obj model", () => this.fileInput.click());
 
     this.widget.addSeparator();
 
-    // Predefined model dropdown.
-    this.select = document.createElement("select");
-    this.select.className = "fw__select";
-    this.select.setAttribute("aria-label", "Preview model");
+    // Predefined model dropdown: a TweakPad native select, which mirrors its <option> children into the
+    // browser's own picker.
+    this.select = document.createElement("tp-native-select") as TpNativeSelect;
+    this.select.size = "sm";
+    this.select.label = "Preview model";
     this.select.title = "Preview model";
     for (const preset of MODEL_PRESETS) {
       const option = document.createElement("option");
@@ -56,8 +58,9 @@ export class ModelControls {
       option.textContent = preset.label;
       this.select.appendChild(option);
     }
-    this.select.addEventListener("change", () => {
-      if (this.select.value !== CUSTOM_OPTION_VALUE) opts.onSelectPreset(this.select.value);
+    this.select.addEventListener("tp-value-change", (event) => {
+      const value = String((event as CustomEvent<{ value: unknown }>).detail.value);
+      if (value !== CUSTOM_OPTION_VALUE) opts.onSelectPreset(value);
     });
     this.widget.body.appendChild(this.select);
   }
@@ -88,20 +91,6 @@ export class ModelControls {
     this.widget.setBusy(busy);
     this.select.disabled = busy;
     this.loadButton.disabled = busy;
-  }
-
-  private addButton(icon: IconNode, label: string, onClick: () => void): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.className = "fw__btn";
-    btn.type = "button";
-    btn.title = label;
-    btn.setAttribute("aria-label", label);
-    const svg = createLucideElement(icon, { "aria-hidden": "true", height: 14, stroke: "currentColor", width: 14 });
-    svg.classList.add("lucide-icon");
-    btn.appendChild(svg);
-    btn.addEventListener("click", onClick);
-    this.widget.body.appendChild(btn);
-    return btn;
   }
 
   dispose(): void {

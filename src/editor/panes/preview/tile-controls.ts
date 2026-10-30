@@ -1,4 +1,4 @@
-import { Minus, Plus, RotateCcw, createElement as createLucideElement, type IconNode } from "lucide";
+import { Minus, Plus, RotateCcw } from "lucide";
 
 import { FloatingWidget } from "@/editor/panes/graph/floating-widget";
 
@@ -22,28 +22,14 @@ export class TileControls {
       orientation: "vertical",
     });
 
-    this.addButton(Plus, "Increase tile scale", () => opts.onStep(1));
-    this.addButton(RotateCcw, "Reset tile scale", () => opts.onReset());
-    this.addButton(Minus, "Decrease tile scale", () => opts.onStep(-1));
+    this.widget.addButton(Plus, "Increase tile scale", () => opts.onStep(1));
+    this.widget.addButton(RotateCcw, "Reset tile scale", () => opts.onReset());
+    this.widget.addButton(Minus, "Decrease tile scale", () => opts.onStep(-1));
   }
 
   // The widget root — re-appended to the scene host when the preview pane re-mounts (see boot.ts).
   get root(): HTMLElement {
     return this.widget.root;
-  }
-
-  private addButton(icon: IconNode, label: string, onClick: () => void): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.className = "fw__btn";
-    btn.type = "button";
-    btn.title = label;
-    btn.setAttribute("aria-label", label);
-    const svg = createLucideElement(icon, { "aria-hidden": "true", height: 14, stroke: "currentColor", width: 14 });
-    svg.classList.add("lucide-icon");
-    btn.appendChild(svg);
-    btn.addEventListener("click", onClick);
-    this.widget.body.appendChild(btn);
-    return btn;
   }
 
   dispose(): void {

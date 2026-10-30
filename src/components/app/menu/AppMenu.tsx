@@ -118,7 +118,20 @@ export function AppMenu({
         return;
       }
       const isMod = event.metaKey || event.ctrlKey;
-      if (!isMod || event.key.toLowerCase() !== "z") return;
+      if (!isMod) return;
+      const key = event.key.toLowerCase();
+
+      // The menu's ⌘N / ⌘O hints: the shortcut hints only display them, so they are handled here.
+      if ((key === "n" || key === "o") && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMenu();
+        if (key === "n") onNewDocument?.();
+        else onOpenDocument?.();
+        return;
+      }
+
+      if (key !== "z") return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -129,7 +142,7 @@ export function AppMenu({
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [undoHistory, redoHistory]);
+  }, [undoHistory, redoHistory, onNewDocument, onOpenDocument]);
 
   useEffect(() => {
     const isInsideMenu = (target: EventTarget | null): boolean => {

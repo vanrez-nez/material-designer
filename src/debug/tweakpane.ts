@@ -34,7 +34,6 @@ export function loadRendererConfig(): RendererConfig {
 }
 
 export interface TweakpaneDeps {
-  app: HTMLDivElement;
   graphHost: HTMLDivElement;
   paneHost: HTMLDivElement;
   renderer: WebGPURenderer;
@@ -74,7 +73,6 @@ function mergeSetting<T extends Record<string, unknown>>(
 }
 
 export function setupTweakpane({
-  app,
   graphHost,
   paneHost,
   renderer,
@@ -305,11 +303,7 @@ export function setupTweakpane({
   });
   applyDocumentSettings();
 
-  const materialEditor = new EditorPanel({
-    host: graphHost,
-    appElement: app,
-    embedded: true,
-  });
+  const materialEditor = new EditorPanel({ host: graphHost });
   const bakeWidget = new BakeProgressWidget({
     mount: materialEditor.overlayHost,
     subscribe: (cb) => bakeService.onBakeReport(cb),

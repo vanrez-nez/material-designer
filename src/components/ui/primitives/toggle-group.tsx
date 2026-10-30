@@ -6,6 +6,7 @@ type ToggleGroupProps = Omit<React.HTMLAttributes<HTMLElement>, "onChange"> & {
   // Accessible name for the group (tp-toggle-group is one tab stop).
   label?: string;
   onValueChange?: (value: string) => void;
+  orientation?: "horizontal" | "vertical";
   size?: "xs" | "sm" | "default" | "lg";
   // Single selection that can't be cleared: the selected item stays pressed when clicked again.
   value: string;

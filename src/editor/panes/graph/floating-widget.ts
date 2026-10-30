@@ -1,3 +1,6 @@
+import { createElement as createLucideElement, type IconNode } from "lucide";
+import type { TpButton, TpCollapsible, TpToggle } from "@tweakpad/ui";
+
 import "./floating-widget.css";
 
 // A string naming one of 8 anchors (plus dead-center), tokens in ANY order: "top-left", "center-top",
@@ -22,7 +25,7 @@ export interface FloatingWidgetOptions {
   extraInfo?: boolean;
 }
 
-const EDGE_MARGIN = "12px";
+const EDGE_MARGIN = "var(--tp-space-3)";
 
 function anchorStyles(align: FloatingAlign): Partial<CSSStyleDeclaration> {
   const tokens = new Set(align.toLowerCase().split(/[^a-z]+/).filter(Boolean));
@@ -52,15 +55,28 @@ function anchorStyles(align: FloatingAlign): Partial<CSSStyleDeclaration> {
   return style;
 }
 
-// A reusable floating panel: 8-anchor positioning, optional title + collapse + right-aligned extra
-// info, horizontal/vertical body. Self-contained DOM — imports nothing from Rete.
+// A lucide icon sized by the TweakPad control it sits in (1em follows the control's icon extent).
+export function lucideIcon(icon: IconNode): SVGElement {
+  return createLucideElement(icon, { "aria-hidden": "true", height: "1em", stroke: "currentColor", width: "1em" });
+}
+
+// A lucide icon placed in a TweakPad button's leading icon slot.
+export function iconSlot(icon: IconNode): SVGElement {
+  const svg = lucideIcon(icon);
+  svg.setAttribute("slot", "icon-start");
+  return svg;
+}
+
+// A reusable floating panel: 8-anchor positioning, optional collapsible title + right-aligned extra info,
+// horizontal/vertical body of TweakPad controls. Self-contained DOM — imports nothing from the graph editor.
 export class FloatingWidget {
   readonly root: HTMLDivElement;
   readonly body: HTMLDivElement;
-  private readonly header: HTMLDivElement | null = null;
+  private readonly orientation: FloatingOrientation;
+  private readonly titleEl: HTMLSpanElement | null = null;
   private readonly summaryEl: HTMLSpanElement | null = null;
+  private readonly collapsible: TpCollapsible | null = null;
   private readonly persistKey?: string;
-  private collapsed: boolean;
 
   constructor(opts: FloatingWidgetOptions) {
     const make = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string): HTMLElementTagNameMap[K] => {
@@ -69,8 +85,9 @@ export class FloatingWidget {
       return el;
     };
 
+    this.orientation = opts.orientation ?? "vertical";
     this.persistKey = opts.persistKey;
-    this.collapsed =
+    const collapsed =
       (opts.persistKey ? localStorage.getItem(opts.persistKey) === "1" : undefined) ??
       opts.collapsed ??
       false;
@@ -79,41 +96,52 @@ export class FloatingWidget {
     if (opts.className) this.root.classList.add(...opts.className.split(/\s+/).filter(Boolean));
     Object.assign(this.root.style, anchorStyles(opts.align));
 
-    const hasHeader = Boolean(opts.title || opts.collapsible || opts.extraInfo);
-    if (hasHeader) {
-      this.header = make("div", "floating-widget__header");
-      if (opts.title) {
-        const title = make("span", "floating-widget__title");
-        title.textContent = opts.title;
-        this.header.appendChild(title);
-      }
-      if (opts.extraInfo) {
-        this.summaryEl = make("span", "floating-widget__summary");
-        this.header.appendChild(this.summaryEl);
-      }
-      if (opts.collapsible) {
-        const chevron = make("span", "floating-widget__chevron");
-        chevron.textContent = "▾";
-        this.header.appendChild(chevron);
-        this.header.classList.add("floating-widget__header--collapsible");
-        this.header.addEventListener("click", () => this.setCollapsed(!this.collapsed));
-      }
-      this.root.appendChild(this.header);
+    this.body = make("div", "floating-widget__body");
+    this.body.classList.add(`floating-widget__body--${this.orientation}`);
+
+    if (opts.title || opts.extraInfo) {
+      this.titleEl = make("span", "floating-widget__title");
+      this.titleEl.textContent = opts.title ?? "";
+      if (opts.extraInfo) this.summaryEl = make("span", "floating-widget__summary");
     }
 
-    this.body = make("div", "floating-widget__body");
-    this.body.classList.add(
-      opts.orientation === "horizontal" ? "floating-widget__body--horizontal" : "floating-widget__body--vertical",
-    );
-    this.root.appendChild(this.body);
+    if (opts.collapsible) {
+      // A TweakPad Collapsible: the title is its trigger label, the summary sits on the trigger's
+      // trailing side and the body is its content.
+      const collapsible = document.createElement("tp-collapsible") as TpCollapsible;
+      collapsible.className = "floating-widget__collapsible";
+      collapsible.setAttribute("indicator-position", "leading");
+      collapsible.open = !collapsed;
+      if (this.titleEl) {
+        this.titleEl.slot = "label";
+        collapsible.appendChild(this.titleEl);
+      }
+      if (this.summaryEl) {
+        this.summaryEl.slot = "trailing";
+        collapsible.appendChild(this.summaryEl);
+      }
+      collapsible.appendChild(this.body);
+      collapsible.addEventListener("tp-open-change", (event) => {
+        if (event.target !== collapsible) return;
+        this.persistCollapsed(!(event as CustomEvent<{ value: boolean }>).detail.value);
+      });
+      this.collapsible = collapsible;
+      this.root.appendChild(collapsible);
+    } else {
+      if (this.titleEl) {
+        const header = make("div", "floating-widget__header");
+        header.appendChild(this.titleEl);
+        if (this.summaryEl) header.appendChild(this.summaryEl);
+        this.root.appendChild(header);
+      }
+      this.root.appendChild(this.body);
+    }
 
-    this.applyCollapsed();
     opts.mount.appendChild(this.root);
   }
 
   setTitle(text: string): void {
-    const title = this.header?.querySelector<HTMLSpanElement>(".floating-widget__title");
-    if (title) title.textContent = text;
+    if (this.titleEl) this.titleEl.textContent = text;
   }
 
   setSummary(text: string): void {
@@ -124,12 +152,42 @@ export class FloatingWidget {
     this.root.classList.toggle("floating-widget--busy", busy);
   }
 
-  // Append a divider into the body to visually group buttons. Orientation (horizontal vs vertical line)
-  // is driven by the body's `--vertical`/`--horizontal` class in CSS — no inline styles.
+  // An icon-only action button.
+  addButton(icon: IconNode, label: string, onClick: () => void): TpButton {
+    const button = document.createElement("tp-button") as TpButton;
+    button.variant = "ghost";
+    button.size = "icon-sm";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.appendChild(iconSlot(icon));
+    button.addEventListener("click", onClick);
+    this.body.appendChild(button);
+    return button;
+  }
+
+  // An icon-only on/off control. The widget owns its pressed state (set `pressed`); a press runs `onClick`
+  // instead of flipping the toggle itself, so a re-press can re-apply an already-active choice.
+  addToggle(icon: IconNode, label: string, onClick: () => void): TpToggle {
+    const toggle = document.createElement("tp-toggle") as TpToggle;
+    toggle.size = "icon-sm";
+    toggle.title = label;
+    toggle.setAttribute("aria-label", label);
+    toggle.appendChild(lucideIcon(icon));
+    toggle.addEventListener("tp-value-change", (event) => {
+      if (event.target !== toggle) return;
+      // Refuse the toggle's own flip; the widget sets `pressed` once the refused proposal has settled.
+      event.preventDefault();
+      queueMicrotask(onClick);
+    });
+    this.body.appendChild(toggle);
+    return toggle;
+  }
+
+  // A divider between groups of controls, across the body's direction.
   addSeparator(): void {
-    const sep = document.createElement("div");
-    sep.className = "floating-widget__sep";
-    this.body.appendChild(sep);
+    const separator = document.createElement("tp-separator");
+    separator.setAttribute("orientation", this.orientation === "horizontal" ? "vertical" : "horizontal");
+    this.body.appendChild(separator);
   }
 
   setVisible(visible: boolean): void {
@@ -137,13 +195,12 @@ export class FloatingWidget {
   }
 
   setCollapsed(collapsed: boolean): void {
-    this.collapsed = collapsed;
-    if (this.persistKey) localStorage.setItem(this.persistKey, collapsed ? "1" : "0");
-    this.applyCollapsed();
+    if (this.collapsible) this.collapsible.open = !collapsed;
+    this.persistCollapsed(collapsed);
   }
 
-  private applyCollapsed(): void {
-    this.root.classList.toggle("floating-widget--collapsed", this.collapsed);
+  private persistCollapsed(collapsed: boolean): void {
+    if (this.persistKey) localStorage.setItem(this.persistKey, collapsed ? "1" : "0");
   }
 
   dispose(): void {

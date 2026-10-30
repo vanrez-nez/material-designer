@@ -1,5 +1,8 @@
+import { RefreshCw } from "lucide";
+import type { TpButton, TpProgress } from "@tweakpad/ui";
+
 import type { BakeReport } from "@/runtime";
-import { FloatingWidget } from "@/editor/panes/graph/floating-widget";
+import { FloatingWidget, iconSlot } from "@/editor/panes/graph/floating-widget";
 import "./bake-progress-widget.css";
 
 export interface BakeProgressWidgetOptions {
@@ -23,9 +26,9 @@ const FILL_UNIFORM_MS = 200;
 // imports nothing from the generic node editor.
 export class BakeProgressWidget {
   private readonly widget: FloatingWidget;
-  private readonly fill: HTMLDivElement;
+  private readonly progress: TpProgress;
   private readonly detailEl: HTMLDivElement;
-  private readonly regenBtn: HTMLButtonElement;
+  private readonly regenBtn: TpButton;
 
   // Active binding (the document the editor currently shows).
   private source: string | null = null;
@@ -66,18 +69,19 @@ export class BakeProgressWidget {
     });
     this.widget.setSummary("idle");
 
-    const bar = make("div", "bake-bar");
-    this.fill = make("div", "bake-bar__fill");
-    bar.appendChild(this.fill);
+    this.progress = document.createElement("tp-progress") as TpProgress;
+    this.progress.label = "Material bake progress";
+    this.progress.value = 0;
     this.detailEl = make("div", "bake-widget__detail");
     this.detailEl.textContent = "—";
     // Regenerate: flush every cache for the active material and re-bake from scratch.
-    this.regenBtn = make("button", "bake-widget__regen");
-    this.regenBtn.type = "button";
-    this.regenBtn.textContent = "⟳ Regenerate";
+    this.regenBtn = document.createElement("tp-button") as TpButton;
+    this.regenBtn.variant = "outline";
+    this.regenBtn.size = "sm";
     this.regenBtn.title = "Flush all caches and re-bake this material from scratch";
+    this.regenBtn.append(iconSlot(RefreshCw), "Regenerate");
     this.regenBtn.addEventListener("click", () => this.regenerate?.());
-    this.widget.body.append(bar, this.detailEl, this.regenBtn);
+    this.widget.body.append(this.progress, this.detailEl, this.regenBtn);
 
     opts.subscribe((r) => {
       if (r.source === this.source) this.onReport(r);
@@ -91,7 +95,7 @@ export class BakeProgressWidget {
     this.regenerate = regenerate;
     this.nodeCount = getNodeCount();
     if (!this.busy) {
-      this.fill.style.width = "0%";
+      this.progress.value = 0;
       this.widget.setBusy(false);
       this.widget.setSummary(`${this.nodeCount} nodes`);
       this.detailEl.textContent = `${this.nodeCount} nodes`;
@@ -157,7 +161,7 @@ export class BakeProgressWidget {
         this.pct += (100 - this.pct) * 0.25;
         if (this.pct > 99.5) {
           this.pct = 100;
-          this.fill.style.width = "100%";
+          this.progress.value = 100;
           this.busy = false;
           this.finishing = false;
           this.widget.setBusy(false);
@@ -170,7 +174,7 @@ export class BakeProgressWidget {
         const target = Math.min(95, (elapsed / this.estimateMs) * 95);
         if (target > this.pct) this.pct = target; // monotonic: never runs backwards
       }
-      this.fill.style.width = `${this.pct}%`;
+      this.progress.value = this.pct;
       this.raf = requestAnimationFrame(tick);
     };
     this.raf = requestAnimationFrame(tick);

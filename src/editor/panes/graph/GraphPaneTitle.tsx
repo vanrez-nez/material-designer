@@ -1,7 +1,5 @@
-import { ChevronRight } from "lucide-react";
-
 import { dispatchGraphNavigate } from "@/app-events";
-import { cn } from "@/lib/utils";
+import { Breadcrumb } from "@/components/ui/primitives/breadcrumb";
 import { GROUP_TYPE, type GraphNode, type MaterialGraphDocument } from "@/runtime";
 import { useWorkspaceStore } from "@/store/app";
 
@@ -26,29 +24,23 @@ export function GraphPaneTitle() {
   const crumbs = ["Graph", ...groupTrailLabels(document, groupPath)];
 
   return (
-    <div className="pane-breadcrumb">
-      {crumbs.map((label, index) => {
-        const isCurrent = index === crumbs.length - 1;
-
-        return (
-          <span key={index} className="pane-breadcrumb__item">
-            {index > 0 ? (
-              <ChevronRight className="pane-breadcrumb__sep size-3" aria-hidden />
-            ) : null}
-            <button
-              type="button"
-              className={cn(
-                "pane-breadcrumb__crumb",
-                isCurrent && "pane-breadcrumb__crumb--current",
-              )}
-              disabled={isCurrent}
-              onClick={() => dispatchGraphNavigate(index)}
-            >
-              {label}
-            </button>
-          </span>
-        );
-      })}
-    </div>
+    <Breadcrumb label="Graph groups">
+      {crumbs.map((label, index) =>
+        index === crumbs.length - 1 ? (
+          <span key={index}>{label}</span>
+        ) : (
+          <a
+            key={index}
+            href="#"
+            onClick={(event) => {
+              event.preventDefault();
+              dispatchGraphNavigate(index);
+            }}
+          >
+            {label}
+          </a>
+        ),
+      )}
+    </Breadcrumb>
   );
 }

@@ -1,4 +1,5 @@
-import { Axis3d, SlidersHorizontal, createElement as createLucideElement, type IconNode } from "lucide";
+import { Axis3d, SlidersHorizontal } from "lucide";
+import type { TpToggle } from "@tweakpad/ui";
 
 import { FloatingWidget } from "@/editor/panes/graph/floating-widget";
 
@@ -16,7 +17,7 @@ export interface ViewportControlsOptions {
 // Reuses the graph editor's FloatingWidget (identical look to the other scene overlays).
 export class ViewportControls {
   private readonly widget: FloatingWidget;
-  private readonly debugBtn: HTMLButtonElement;
+  private readonly debugToggle: TpToggle;
 
   constructor(opts: ViewportControlsOptions) {
     this.widget = new FloatingWidget({
@@ -25,16 +26,16 @@ export class ViewportControls {
       orientation: "horizontal",
     });
 
-    this.addButton(SlidersHorizontal, "Controls", opts.onOpenControls);
+    this.widget.addButton(SlidersHorizontal, "Controls", opts.onOpenControls);
 
-    // Debug-normals toggle — checked when on. Flips its own state and reports out.
+    // Debug-normals toggle — pressed when on. Flips its own state and reports out.
     let on = opts.debugNormals;
-    this.debugBtn = this.addButton(Axis3d, "Debug normals", () => {
+    this.debugToggle = this.widget.addToggle(Axis3d, "Debug normals", () => {
       on = !on;
-      this.setChecked(this.debugBtn, on);
+      this.debugToggle.pressed = on;
       opts.onToggleDebugNormals(on);
     });
-    this.setChecked(this.debugBtn, on);
+    this.debugToggle.pressed = on;
   }
 
   // The widget root — re-appended to the scene host when the preview pane re-mounts (see boot.ts).
@@ -44,26 +45,7 @@ export class ViewportControls {
 
   // Keep the debug-normals button visual in sync when the state is changed elsewhere.
   setDebugNormals(on: boolean): void {
-    this.setChecked(this.debugBtn, on);
-  }
-
-  private setChecked(btn: HTMLButtonElement, checked: boolean): void {
-    btn.classList.toggle("fw__btn--active", checked);
-    btn.setAttribute("aria-pressed", String(checked));
-  }
-
-  private addButton(icon: IconNode, label: string, onClick: () => void): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.className = "fw__btn";
-    btn.type = "button";
-    btn.title = label;
-    btn.setAttribute("aria-label", label);
-    const svg = createLucideElement(icon, { "aria-hidden": "true", height: 14, stroke: "currentColor", width: 14 });
-    svg.classList.add("lucide-icon");
-    btn.appendChild(svg);
-    btn.addEventListener("click", onClick);
-    this.widget.body.appendChild(btn);
-    return btn;
+    this.debugToggle.pressed = on;
   }
 
   dispose(): void {

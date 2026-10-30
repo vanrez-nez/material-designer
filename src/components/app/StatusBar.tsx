@@ -1,4 +1,5 @@
 import { GithubMark } from "@/components/app/GithubMark";
+import { Button } from "@/components/ui/primitives/button";
 import { REPO_LABEL, REPO_URL } from "@/lib/constants";
 
 // Persistent bottom status bar: project name + app/runtime versions on the left, GitHub link on the right.
@@ -13,15 +14,12 @@ export function StatusBar() {
         <span className="workspace-footer__sep">·</span>
         <span className="workspace-footer__dim" title="Build commit">{__COMMIT_HASH__}</span>
       </div>
-      <a
-        className="workspace-footer__link"
-        href={REPO_URL}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <GithubMark />
-        {REPO_LABEL}
-      </a>
+      <Button asChild size="xs" variant="ghost">
+        <a href={REPO_URL} target="_blank" rel="noreferrer">
+          <GithubMark />
+          {REPO_LABEL}
+        </a>
+      </Button>
     </footer>
   );
 }

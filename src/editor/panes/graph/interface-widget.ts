@@ -1,13 +1,38 @@
+import { type IconNode, Plus, X } from "lucide";
+import type { TpButton, TpInput, TpNativeSelect } from "@tweakpad/ui";
+
 import type { MaterialGraphController } from "./controller";
+import { iconSlot } from "./floating-widget";
 import type { PortDef, PortKind } from "@/runtime";
 
 // Group-interface editor, mounted on the Group Input / Group Output boundary nodes (Phase 5). Lists the
 // group's exposed sockets for that side with rename + delete, plus an add row (name + kind). Each edit
 // calls the controller (which prunes dangling wires and recompiles) then `rerender` to rebuild the
-// canvas — controller edits don't auto-rebuild the Rete editor. `side` is "input" for the Group Input
+// canvas — controller edits don't auto-rebuild the graph editor. `side` is "input" for the Group Input
 // node (edits the group's inputs) and "output" for Group Output. Shader sockets aren't exposable through
 // groups (our shader marker only flows Principled→Output — plan L1), so the kind picker omits it.
 const KINDS: PortKind[] = ["float", "vector", "color"];
+
+// Inputs start from a default value and then own what the user types (uncontrolled), so `value` reads the
+// current text when a row commits.
+function textInput(label: string, value: string): TpInput {
+  const input = document.createElement("tp-input") as TpInput;
+  input.className = "iface-name";
+  input.label = label;
+  input.defaultValue = value;
+  return input;
+}
+
+function iconButton(icon: IconNode, label: string, onClick: () => void): TpButton {
+  const button = document.createElement("tp-button") as TpButton;
+  button.variant = "ghost";
+  button.size = "icon-xs";
+  button.title = label;
+  button.textContent = label;
+  button.appendChild(iconSlot(icon));
+  button.addEventListener("click", onClick);
+  return button;
+}
 
 export function mountInterfaceWidget(
   host: HTMLElement,
@@ -33,61 +58,53 @@ export function mountInterfaceWidget(
     dot.dataset.kind = s.kind;
     row.appendChild(dot);
 
-    const name = document.createElement("input");
-    name.type = "text";
-    name.value = s.label ?? s.key;
-    name.className = "iface-name";
-    const commit = () => {
-      if (name.value.trim() && name.value.trim() !== (s.label ?? s.key)) {
+    const current = s.label ?? s.key;
+    const name = textInput(`${current} name`, current);
+    // Rename on leaving the field (Enter leaves it too).
+    name.addEventListener("focusout", () => {
+      const next = name.value.trim();
+      if (next && next !== current) {
         controller.renameGroupSocket(side, s.key, name.value);
         rerender();
       }
-    };
-    name.addEventListener("blur", commit);
+    });
     name.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") name.blur();
+      if (e.key === "Enter") (e.target as HTMLElement).blur();
     });
     row.appendChild(name);
 
-    const del = document.createElement("button");
-    del.className = "iface-del";
-    del.textContent = "✕";
-    del.title = "Remove socket";
-    del.onclick = () => {
-      controller.removeGroupSocket(side, s.key);
-      rerender();
-    };
-    row.appendChild(del);
+    row.appendChild(
+      iconButton(X, `Remove ${current}`, () => {
+        controller.removeGroupSocket(side, s.key);
+        rerender();
+      }),
+    );
     root.appendChild(row);
   }
 
   // Add row
   const add = document.createElement("div");
   add.className = "iface-row iface-add";
-  const newName = document.createElement("input");
-  newName.type = "text";
+  const newName = textInput("New socket name", "");
   newName.placeholder = "new socket";
-  newName.className = "iface-name";
-  const kind = document.createElement("select");
-  kind.className = "iface-kind";
+  const kind = document.createElement("tp-native-select") as TpNativeSelect;
+  kind.size = "sm";
+  kind.label = "New socket kind";
   for (const k of KINDS) {
     const o = document.createElement("option");
     o.value = k;
     o.textContent = k;
     kind.appendChild(o);
   }
-  const addBtn = document.createElement("button");
-  addBtn.className = "iface-addbtn";
-  addBtn.textContent = "+";
-  addBtn.title = "Add socket";
-  addBtn.onclick = () => {
-    controller.addGroupSocket(side, newName.value || "socket", kind.value as PortKind);
+  kind.defaultValue = KINDS[0];
+  const addSocket = () => {
+    controller.addGroupSocket(side, newName.value || "socket", (kind.value || KINDS[0]) as PortKind);
     rerender();
   };
   newName.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") addBtn.click();
+    if (e.key === "Enter") addSocket();
   });
-  add.append(newName, kind, addBtn);
+  add.append(newName, kind, iconButton(Plus, "Add socket", addSocket));
   root.appendChild(add);
 
   host.appendChild(root);

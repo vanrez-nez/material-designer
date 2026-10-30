@@ -6,6 +6,8 @@ type ButtonSize = "default" | "xs" | "sm" | "lg" | "icon" | "icon-xs" | "icon-sm
 type ButtonProps = Omit<React.ComponentProps<"button">, "ref"> & {
   // Render a child anchor as the button: tp-button renders a native link from href/target/rel.
   asChild?: boolean;
+  // Shows the shared spinner as the leading mark (busy semantics; does not disable the Button).
+  loading?: boolean;
   size?: ButtonSize;
   variant?: ButtonVariant;
 };
@@ -13,6 +15,7 @@ type ButtonProps = Omit<React.ComponentProps<"button">, "ref"> & {
 function Button({
   asChild = false,
   children,
+  loading = false,
   size = "default",
   type = "button",
   variant = "default",
@@ -43,6 +46,7 @@ function Button({
       data-slot="button"
       data-size={size}
       data-variant={variant}
+      loading-position={loading ? "leading" : undefined}
       size={size}
       type={type}
       variant={variant}

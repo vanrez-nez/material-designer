@@ -38,13 +38,8 @@ const SIZE_TO_BUTTON: Record<HelpHintSize, "icon-xs" | "icon-sm" | "icon-lg"> = 
   xs: "icon-xs",
 };
 
-const SIZE_TO_ICON: Record<HelpHintSize, string> = {
-  lg: "size-6",
-  md: "size-5",
-  xs: "size-4",
-};
-
-function parseHelpDoc(raw: string): ParsedHelpDoc {
+// A help doc is Markdown with `title` and `description` front matter; the description is its one-line summary.
+export function parseHelpDoc(raw: string): ParsedHelpDoc {
   const match = /^---\s*\n([\s\S]*?)\n---\s*\n?/.exec(raw);
   if (!match) return { body: raw.trim(), description: "", title: "" };
 
@@ -82,7 +77,7 @@ export function HelpHint({
       type="button"
       variant="ghost"
     >
-      <CircleQuestionMark className={SIZE_TO_ICON[size]} />
+      <CircleQuestionMark />
     </Button>
   );
 
@@ -110,9 +105,7 @@ export function HelpHint({
             <DialogDescription className="sr-only">{description}</DialogDescription>
           ) : null}
         </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto pr-1">
-          <MarkdownContent content={body} />
-        </div>
+        <MarkdownContent content={body} />
       </DialogContent>
     </Dialog>
   );

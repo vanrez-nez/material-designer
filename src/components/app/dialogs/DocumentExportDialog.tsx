@@ -16,8 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/primitives/dialog";
-import { HelpHint } from "@/components/ui/composables/help-hint";
+import { Field } from "@/components/ui/primitives/field";
+import { parseHelpDoc } from "@/components/ui/composables/help-hint";
 import { useWorkspaceStore } from "@/store/app";
+
+const metadataSummary = parseHelpDoc(metadataHelp).description;
 
 type DocumentExportDialogProps = {
   onOpenChange: (open: boolean) => void;
@@ -49,7 +52,7 @@ export function DocumentExportDialog({ onOpenChange, open }: DocumentExportDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Export Document</DialogTitle>
           <DialogDescription>
@@ -57,28 +60,9 @@ export function DocumentExportDialog({ onOpenChange, open }: DocumentExportDialo
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-md border bg-muted/20 p-3">
-          <label
-            className="flex cursor-pointer items-center justify-between gap-3 text-sm"
-            htmlFor="document-export-include-metadata"
-          >
-            <span className="flex items-center gap-1.5">
-              Include document metadata
-              <HelpHint
-                ariaLabel="Document metadata help"
-                doc={metadataHelp}
-                size="xs"
-                trigger="hover"
-              />
-            </span>
-            <Checkbox
-              aria-label="Include document metadata"
-              checked={includeMetadata}
-              id="document-export-include-metadata"
-              onCheckedChange={(checked) => setIncludeMetadata(checked === true)}
-            />
-          </label>
-        </div>
+        <Field description={metadataSummary} label="Include document metadata" orientation="horizontal">
+          <Checkbox checked={includeMetadata} onCheckedChange={setIncludeMetadata} />
+        </Field>
 
         <DialogFooter>
           <DialogClose asChild>

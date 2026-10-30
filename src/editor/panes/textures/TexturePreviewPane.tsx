@@ -8,11 +8,12 @@ import {
   type PointerEvent,
   type RefObject,
 } from "react";
-import { ImageIcon, Loader2 } from "lucide-react";
+import { ImageIcon } from "lucide-react";
 import { NoColorSpace } from "three";
 
+import { EmptyState } from "@/components/ui/primitives/empty-state";
+import { Spinner } from "@/components/ui/primitives/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
-import { cn } from "@/lib/utils";
 import { useTexturePreviewStore } from "@/editor/panes/textures/store";
 import { useWorkspaceStore } from "@/store/app";
 import {
@@ -309,7 +310,7 @@ function InteractiveTextureCanvas({
         onPointerCancel={handlePointerUp}
       />
       <canvas ref={seamsRef} className="texture-preview-seams" aria-hidden="true" />
-      {!hasImage ? <TexturePlaceholder label="No image" loading={false} /> : null}
+      {!hasImage ? <TexturePlaceholder label="No image" /> : null}
     </div>
   );
 }
@@ -366,25 +367,17 @@ function StaticTextureCanvas({
   return (
     <div ref={hostRef} className="texture-preview-thumb-canvas">
       <canvas ref={canvasRef} aria-label={`${label} thumbnail`} className="texture-preview-canvas" />
-      {!generated ? <TexturePlaceholder label="" loading={false} compact /> : null}
+      {!generated ? <TexturePlaceholder label="" /> : null}
     </div>
   );
 }
 
-function TexturePlaceholder({
-  compact = false,
-  label,
-  loading = false,
-}: {
-  compact?: boolean;
-  label: string;
-  loading?: boolean;
-}) {
+// Shown over a preview with nothing to draw yet: an image glyph, or a spinner while the reader starts.
+function TexturePlaceholder({ label, loading = false }: { label: string; loading?: boolean }) {
   return (
-    <div className={cn("texture-preview-placeholder", compact && "texture-preview-placeholder--compact")}>
-      {loading ? <Loader2 className="size-4 animate-spin" /> : <ImageIcon className="size-4" />}
-      {label ? <span>{label}</span> : null}
-    </div>
+    <EmptyState className="texture-preview-placeholder" mediaTreatment="icon" title={label}>
+      {loading ? <Spinner label="" slot="media" /> : <ImageIcon aria-hidden slot="media" />}
+    </EmptyState>
   );
 }
 

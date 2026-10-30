@@ -1,4 +1,5 @@
-import { Focus, Lock, createElement as createLucideElement, type IconNode } from "lucide";
+import { Focus, Lock } from "lucide";
+import type { TpToggle } from "@tweakpad/ui";
 
 import { FloatingWidget } from "@/editor/panes/graph/floating-widget";
 import type { ScenePreset } from "./scene-presets";
@@ -19,7 +20,7 @@ export interface SceneControlsOptions {
 // Reuses the graph editor's FloatingWidget (identical look to the zoom controls).
 export class SceneControls {
   private readonly widget: FloatingWidget;
-  private readonly presetButtons = new Map<string, HTMLButtonElement>();
+  private readonly presetToggles = new Map<string, TpToggle>();
 
   constructor(opts: SceneControlsOptions) {
     this.widget = new FloatingWidget({
@@ -28,27 +29,28 @@ export class SceneControls {
       orientation: "vertical",
     });
 
-    this.addButton(Focus, "Reset camera", opts.onResetCamera);
+    this.widget.addButton(Focus, "Reset camera", opts.onResetCamera);
 
-    // Lock toggle — checked when locked. Flips its own state and reports out.
+    // Lock toggle — pressed when locked. Flips its own state and reports out.
     let locked = opts.lightsLocked;
-    const lockBtn = this.addButton(Lock, "Lock lights to view", () => {
+    const lockToggle = this.widget.addToggle(Lock, "Lock lights to view", () => {
       locked = !locked;
-      this.setChecked(lockBtn, locked);
-      lockBtn.title = locked ? "Lights locked to view" : "Lights unlocked";
+      lockToggle.pressed = locked;
+      lockToggle.title = locked ? "Lights locked to view" : "Lights unlocked";
       opts.onToggleLightsLock(locked);
     });
-    this.setChecked(lockBtn, locked);
-    lockBtn.title = locked ? "Lights locked to view" : "Lights unlocked";
+    lockToggle.pressed = locked;
+    lockToggle.title = locked ? "Lights locked to view" : "Lights unlocked";
 
     this.widget.addSeparator();
 
+    // Presets: pressing one (even the active one) applies it.
     for (const preset of opts.presets) {
-      const btn = this.addButton(preset.icon, preset.label, () => {
+      const toggle = this.widget.addToggle(preset.icon, preset.label, () => {
         opts.onApplyPreset(preset.id);
         this.setActivePreset(preset.id);
       });
-      this.presetButtons.set(preset.id, btn);
+      this.presetToggles.set(preset.id, toggle);
     }
     this.setActivePreset(opts.activePresetId);
   }
@@ -58,30 +60,11 @@ export class SceneControls {
     return this.widget.root;
   }
 
-  // Mark exactly one preset button as active (checked), the rest inactive.
+  // Mark exactly one preset as active (pressed), the rest inactive.
   setActivePreset(id: string | null): void {
-    for (const [key, btn] of this.presetButtons) {
-      this.setChecked(btn, key === id);
+    for (const [key, toggle] of this.presetToggles) {
+      toggle.pressed = key === id;
     }
-  }
-
-  private setChecked(btn: HTMLButtonElement, checked: boolean): void {
-    btn.classList.toggle("fw__btn--active", checked);
-    btn.setAttribute("aria-pressed", String(checked));
-  }
-
-  private addButton(icon: IconNode, label: string, onClick: () => void): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.className = "fw__btn";
-    btn.type = "button";
-    btn.title = label;
-    btn.setAttribute("aria-label", label);
-    const svg = createLucideElement(icon, { "aria-hidden": "true", height: 14, stroke: "currentColor", width: 14 });
-    svg.classList.add("lucide-icon");
-    btn.appendChild(svg);
-    btn.addEventListener("click", onClick);
-    this.widget.body.appendChild(btn);
-    return btn;
   }
 
   dispose(): void {

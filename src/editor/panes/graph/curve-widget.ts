@@ -1,3 +1,5 @@
+import type { TpToggle, TpToggleGroup } from "@tweakpad/ui";
+
 import type { MaterialGraphController } from "./controller";
 import { CURVE_CHANNELS, CURVE_IDENTITY, type CurveValue } from "@/runtime";
 
@@ -44,21 +46,34 @@ export function mountCurveWidget(
   const root = document.createElement("div");
   root.className = "curve-widget";
 
-  const tabs = document.createElement("div");
+  // Channel picker: a single-choice TweakPad Toggle group, one segmented row tinted per channel. The widget
+  // owns the selection (`value`) and assigns each accepted pick.
+  const tabs = document.createElement("tp-toggle-group") as TpToggleGroup;
   tabs.className = "curve-tabs";
-  const tabBtns: Record<string, HTMLButtonElement> = {};
+  tabs.label = "Curve channel";
+  tabs.size = "xs";
+  tabs.spacing = 0;
+  tabs.variant = "outline";
+  tabs.value = [active];
   for (const c of CURVE_CHANNELS) {
-    const b = document.createElement("button");
-    b.textContent = c;
-    b.style.color = CH_COLOR[c];
-    b.onclick = () => {
-      active = c;
-      syncTabs();
-      draw();
-    };
-    tabs.appendChild(b);
-    tabBtns[c] = b;
+    const toggle = document.createElement("tp-toggle") as TpToggle;
+    toggle.value = c;
+    toggle.textContent = c;
+    toggle.style.setProperty("--curve-channel-color", CH_COLOR[c]);
+    tabs.appendChild(toggle);
   }
+  tabs.addEventListener("tp-value-change", (event) => {
+    if (event.target !== tabs) return;
+    const [next] = (event as CustomEvent<{ value: string[] }>).detail.value;
+    // Re-pressing the active channel would clear the selection; one channel is always being edited.
+    if (!next) {
+      event.preventDefault();
+      return;
+    }
+    active = next;
+    tabs.value = [next];
+    draw();
+  });
   root.appendChild(tabs);
 
   const canvas = document.createElement("canvas");
@@ -68,10 +83,6 @@ export function mountCurveWidget(
   root.appendChild(canvas);
   host.appendChild(root);
   const ctx = canvas.getContext("2d")!;
-
-  function syncTabs() {
-    for (const c of CURVE_CHANNELS) tabBtns[c].classList.toggle("active", c === active);
-  }
 
   function pts(c: string): number[] {
     return value[c as keyof CurveValue];
@@ -166,6 +177,5 @@ export function mountCurveWidget(
     draw();
   });
 
-  syncTabs();
   draw();
 }

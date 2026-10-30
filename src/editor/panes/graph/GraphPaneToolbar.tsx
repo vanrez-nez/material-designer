@@ -63,7 +63,7 @@ export function GraphPaneToolbar() {
             variant={arrangement === nextArrangement ? "secondary" : "ghost"}
             onClick={() => dispatchGraphAutoLayout(nextArrangement)}
           >
-            <Icon className="size-3.5" />
+            <Icon />
           </Button>
         );
       })}
