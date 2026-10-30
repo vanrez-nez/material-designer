@@ -1,51 +1,95 @@
-import { GripVerticalIcon } from "lucide-react";
-import * as ResizablePrimitive from "react-resizable-panels";
+import * as React from "react";
+import type { TpResizablePanelGroup } from "@tweakpad/ui";
 
 import { cn } from "@/lib/utils";
+import { useTpEvent } from "@/components/ui/tp/hooks";
 
-function ResizablePanelGroup({
-  className,
-  ...props
-}: ResizablePrimitive.GroupProps) {
+// Panel id → size in percent of the group, as reported when a resize settles.
+type Layout = Record<string, number>;
+
+// Panels report the size the caller wants for them; the group applies a changed set as one layout.
+const PanelSizesContext = React.createContext<Map<string, number> | null>(null);
+
+type ResizablePanelGroupProps = Omit<React.HTMLAttributes<HTMLElement>, "onChange"> & {
+  onLayoutChanged?: (layout: Layout) => void;
+  orientation?: "horizontal" | "vertical";
+};
+
+// tp-resizable-panel-group lays out its tp-resizable-panel / tp-resizable-handle children (direct children,
+// in order) and owns their sizes; nest another group inside a panel for the other axis.
+function ResizablePanelGroup({ className, onLayoutChanged, orientation, ...props }: ResizablePanelGroupProps) {
+  const ref = React.useRef<TpResizablePanelGroup>(null);
+  const requestedSizes = React.useRef(new Map<string, number>()).current;
+  const appliedSizes = React.useRef<string | null>(null);
+
+  useTpEvent<{ layout: Layout }>(ref, "tp-layout-change-complete", (event) => {
+    if (event.target !== ref.current) return;
+    onLayoutChanged?.(event.detail.layout);
+  });
+
+  // Panels read their default size once, on connect. When the caller later asks for different sizes or
+  // flips the orientation (e.g. a layout preset), apply the requested sizes together; this runs after the
+  // panels' own effects. The group must first process its new properties (an orientation change re-measures
+  // the panels), so the layout is applied once its update completes.
+  React.useLayoutEffect(() => {
+    const layout = Object.fromEntries(requestedSizes);
+    const key = JSON.stringify([orientation, layout]);
+    const group = ref.current;
+    if (group && appliedSizes.current !== null && appliedSizes.current !== key) {
+      void group.updateComplete.then(() => {
+        if (group.isConnected) group.setLayout(layout);
+      });
+    }
+    appliedSizes.current = key;
+  });
+
   return (
-    <ResizablePrimitive.Group
-      data-slot="resizable-panel-group"
-      className={cn(
-        "h-full w-full",
-        className,
-      )}
+    <PanelSizesContext.Provider value={requestedSizes}>
+      <tp-resizable-panel-group
+        ref={ref}
+        data-slot="resizable-panel-group"
+        className={cn("h-full w-full", className)}
+        orientation={orientation}
+        {...props}
+      />
+    </PanelSizesContext.Provider>
+  );
+}
+
+type ResizablePanelProps = React.HTMLAttributes<HTMLElement> & {
+  // Percent of the group.
+  defaultSize?: number;
+  id: string;
+  // Pixels.
+  minSize?: number;
+};
+
+// Set as properties: TweakPad reads string extents as percentages and numbers as pixels.
+function ResizablePanel({ defaultSize, id, minSize, ...props }: ResizablePanelProps) {
+  const requestedSizes = React.useContext(PanelSizesContext);
+
+  React.useLayoutEffect(() => {
+    if (!requestedSizes || defaultSize === undefined) return undefined;
+    requestedSizes.set(id, defaultSize);
+    return () => {
+      requestedSizes.delete(id);
+    };
+  }, [defaultSize, id, requestedSizes]);
+
+  return (
+    <tp-resizable-panel
+      data-slot="resizable-panel"
+      data-panel=""
+      defaultSize={defaultSize === undefined ? undefined : `${defaultSize}%`}
+      id={id}
+      minSize={minSize}
       {...props}
     />
   );
 }
 
-function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
-  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
-}
-
-function ResizableHandle({
-  withHandle,
-  className,
-  ...props
-}: ResizablePrimitive.SeparatorProps & {
-  withHandle?: boolean;
-}) {
-  return (
-    <ResizablePrimitive.Separator
-      data-slot="resizable-handle"
-      className={cn(
-        "relative flex w-px items-center justify-center bg-border after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90",
-        className,
-      )}
-      {...props}
-    >
-      {withHandle && (
-        <div className="z-10 flex h-4 w-3 items-center justify-center rounded-xs border bg-border">
-          <GripVerticalIcon className="size-2.5" />
-        </div>
-      )}
-    </ResizablePrimitive.Separator>
-  );
+function ResizableHandle({ withHandle, ...props }: React.HTMLAttributes<HTMLElement> & { withHandle?: boolean }) {
+  return <tp-resizable-handle data-slot="resizable-handle" withHandle={withHandle} {...props} />;
 }
 
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup };

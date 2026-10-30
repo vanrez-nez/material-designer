@@ -1,134 +1,124 @@
 import * as React from "react";
-import { XIcon } from "lucide-react";
-import { Dialog as DialogPrimitive } from "radix-ui";
 
-import { Button } from "@/components/ui/primitives/button";
 import { cn } from "@/lib/utils";
+import {
+  type TpValueChangeDetail,
+  useOpenState,
+  useTpEvent,
+  useTpOpenChange,
+} from "@/components/ui/tp/hooks";
 
-function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+const DialogContext = React.createContext<{
+  open: boolean;
+  setOpen: (open: boolean) => void;
+} | null>(null);
+
+function useDialogContext(part: string) {
+  const context = React.useContext(DialogContext);
+  if (!context) throw new Error(`${part} must be rendered inside <Dialog>.`);
+  return context;
 }
 
-function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
+type DialogProps = {
+  children?: React.ReactNode;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+};
+
+function Dialog({ children, defaultOpen, onOpenChange, open }: DialogProps) {
+  const [isOpen, setOpen] = useOpenState(open, defaultOpen, onOpenChange);
+  const context = React.useMemo(() => ({ open: isOpen, setOpen }), [isOpen, setOpen]);
+
+  return <DialogContext.Provider value={context}>{children}</DialogContext.Provider>;
 }
 
-function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+type DialogActionProps = { asChild?: boolean; children?: React.ReactNode } & Record<string, unknown>;
+
+// Radix-style `asChild` triggers/closers: extra props (e.g. a slot from an enclosing trigger) pass through
+// to the caller's element, which keeps its own click handler.
+function withClick(
+  child: React.ReactNode,
+  onClick: () => void,
+  props: Record<string, unknown>,
+): React.ReactNode {
+  if (!React.isValidElement<{ onClick?: (event: React.MouseEvent) => void }>(child)) return child;
+  const ownClick = child.props.onClick;
+  return React.cloneElement(child, {
+    ...props,
+    onClick: (event: React.MouseEvent) => {
+      ownClick?.(event);
+      if (!event.defaultPrevented) onClick();
+    },
+  });
 }
 
-function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
+function DialogTrigger({ asChild: _asChild, children, ...props }: DialogActionProps) {
+  const { setOpen } = useDialogContext("DialogTrigger");
+  return withClick(children, () => setOpen(true), props);
 }
 
-function DialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
-  return (
-    <DialogPrimitive.Overlay
-      data-slot="dialog-overlay"
-      className={cn(
-        "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
-        className,
-      )}
-      {...props}
-    />
-  );
+function DialogClose({ asChild: _asChild, children, ...props }: DialogActionProps) {
+  const { setOpen } = useDialogContext("DialogClose");
+  return withClick(children, () => setOpen(false), props);
 }
 
-function DialogContent({
-  className,
-  children,
-  showCloseButton = true,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+type DialogContentProps = React.HTMLAttributes<HTMLElement> & {
+  // Scope the dialog to a region instead of the page: it renders inside `container`, which must be
+  // `position: relative; isolation: isolate`, and only that region goes inert.
+  container?: HTMLElement | null;
   showCloseButton?: boolean;
-}) {
-  return (
-    <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        data-slot="dialog-content"
-        className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton ? (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        ) : null}
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  );
-}
+};
 
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
-      {...props}
-    />
-  );
-}
+// tp-dialog owns the modal surface, backdrop, focus management, Escape/outside dismissal and the corner
+// close control. Content mounts when the dialog opens, as with Radix, and unmounts only once the close has
+// completed: in container modality tp-dialog projects its children into the container while open, and
+// hands them back on close, so React must not remove them before then.
+function DialogContent({ children, container, showCloseButton = true, ...props }: DialogContentProps) {
+  const { open, setOpen } = useDialogContext("DialogContent");
+  const ref = React.useRef<HTMLElement>(null);
+  const [present, setPresent] = React.useState(open);
+  if (open && !present) setPresent(true);
+  useTpOpenChange(ref, open, setOpen);
+  useTpEvent<TpValueChangeDetail<boolean>>(ref, "tp-open-change-complete", (event) => {
+    if (event.target === ref.current && !event.detail.value) setPresent(false);
+  });
 
-function DialogFooter({
-  className,
-  showCloseButton = false,
-  children,
-  ...props
-}: React.ComponentProps<"div"> & {
-  showCloseButton?: boolean;
-}) {
   return (
-    <div
-      data-slot="dialog-footer"
-      className={cn(
-        "-mx-6 -mb-6 mt-2 flex flex-col-reverse gap-2 border-t bg-muted/40 px-6 py-4 sm:flex-row sm:justify-end",
-        className,
-      )}
+    <tp-dialog
+      ref={ref}
+      data-slot="dialog-content"
+      container={container ?? null}
+      modality={container ? "container" : "modal"}
+      open={open}
+      show-close-control={showCloseButton}
       {...props}
     >
-      {children}
-      {showCloseButton ? (
-        <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
-        </DialogPrimitive.Close>
-      ) : null}
-    </div>
+      {open || present ? children : null}
+    </tp-dialog>
   );
 }
 
-function DialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return (
-    <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn("text-lg leading-none font-semibold", className)}
-      {...props}
-    />
-  );
+// Title and description fill tp-dialog's header slots, so the header itself adds no wrapper.
+function DialogHeader({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>;
 }
 
-function DialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+function DialogTitle(props: React.ComponentProps<"span">) {
+  return <span slot="title" data-slot="dialog-title" {...props} />;
+}
+
+function DialogDescription(props: React.ComponentProps<"span">) {
+  return <span slot="description" data-slot="dialog-description" {...props} />;
+}
+
+// One row in tp-dialog's footer: actions end-aligned, as before; `className` can re-arrange the row.
+function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <DialogPrimitive.Description
-      data-slot="dialog-description"
-      className={cn("text-sm text-muted-foreground", className)}
+    <div
+      slot="footer"
+      data-slot="dialog-footer"
+      className={cn("flex flex-1 items-center justify-end gap-2", className)}
       {...props}
     />
   );
@@ -141,8 +131,6 @@ export {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
   DialogTrigger,
 };

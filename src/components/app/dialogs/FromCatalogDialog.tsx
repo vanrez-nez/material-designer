@@ -71,7 +71,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[100rem]">
+      <DialogContent className="catalog-dialog">
         <DialogHeader>
           <DialogTitle>Open From Catalog</DialogTitle>
           <DialogDescription>Browse the material catalog by category.</DialogDescription>

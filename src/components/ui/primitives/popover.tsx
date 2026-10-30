@@ -1,35 +1,81 @@
 import * as React from "react";
-import { Popover as PopoverPrimitive } from "radix-ui";
 
-import { cn } from "@/lib/utils";
+import { useOpenState, useTpOpenChange, withSlot } from "@/components/ui/tp/hooks";
 
-function Popover({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />;
+type PopoverPlacement = { align?: "start" | "center" | "end"; sideOffset?: number };
+
+const PopoverContext = React.createContext<{
+  open: boolean;
+  setPlacement: (placement: PopoverPlacement) => void;
+} | null>(null);
+
+function usePopoverContext(part: string) {
+  const context = React.useContext(PopoverContext);
+  if (!context) throw new Error(`${part} must be rendered inside <Popover>.`);
+  return context;
 }
 
-function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
+type PopoverProps = {
+  children?: React.ReactNode;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+};
+
+// tp-popover hosts the trigger (slot="trigger") and the content (default slot). It renders without a portal
+// so the content stays inside the React root: React events and reconciliation keep working, and the popup
+// still lands in the top layer.
+function Popover({ children, defaultOpen, onOpenChange, open }: PopoverProps) {
+  const ref = React.useRef<HTMLElement>(null);
+  const [isOpen, setOpen] = useOpenState(open, defaultOpen, onOpenChange);
+  useTpOpenChange(ref, isOpen, setOpen);
+  const [placement, setPlacement] = React.useState<PopoverPlacement>({});
+  const context = React.useMemo(() => ({ open: isOpen, setPlacement }), [isOpen]);
+
+  return (
+    <PopoverContext.Provider value={context}>
+      <tp-popover
+        ref={ref}
+        data-slot="popover"
+        align={placement.align}
+        open={isOpen}
+        portal={false}
+        side="bottom"
+        side-offset={placement.sideOffset}
+      >
+        {children}
+      </tp-popover>
+    </PopoverContext.Provider>
+  );
+}
+
+function PopoverTrigger({ asChild = false, children }: { asChild?: boolean; children?: React.ReactNode }) {
+  const { open } = usePopoverContext("PopoverTrigger");
+  const state = { "data-slot": "popover-trigger", "data-state": open ? "open" : "closed" };
+
+  if (asChild) return withSlot(children, "trigger", state);
+  return (
+    <button slot="trigger" type="button" {...state}>
+      {children}
+    </button>
+  );
 }
 
 function PopoverContent({
-  className,
   align = "center",
+  children,
   sideOffset = 6,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+}: React.ComponentProps<"div"> & PopoverPlacement) {
+  const { open, setPlacement } = usePopoverContext("PopoverContent");
+
+  React.useLayoutEffect(() => setPlacement({ align, sideOffset }), [align, sideOffset, setPlacement]);
+
+  // The wrapper stays mounted (a stable slotted child); its content mounts only while open, as before.
   return (
-    <PopoverPrimitive.Portal>
-      <PopoverPrimitive.Content
-        data-slot="popover-content"
-        align={align}
-        sideOffset={sideOffset}
-        className={cn(
-          "z-50 rounded-md border bg-popover p-1 text-popover-foreground shadow-md outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
-          className,
-        )}
-        {...props}
-      />
-    </PopoverPrimitive.Portal>
+    <div data-slot="popover-content" {...props}>
+      {open ? children : null}
+    </div>
   );
 }
 

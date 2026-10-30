@@ -1,28 +1,13 @@
-import { cn } from "@/lib/utils"
+import type * as React from "react";
 
-function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
-  return (
-    <kbd
-      data-slot="kbd"
-      className={cn(
-        "pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 rounded-sm bg-[color-mix(in_oklab,var(--muted)_80%,black)] px-1 font-sans text-xs font-medium text-muted-foreground select-none",
-        "[&_svg:not([class*='size-'])]:size-3",
-        "[[data-slot=tooltip-content]_&]:bg-background/20 [[data-slot=tooltip-content]_&]:text-background dark:[[data-slot=tooltip-content]_&]:bg-background/10",
-        className
-      )}
-      {...props}
-    />
-  )
+// Shortcut labels: the caller supplies the platform-specific glyph (⌘, Ctrl, ⇧…) as the key text.
+function Kbd(props: React.HTMLAttributes<HTMLElement>) {
+  return <tp-key-hint data-slot="kbd" {...props} />;
 }
 
-function KbdGroup({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <kbd
-      data-slot="kbd-group"
-      className={cn("inline-flex items-center gap-1", className)}
-      {...props}
-    />
-  )
+// Marked as a menu shortcut so a tp-menu-item lays it out at the item's end (its only use is in menus).
+function KbdGroup(props: React.HTMLAttributes<HTMLElement>) {
+  return <tp-key-hint-group data-slot="kbd-group" data-menu-shortcut="" separator="none" {...props} />;
 }
 
-export { Kbd, KbdGroup }
+export { Kbd, KbdGroup };

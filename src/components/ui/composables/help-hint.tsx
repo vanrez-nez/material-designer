@@ -1,4 +1,4 @@
-import { type MouseEvent, useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 import { CircleQuestionMark } from "lucide-react";
 
 import { MarkdownContent } from "@/components/ui/composables/markdown-content";
@@ -11,12 +11,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/primitives/dialog";
-import { cn } from "@/lib/utils";
 import {
-  Widget,
-  type WidgetOwnerRect,
-  type WidgetPosition,
-} from "@/editor/panes/common/Widget";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/primitives/tooltip";
+import { cn } from "@/lib/utils";
 
 type HelpHintSize = "xs" | "md" | "lg";
 type HelpHintTrigger = "hover" | "click" | "both";
@@ -44,9 +44,6 @@ const SIZE_TO_ICON: Record<HelpHintSize, string> = {
   xs: "size-4",
 };
 
-const HOVER_PANEL_WIDTH = 288;
-const VIEWPORT_PADDING = 12;
-
 function parseHelpDoc(raw: string): ParsedHelpDoc {
   const match = /^---\s*\n([\s\S]*?)\n---\s*\n?/.exec(raw);
   if (!match) return { body: raw.trim(), description: "", title: "" };
@@ -65,17 +62,6 @@ function parseHelpDoc(raw: string): ParsedHelpDoc {
   return { body: raw.slice(match[0].length).trim(), description, title };
 }
 
-function rectToOwnerRect(rect: DOMRect): WidgetOwnerRect {
-  return {
-    bottom: rect.bottom,
-    height: rect.height,
-    left: rect.left,
-    right: rect.right,
-    top: rect.top,
-    width: rect.width,
-  };
-}
-
 export function HelpHint({
   ariaLabel = "More info",
   className,
@@ -85,37 +71,13 @@ export function HelpHint({
   trigger = "both",
 }: HelpHintProps) {
   const { body, description, title } = useMemo(() => parseHelpDoc(doc), [doc]);
-  const [hoverOpen, setHoverOpen] = useState(false);
-  const [position, setPosition] = useState<WidgetPosition>({
-    x: VIEWPORT_PADDING,
-    y: VIEWPORT_PADDING,
-  });
-  const [ownerRect, setOwnerRect] = useState<WidgetOwnerRect | null>(null);
-  const leaveTimerRef = useRef<number>(0);
   const showHover = (trigger === "hover" || trigger === "both") && Boolean(description);
   const showDialog = trigger === "click" || trigger === "both";
-
-  const openHover = (event: MouseEvent<HTMLButtonElement>) => {
-    window.clearTimeout(leaveTimerRef.current);
-    const rect = event.currentTarget.getBoundingClientRect();
-    const maxX = Math.max(VIEWPORT_PADDING, window.innerWidth - HOVER_PANEL_WIDTH - VIEWPORT_PADDING);
-    setPosition({ x: Math.min(Math.max(rect.left, VIEWPORT_PADDING), maxX), y: rect.bottom + 6 });
-    setOwnerRect(rectToOwnerRect(rect));
-    setHoverOpen(true);
-  };
-
-  const closeHover = () => {
-    window.clearTimeout(leaveTimerRef.current);
-    leaveTimerRef.current = window.setTimeout(() => setHoverOpen(false), 80);
-  };
 
   const button = (
     <Button
       aria-label={ariaLabel}
       className={cn("rounded-full text-muted-foreground", className)}
-      onClick={showHover ? () => setHoverOpen(false) : undefined}
-      onMouseEnter={showHover ? openHover : undefined}
-      onMouseLeave={showHover ? closeHover : undefined}
       size={SIZE_TO_BUTTON[size]}
       type="button"
       variant="ghost"
@@ -124,35 +86,23 @@ export function HelpHint({
     </Button>
   );
 
-  const hoverPanel =
-    showHover && hoverOpen ? (
-      <Widget
-        contentClassName="min-h-0 p-3"
-        floatingOwnerRect={ownerRect ?? undefined}
-        floatingPosition={position}
-        showFloatingOwnerCallout
-        onMouseEnter={() => window.clearTimeout(leaveTimerRef.current)}
-        onMouseLeave={closeHover}
-        style={{ width: HOVER_PANEL_WIDTH }}
-        variant="floating"
-      >
-        <p className="leading-relaxed">{description}</p>
-      </Widget>
-    ) : null;
-
-  if (!showDialog) {
-    return (
-      <>
-        {button}
-        {hoverPanel}
-      </>
+  // The hover description is a tooltip: it opens on hover/focus and, being in the top layer, stays above
+  // the dialogs a hint sits in.
+  const withHover = (control: ReactNode) =>
+    showHover ? (
+      <Tooltip>
+        <TooltipTrigger asChild>{control}</TooltipTrigger>
+        <TooltipContent>{description}</TooltipContent>
+      </Tooltip>
+    ) : (
+      control
     );
-  }
+
+  if (!showDialog) return withHover(button);
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{button}</DialogTrigger>
-      {hoverPanel}
+      {withHover(<DialogTrigger asChild>{button}</DialogTrigger>)}
       <DialogContent className={cn("max-w-lg", contentClassName)}>
         <DialogHeader>
           <DialogTitle>{title || "Help"}</DialogTitle>

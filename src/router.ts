@@ -15,6 +15,9 @@ if (path === "/export-bake") {
   if (import.meta.env.PROD) await preloadAssets();
   const { MaterialAppServices } = await import("./components/app/services");
   const services = new MaterialAppServices();
+  // Define the TweakPad custom elements before React creates any of them, so properties React sets on
+  // first render (sizes, open, value…) land on upgraded elements.
+  await import("./components/ui/tp/register");
   const { mountApp } = await import("./components/app/mount");
   await mountApp(services);
   const { bootApp } = await import("./editor/panes/preview/boot");

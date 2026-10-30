@@ -11,7 +11,7 @@ import {
 import { ImageIcon, Loader2 } from "lucide-react";
 import { NoColorSpace } from "three";
 
-import { Button } from "@/components/ui/primitives/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
 import { cn } from "@/lib/utils";
 import { useTexturePreviewStore } from "@/editor/panes/textures/store";
 import { useWorkspaceStore } from "@/store/app";
@@ -138,21 +138,21 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
                 bakeGeneration={bakeGeneration}
               />
             </div>
-            <div className="texture-preview-thumbnails">
+            <ToggleGroup
+              className="texture-preview-thumbnails"
+              label="Texture channel"
+              value={selectedChannel.socket}
+              variant="outline"
+              onValueChange={(socket) => setSelectedSocket(socket as PbrSocket)}
+            >
               {/* Only channels the current graph actually outputs get a thumb; empty channels are hidden
                   entirely (and when none are connected, the empty-state text below is shown instead). */}
               {channels.map((channel) => (
-                <Button
+                <ToggleGroupItem
                   key={channel.id}
-                  className={cn(
-                    "texture-preview-thumb",
-                    selectedChannel.socket === channel.socket && "texture-preview-thumb--selected",
-                  )}
+                  className="texture-preview-thumb"
                   title={channel.label}
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setSelectedSocket(channel.socket)}
+                  value={channel.socket}
                 >
                   <StaticTextureCanvas
                     gpu={gpu}
@@ -163,9 +163,9 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
                     bakeGeneration={bakeGeneration}
                   />
                   <span>{channel.label}</span>
-                </Button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </>
         ) : (
           <div className="texture-preview-empty">

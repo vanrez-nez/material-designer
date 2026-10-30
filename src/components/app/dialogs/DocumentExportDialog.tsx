@@ -72,6 +72,7 @@ export function DocumentExportDialog({ onOpenChange, open }: DocumentExportDialo
               />
             </span>
             <Checkbox
+              aria-label="Include document metadata"
               checked={includeMetadata}
               id="document-export-include-metadata"
               onCheckedChange={(checked) => setIncludeMetadata(checked === true)}
