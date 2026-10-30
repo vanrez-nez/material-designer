@@ -22,6 +22,13 @@ import { TEXTURE_CHANNELS, sortedTextureSockets } from "@/editor/panes/textures/
 import type { MaterialAppServices } from "@/components/app/services";
 import type { PbrSocket } from "@/runtime";
 
+// The channel checkboxes stack at the Checkbox group spacing (the Field spaces peer Fields wider), under a
+// legend aligned with them.
+const CHANNEL_GROUP = {
+  "field-field-group": { styleHook: { display: "grid", gap: "var(--tp-space-3)" } },
+  "field-legend": { styleHook: { "padding-inline": "0" } },
+};
+
 type TextureExportDialogProps = {
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -111,7 +118,7 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
       >
 
         <div className="texture-export__form">
-          <Field description="Resolution for every exported map." label="Texture size" orientation="horizontal">
+          <Field description="Resolution for every exported map." label="Texture size" nativeLabel={false}>
             <Select
               disabled={isExporting}
               value={String(size)}
@@ -130,20 +137,17 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
             </Select>
           </Field>
 
-          <Field legend="Channels" legendScale="field">
-            <div slot="group" className="texture-export__channels">
+          <Field legend="Channels" legendScale="field" partPresentation={CHANNEL_GROUP}>
+            <div slot="group">
               {TEXTURE_CHANNELS.map((channel) => (
-                <Field
+                <Checkbox
                   key={channel.id}
+                  checked={selected.has(channel.socket)}
                   disabled={isExporting || !available.has(channel.socket)}
-                  label={channel.label}
-                  orientation="horizontal"
+                  onCheckedChange={(checked) => setChannel(channel.socket, checked)}
                 >
-                  <Checkbox
-                    checked={selected.has(channel.socket)}
-                    onCheckedChange={(checked) => setChannel(channel.socket, checked)}
-                  />
-                </Field>
+                  {channel.label}
+                </Checkbox>
               ))}
             </div>
           </Field>

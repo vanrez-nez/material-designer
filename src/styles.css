@@ -820,8 +820,7 @@ body {
 }
 
 /* Texture export: the form stacks its fields, and channel rows stack inside their legend. */
-.texture-export__form,
-.texture-export__channels {
+.texture-export__form {
   display: grid;
   gap: var(--tp-space-4);
 }
