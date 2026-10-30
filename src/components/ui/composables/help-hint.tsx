@@ -1,16 +1,9 @@
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { CircleQuestionMark } from "lucide-react";
 
 import { MarkdownContent } from "@/components/ui/composables/markdown-content";
 import { Button } from "@/components/ui/primitives/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/primitives/dialog";
+import { Dialog, DialogContent } from "@/components/ui/primitives/dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -68,6 +61,22 @@ export function HelpHint({
   const { body, description, title } = useMemo(() => parseHelpDoc(doc), [doc]);
   const showHover = (trigger === "hover" || trigger === "both") && Boolean(description);
   const showDialog = trigger === "click" || trigger === "both";
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const hostRef = useRef<HTMLSpanElement>(null);
+
+  // The hint handles its own click: inside a field label it must not toggle the labelled control, as a
+  // button inside a native <label> doesn't, and tp-field skips label activation for a handled click. Native,
+  // because React's listener runs at the root, after the field has seen the click.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return undefined;
+    const onClick = (event: Event) => {
+      event.preventDefault();
+      if (showDialog) setDialogOpen(true);
+    };
+    host.addEventListener("click", onClick);
+    return () => host.removeEventListener("click", onClick);
+  }, [showDialog]);
 
   const button = (
     <Button
@@ -93,20 +102,18 @@ export function HelpHint({
       control
     );
 
-  if (!showDialog) return withHover(button);
-
   return (
-    <Dialog>
-      {withHover(<DialogTrigger asChild>{button}</DialogTrigger>)}
-      <DialogContent className={cn("max-w-lg", contentClassName)}>
-        <DialogHeader>
-          <DialogTitle>{title || "Help"}</DialogTitle>
-          {description ? (
-            <DialogDescription className="sr-only">{description}</DialogDescription>
-          ) : null}
-        </DialogHeader>
-        <MarkdownContent content={body} />
-      </DialogContent>
-    </Dialog>
+    <>
+      <span className="contents" ref={hostRef}>
+        {withHover(button)}
+      </span>
+      {showDialog && (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className={cn("max-w-lg", contentClassName)} title={title || "Help"}>
+            <MarkdownContent content={body} />
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }

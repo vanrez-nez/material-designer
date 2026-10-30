@@ -60,3 +60,19 @@
   flex-direction: row;
   align-items: center;
 }
+
+/* The collapsible's trigger and content keep the panel's compact type and its single inset: the header
+   matches the plain header, and the body below it carries the side and bottom inset. */
+.floating-widget__collapsible::part(collapsible-trigger) {
+  font-size: inherit;
+  padding: var(--tp-space-1-5) var(--tp-space-2);
+}
+
+.floating-widget__collapsible::part(collapsible-content-body) {
+  font-size: inherit;
+  padding: 0;
+}
+
+.floating-widget__collapsible .floating-widget__body {
+  padding: 0 var(--tp-space-2) var(--tp-space-2);
+}

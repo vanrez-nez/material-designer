@@ -33,13 +33,9 @@ type LayoutArrangement = NonNullable<EditorViewState['layoutArrangement']>
 type Point = { x: number; y: number }
 
 const LAYOUT_ARRANGEMENTS: LayoutArrangement[] = ['down', 'right', 'up', 'left']
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 2.5
 // Spacing between nodes in a layer and between layers for the automatic layout.
 const LAYOUT_NODE_SPACING = 70
 const LAYOUT_RANK_SPACING = 130
-// One wheel line in px, for wheels that report lines rather than pixels.
-const WHEEL_LINE_PX = 16
 // The view to frame when a node title is double-clicked: the node at 100%.
 const NODE_FOCUS_ZOOM = 1
 
@@ -100,13 +96,9 @@ export class EditorPanel {
     flow.className = 'fe-flow'
     flow.label = 'Material graph'
     flow.background = 'dots'
-    // Wheel zooms toward the pointer and Shift + wheel pans (onShiftWheel). Dragging a node moves it, and a
-    // press on the empty canvas clears the selection (dragging there draws a selection marquee).
-    flow.wheel = 'zoom'
-    flow.minZoom = MIN_ZOOM
-    flow.maxZoom = MAX_ZOOM
-    // Nodes keep their full content (their parameter panes) at every zoom.
-    flow.detailZoom = MIN_ZOOM
+    // Drag and zoom are the widget's defaults. Nodes keep their full content (their parameter panes) at
+    // every zoom.
+    flow.detailZoom = flow.minZoom
     flow.virtualize = false
     flow.palette = 'none'
     flow.inspector = 'none'
@@ -121,13 +113,12 @@ export class EditorPanel {
     flow.addEventListener('tp-delete', this.onDelete)
     flow.addEventListener('tp-viewport-change', this.onViewportChange)
     flow.addEventListener('dblclick', this.onDoubleClick)
-    flow.addEventListener('wheel', this.onShiftWheel, { capture: true, passive: false })
     this.flow = flow
 
     const tip = document.createElement('span')
     tip.className = 'ne-canvas__tip'
     tip.slot = 'bottom-end'
-    tip.textContent = 'Scroll to zoom · Shift + scroll to pan · Double-click a title to focus'
+    tip.textContent = 'Scroll to pan · Pinch or Ctrl + scroll to zoom · Double-click a title to focus'
     flow.appendChild(tip)
 
     this.canvasHost.appendChild(flow)
@@ -514,21 +505,6 @@ export class EditorPanel {
     if (!node) return
     if (node.onEnter) node.onEnter()
     else void this.focusNode(node.id)
-  }
-
-  // Shift + wheel pans the canvas (the widget's zoom wheel would zoom); captured before the widget sees it.
-  private readonly onShiftWheel = (event: WheelEvent): void => {
-    if (!event.shiftKey || event.ctrlKey || event.metaKey) return
-    const scale =
-      event.deltaMode === WheelEvent.DOM_DELTA_LINE
-        ? WHEEL_LINE_PX
-        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-          ? this.canvasHost.clientHeight
-          : 1
-    event.preventDefault()
-    event.stopPropagation()
-    const { x, y, zoom } = this.flow.viewport
-    void this.flow.setViewport({ x: x - event.deltaX * scale, y: y - event.deltaY * scale, zoom }, { duration: 0 })
   }
 
   // Esc leaves one group level (unless typing in a field).

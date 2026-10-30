@@ -5,10 +5,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/primitives/dialog";
 import { DescriptionList, DescriptionListItem } from "@/components/ui/primitives/description-list";
 import { EmptyState } from "@/components/ui/primitives/empty-state";
@@ -75,11 +72,11 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="catalog-dialog">
-        <DialogHeader>
-          <DialogTitle>Open From Catalog</DialogTitle>
-          <DialogDescription>Browse the material catalog by category.</DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        className="catalog-dialog"
+        description="Browse the material catalog by category."
+        title="Open From Catalog"
+      >
 
         <div className="catalog-browser">
           <ScrollArea className="toggle-list" label="Categories">

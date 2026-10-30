@@ -4,9 +4,6 @@ import { dispatchControlsDialogMount } from "@/app-events";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/primitives/dialog";
 
 type ControlsDialogProps = {
@@ -33,13 +30,7 @@ export function ControlsDialog({ onOpenChange, open }: ControlsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent container={container}>
-        <DialogHeader>
-          <DialogTitle>Controls</DialogTitle>
-          <DialogDescription className="sr-only">
-            Projection, scene lighting, and renderer settings for the material preview.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent container={container} title="Controls">
         <div ref={hostRef} className="controls-dialog-host" />
       </DialogContent>
     </Dialog>

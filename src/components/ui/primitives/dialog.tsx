@@ -63,18 +63,29 @@ function DialogClose({ asChild: _asChild, children, ...props }: DialogActionProp
   return withClick(children, () => setOpen(false), props);
 }
 
-type DialogContentProps = React.HTMLAttributes<HTMLElement> & {
+type DialogContentProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
   // Scope the dialog to a region instead of the page: it renders inside `container`, which must be
   // `position: relative; isolation: isolate`, and only that region goes inert.
   container?: HTMLElement | null;
+  // Shown in the dialog's header under the title, and describes the dialog for assistive technology.
+  description?: string;
   showCloseButton?: boolean;
+  // The header title; it also names the dialog.
+  title: string;
 };
 
 // tp-dialog owns the modal surface, backdrop, focus management, Escape/outside dismissal and the corner
 // close control. Content mounts when the dialog opens, as with Radix, and unmounts only once the close has
 // completed: in container modality tp-dialog projects its children into the container while open, and
 // hands them back on close, so React must not remove them before then.
-function DialogContent({ children, container, showCloseButton = true, ...props }: DialogContentProps) {
+function DialogContent({
+  children,
+  container,
+  description,
+  showCloseButton = true,
+  title,
+  ...props
+}: DialogContentProps) {
   const { open, setOpen } = useDialogContext("DialogContent");
   const ref = React.useRef<HTMLElement>(null);
   const [present, setPresent] = React.useState(open);
@@ -89,6 +100,8 @@ function DialogContent({ children, container, showCloseButton = true, ...props }
       ref={ref}
       data-slot="dialog-content"
       container={container ?? null}
+      description={description}
+      label={title}
       modality={container ? "container" : "modal"}
       open={open}
       show-close-control={showCloseButton}
@@ -97,19 +110,6 @@ function DialogContent({ children, container, showCloseButton = true, ...props }
       {open || present ? children : null}
     </tp-dialog>
   );
-}
-
-// Title and description fill tp-dialog's header slots, so the header itself adds no wrapper.
-function DialogHeader({ children }: { children?: React.ReactNode }) {
-  return <>{children}</>;
-}
-
-function DialogTitle(props: React.ComponentProps<"span">) {
-  return <span slot="title" data-slot="dialog-title" {...props} />;
-}
-
-function DialogDescription(props: React.ComponentProps<"span">) {
-  return <span slot="description" data-slot="dialog-description" {...props} />;
 }
 
 // One row in tp-dialog's footer: actions end-aligned, as before; `className` can re-arrange the row.
@@ -128,9 +128,6 @@ export {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 };

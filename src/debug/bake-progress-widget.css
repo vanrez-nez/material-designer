@@ -7,3 +7,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Room between the bar, the detail line and the button. */
+.bake-widget .floating-widget__body {
+  gap: var(--tp-space-2);
+}

@@ -77,7 +77,7 @@ export class BakeProgressWidget {
     // Regenerate: flush every cache for the active material and re-bake from scratch.
     this.regenBtn = document.createElement("tp-button") as TpButton;
     this.regenBtn.variant = "outline";
-    this.regenBtn.size = "sm";
+    this.regenBtn.size = "xs";
     this.regenBtn.title = "Flush all caches and re-bake this material from scratch";
     this.regenBtn.append(iconSlot(RefreshCw), "Regenerate");
     this.regenBtn.addEventListener("click", () => this.regenerate?.());

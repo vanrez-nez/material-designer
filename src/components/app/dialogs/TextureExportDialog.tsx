@@ -7,10 +7,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/primitives/dialog";
 import { Field } from "@/components/ui/primitives/field";
 import {
@@ -107,13 +104,11 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
 
   return (
     <Dialog open={open} onOpenChange={(next) => (isExporting ? undefined : onOpenChange(next))}>
-      <DialogContent showCloseButton={!isExporting}>
-        <DialogHeader>
-          <DialogTitle>Export Textures</DialogTitle>
-          <DialogDescription>
-            Bake selected material channels into a ZIP of PNG textures.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        description="Bake selected material channels into a ZIP of PNG textures."
+        showCloseButton={!isExporting}
+        title="Export Textures"
+      >
 
         <div className="texture-export__form">
           <Field description="Resolution for every exported map." label="Texture size" orientation="horizontal">

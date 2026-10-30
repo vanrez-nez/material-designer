@@ -35,6 +35,12 @@ declare module "react" {
       "tp-separator": TpElementProps;
       "tp-spinner": TpElementProps;
       "tp-switch": TpElementProps;
+      "tp-table": TpElementProps;
+      "tp-table-body": TpElementProps;
+      "tp-table-cell": TpElementProps;
+      "tp-table-head": TpElementProps;
+      "tp-table-header": TpElementProps;
+      "tp-table-row": TpElementProps;
       "tp-time": TpElementProps;
       "tp-toggle": TpElementProps;
       "tp-toggle-group": TpElementProps;

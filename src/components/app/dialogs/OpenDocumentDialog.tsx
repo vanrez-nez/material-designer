@@ -5,21 +5,18 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/primitives/dialog";
 import { EmptyState } from "@/components/ui/primitives/empty-state";
-import { ScrollArea } from "@/components/ui/primitives/scroll-area";
-import { Time } from "@/components/ui/primitives/time";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/primitives/tooltip";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/primitives/table";
+import { Time } from "@/components/ui/primitives/time";
 import { listDocuments, useDocumentLibraryStore } from "@/store/document-library";
 
 type OpenDocumentDialogProps = {
@@ -47,46 +44,42 @@ export function OpenDocumentDialog({ onOpen, onOpenChange, open }: OpenDocumentD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Open Document</DialogTitle>
-          <DialogDescription>Pick a saved document to open.</DialogDescription>
-        </DialogHeader>
+      <DialogContent description="Pick a saved document to open." title="Open Document">
 
         {entries.length === 0 ? (
           <EmptyState title="No saved documents yet." />
         ) : (
-          <ScrollArea className="toggle-list open-document-list" label="Saved documents">
-            <TooltipProvider>
-              <ToggleGroup
-                label="Saved documents"
-                onValueChange={setSelectedId}
-                orientation="vertical"
-                value={selectedId ?? ""}
-              >
-                {entries.map((entry) => (
-                  <Tooltip key={entry.id}>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem
-                          value={entry.id}
-                        onDoubleClick={() => {
-                          setSelectedId(entry.id);
-                          onOpen(entry.id);
-                          onOpenChange(false);
-                        }}
-                      >
-                        <span className="toggle-list__name">{entry.title}</span>
-                        <Time className="toggle-list__detail" value={entry.updatedAt} />
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <Time mode="absolute" value={entry.updatedAt} />
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </ToggleGroup>
-            </TooltipProvider>
-          </ScrollArea>
+          <Table className="document-table" label="Saved documents" selectionPresentation="row" stickyHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>File name</TableHead>
+                <TableHead className="document-table__modified">Last modified</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((entry) => (
+                <TableRow
+                  key={entry.id}
+                  onClick={() => setSelectedId(entry.id)}
+                  onDoubleClick={() => {
+                    setSelectedId(entry.id);
+                    onOpen(entry.id);
+                    onOpenChange(false);
+                  }}
+                  selected={entry.id === selectedId}
+                >
+                  <TableHead scope="row">
+                    <Button size="xs" type="button" variant="link">
+                      {entry.title}
+                    </Button>
+                  </TableHead>
+                  <TableCell className="document-table__modified">
+                    <Time value={entry.updatedAt} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
 
         <DialogFooter>
