@@ -1,18 +1,10 @@
 import { useEffect, useState } from "react";
+import { Button, Checkbox, Dialog, Field } from "@tweakpad/ui/react";
 
 import {
   copyDocumentExportToClipboard,
   downloadDocumentExport,
 } from "@/editor/panes/graph/document-export";
-import { Button } from "@/components/ui/primitives/button";
-import { Checkbox } from "@/components/ui/primitives/checkbox";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-} from "@/components/ui/primitives/dialog";
-import { Field } from "@/components/ui/primitives/field";
 import { useWorkspaceStore } from "@/store/app";
 
 type DocumentExportDialogProps = {
@@ -44,31 +36,32 @@ export function DocumentExportDialog({ onOpenChange, open }: DocumentExportDialo
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent description="Save the current material graph as a JSON document." title="Export Document">
+    <Dialog
+      description="Save the current material graph as a JSON document."
+      label="Export Document"
+      onOpenChange={(event) => onOpenChange(event.detail.value)}
+      open={open}
+    >
+      <Field
+        description="Keeps the title, node layout, editor view and UI settings, so the document reopens exactly as authored. Turn it off to export only the material graph."
+        label="Include document metadata"
+        orientation="horizontal"
+      >
+        <Checkbox
+          checked={includeMetadata}
+          onCheckedChange={(event) => setIncludeMetadata(event.detail.value)}
+        />
+      </Field>
 
-        <Field
-          description="Keeps the title, node layout, editor view and UI settings, so the document reopens exactly as authored. Turn it off to export only the material graph."
-          label="Include document metadata"
-          orientation="horizontal"
-        >
-          <Checkbox checked={includeMetadata} onCheckedChange={setIncludeMetadata} />
-        </Field>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="ghost">
-              Cancel
-            </Button>
-          </DialogClose>
-          <Button type="button" variant="outline" onClick={() => void handleCopy()}>
-            {copied ? "Copied!" : "Copy to Clipboard"}
-          </Button>
-          <Button type="button" onClick={handleExport}>
-            Export
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <Button slot="footer" variant="ghost" onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button slot="footer" variant="outline" onClick={() => void handleCopy()}>
+        {copied ? "Copied!" : "Copy to Clipboard"}
+      </Button>
+      <Button slot="footer" onClick={handleExport}>
+        Export
+      </Button>
     </Dialog>
   );
 }

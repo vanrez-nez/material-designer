@@ -1,7 +1,6 @@
 import { RotateCcw } from "lucide-react";
+import { Button, Switch } from "@tweakpad/ui/react";
 
-import { Button } from "@/components/ui/primitives/button";
-import { Switch } from "@/components/ui/primitives/switch";
 import { useTexturePreviewStore } from "@/editor/panes/textures/store";
 
 export function TexturePreviewPaneToolbar() {
@@ -15,13 +14,12 @@ export function TexturePreviewPaneToolbar() {
         aria-label="Reset texture preview zoom"
         size="icon"
         title="Reset zoom"
-        type="button"
         variant="ghost"
         onClick={() => setZoom(1)}
       >
-        <RotateCcw />
+        <RotateCcw slot="icon-start" />
       </Button>
-      <Switch checked={seams} size="sm" onCheckedChange={setSeams}>
+      <Switch checked={seams} size="sm" onCheckedChange={(event) => setSeams(event.detail.value)}>
         Seams
       </Switch>
     </div>

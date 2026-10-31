@@ -1,7 +1,7 @@
 import { Box, Images, LayoutPanelLeft, LayoutPanelTop, Workflow, X } from "lucide-react";
 
-import { Button } from "@/components/ui/primitives/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
+import { Button, Toggle, ToggleGroup } from "@tweakpad/ui/react";
+
 import { useCompactLayout } from "@/lib/use-compact-layout";
 import { useWorkspaceStore, type WorkspaceLayoutPreset, type WorkspacePaneId } from "@/store/app";
 
@@ -36,16 +36,20 @@ function PaneSwitcher() {
     <ToggleGroup
       className="workspace-layout-controls"
       label="Shown pane"
-      onValueChange={(paneId) => setCompactPane(paneId as WorkspacePaneId)}
+      onValueChange={(event) => {
+        // One pane is always shown: re-pressing it proposes an empty selection, never accepted.
+        const [paneId] = event.detail.value;
+        if (paneId) setCompactPane(paneId as WorkspacePaneId);
+      }}
       size="icon-sm"
-      value={compactPaneId}
+      value={[compactPaneId]}
     >
       {panes
         .filter((pane) => visiblePanes[pane.id])
         .map(({ icon: Icon, id, label }) => (
-          <ToggleGroupItem key={id} aria-label={label} title={label} value={id}>
+          <Toggle key={id} aria-label={label} title={label} value={id}>
             <Icon aria-hidden size="1em" />
-          </ToggleGroupItem>
+          </Toggle>
         ))}
     </ToggleGroup>
   );
@@ -72,7 +76,7 @@ function LayoutPresets() {
             variant={layoutPreset === preset && !maximizedPaneId ? "default" : "ghost"}
             onClick={() => setLayoutPreset(preset)}
           >
-            <Icon />
+            <Icon slot="icon-start" />
           </Button>
         );
       })}
@@ -84,7 +88,7 @@ function LayoutPresets() {
           variant="secondary"
           onClick={restoreWorkspaceLayout}
         >
-          <X />
+          <X slot="icon-start" />
         </Button>
       ) : null}
     </div>

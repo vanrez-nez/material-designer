@@ -1,12 +1,8 @@
-import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { createContext, type ReactNode, useContext, useLayoutEffect, useMemo, useRef } from "react";
 import { Maximize2, X } from "lucide-react";
+import type { TpResizablePanelGroup } from "@tweakpad/ui";
+import { Button, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@tweakpad/ui/react";
 
-import { Button } from "@/components/ui/primitives/button";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/primitives/resizable";
 import { useCompactLayout } from "@/lib/use-compact-layout";
 import { cn } from "@/lib/utils";
 import {
@@ -114,10 +110,30 @@ function SplitNode({
   visiblePanes: Record<WorkspacePaneId, boolean>;
 }) {
   const updateLayoutSplitSizes = useWorkspaceStore((state) => state.updateLayoutSplitSizes);
+  const groupRef = useRef<TpResizablePanelGroup>(null);
+  const appliedLayout = useRef<string | null>(null);
+  const layout = JSON.stringify([
+    node.direction,
+    Object.fromEntries(visibleChildren.map((child) => [child.id, node.sizes[node.children.indexOf(child)]])),
+  ]);
+
+  // Panels read their default size once, when they connect. When the stored sizes or the direction change
+  // later (a layout preset), apply them together, once the group has re-measured for its new direction.
+  useLayoutEffect(() => {
+    const group = groupRef.current;
+    if (group && appliedLayout.current !== null && appliedLayout.current !== layout) {
+      const [, sizes] = JSON.parse(layout) as [string, Record<string, number>];
+      void group.updateComplete.then(() => {
+        if (group.isConnected) group.setLayout(sizes);
+      });
+    }
+    appliedLayout.current = layout;
+  }, [layout]);
 
   return (
     <ResizablePanelGroup
-      className="min-h-0 min-w-0"
+      ref={groupRef}
+      className="h-full min-h-0 w-full min-w-0"
       orientation={node.direction}
       onLayoutChanged={(layout) => {
         const sizes = node.children.map((child, index) => layout[child.id] ?? node.sizes[index] ?? 0);
@@ -169,9 +185,10 @@ function FragmentWithHandle({
   return (
     <>
       {index > 0 ? <ResizableHandle withHandle /> : null}
+      {/* TweakPad reads string extents as percentages of the group and numbers as pixels. */}
       <ResizablePanel
         className="min-h-0 min-w-0 overflow-hidden"
-        defaultSize={size}
+        defaultSize={`${size}%`}
         id={child.id}
         minSize={18}
       >
@@ -217,7 +234,7 @@ function PaneFrame({
               variant="ghost"
               onClick={() => setMaximizedPane(maximized ? null : paneId)}
             >
-              {maximized ? <X /> : <Maximize2 />}
+              {maximized ? <X slot="icon-start" /> : <Maximize2 slot="icon-start" />}
             </Button>
           )}
         </div>

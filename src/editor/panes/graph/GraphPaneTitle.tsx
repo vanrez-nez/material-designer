@@ -1,5 +1,6 @@
+import { Breadcrumb } from "@tweakpad/ui/react";
+
 import { dispatchGraphNavigate } from "@/app-events";
-import { Breadcrumb } from "@/components/ui/primitives/breadcrumb";
 import { GROUP_TYPE, type GraphNode, type MaterialGraphDocument } from "@/runtime";
 import { useWorkspaceStore } from "@/store/app";
 

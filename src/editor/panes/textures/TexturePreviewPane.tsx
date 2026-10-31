@@ -10,10 +10,8 @@ import {
 } from "react";
 import { ImageIcon } from "lucide-react";
 import { NoColorSpace } from "three";
+import { EmptyState, Spinner, Toggle, ToggleGroup } from "@tweakpad/ui/react";
 
-import { EmptyState } from "@/components/ui/primitives/empty-state";
-import { Spinner } from "@/components/ui/primitives/spinner";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
 import { useTexturePreviewStore } from "@/editor/panes/textures/store";
 import { useWorkspaceStore } from "@/store/app";
 import {
@@ -142,14 +140,18 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
             <ToggleGroup
               className="texture-preview-thumbnails"
               label="Texture channel"
-              value={selectedChannel.socket}
+              value={[selectedChannel.socket]}
               variant="outline"
-              onValueChange={(socket) => setSelectedSocket(socket as PbrSocket)}
+              onValueChange={(event) => {
+                // One channel is always shown: re-pressing it proposes an empty selection, never accepted.
+                const [socket] = event.detail.value;
+                if (socket) setSelectedSocket(socket as PbrSocket);
+              }}
             >
               {/* Only channels the current graph actually outputs get a thumb; empty channels are hidden
                   entirely (and when none are connected, the empty-state text below is shown instead). */}
               {channels.map((channel) => (
-                <ToggleGroupItem
+                <Toggle
                   key={channel.id}
                   className="texture-preview-thumb"
                   title={channel.label}
@@ -164,7 +166,7 @@ export function TexturePreviewPane({ services }: { services: MaterialAppServices
                     bakeGeneration={bakeGeneration}
                   />
                   <span>{channel.label}</span>
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
           </>

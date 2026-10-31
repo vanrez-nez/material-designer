@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 
+import { Button, Checkbox, EmptyState, Time } from "@tweakpad/ui/react";
+
 import { GithubMark } from "@/components/app/GithubMark";
 import type { MaterialAppServices } from "@/components/app/services";
-import { Button } from "@/components/ui/primitives/button";
-import { Checkbox } from "@/components/ui/primitives/checkbox";
-import { EmptyState } from "@/components/ui/primitives/empty-state";
-import { Time } from "@/components/ui/primitives/time";
 import { REPO_URL } from "@/lib/constants";
 import { getLoadProgress, subscribeLoadProgress } from "@/lib/load-progress";
 import { splashHidden, setSplashHidden } from "@/lib/splash-prefs";
@@ -108,7 +106,7 @@ export function SplashScreen({
         <div className="splash__image" style={{ backgroundImage: `url('${imgUrl}')` }} />
         <div className="splash__panel" onClick={(event) => event.stopPropagation()}>
         <Button aria-label="Close" className="splash__close" size="icon-sm" variant="ghost" onClick={close}>
-          <X />
+          <X slot="icon-start" />
         </Button>
 
         <div className="splash__brand">
@@ -120,16 +118,12 @@ export function SplashScreen({
           <Button variant="secondary" onClick={onOpenCatalog}>
             Open the catalog
           </Button>
-          <Button asChild variant="ghost">
-            <a href={REPO_URL} target="_blank" rel="noreferrer">
-              Help
-            </a>
+          <Button href={REPO_URL} rel="noreferrer" target="_blank" variant="ghost">
+            Help
           </Button>
-          <Button asChild variant="ghost">
-            <a href={REPO_URL} target="_blank" rel="noreferrer">
-              <GithubMark />
-              GitHub Repository
-            </a>
+          <Button href={REPO_URL} rel="noreferrer" target="_blank" variant="ghost">
+            <GithubMark slot="icon-start" />
+            GitHub Repository
           </Button>
         </div>
 
@@ -149,13 +143,24 @@ export function SplashScreen({
                 }}
               >
                 <span className="splash__recent-name">{truncateTitle(entry.title)}</span>
-                <Time className="splash__recent-time" relativeStyle="narrow" value={entry.updatedAt} />
+                <Time
+                  className="splash__recent-time"
+                  datetime={entry.updatedAt}
+                  mode="relative"
+                  numeric="always"
+                  relativeStyle="narrow"
+                  tooltip={false}
+                />
               </Button>
             ))
           )}
         </div>
 
-        <Checkbox className="splash__dontshow" checked={dontShow} onCheckedChange={handleDontShow}>
+        <Checkbox
+          className="splash__dontshow"
+          checked={dontShow}
+          onCheckedChange={(event) => handleDontShow(event.detail.value)}
+        >
           Do not show this screen again
         </Checkbox>
         </div>

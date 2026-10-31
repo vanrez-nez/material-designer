@@ -336,7 +336,7 @@ body {
 }
 
 /* The app bar frames the menus already; the menubar keeps its geometry without its own outline. */
-.app-menubar [data-slot="menubar"]::part(menubar) {
+.app-menubar tp-menubar::part(menubar) {
   border-color: transparent;
 }
 
@@ -386,21 +386,21 @@ body {
   height: 100%;
 }
 
-.workspace-layout--maximized [data-slot="resizable-handle"] {
+.workspace-layout--maximized tp-resizable-handle {
   display: none;
 }
 
-.workspace-layout--maximized [data-panel] {
+.workspace-layout--maximized tp-resizable-panel {
   min-width: 0 !important;
   min-height: 0 !important;
 }
 
-.workspace-layout--maximized [data-panel]:has(.workspace-pane--hidden-by-maximize) {
+.workspace-layout--maximized tp-resizable-panel:has(.workspace-pane--hidden-by-maximize) {
   flex: 0 0 0 !important;
   overflow: hidden !important;
 }
 
-.workspace-layout--maximized [data-panel]:has(.workspace-pane--maximized) {
+.workspace-layout--maximized tp-resizable-panel:has(.workspace-pane--maximized) {
   flex: 1 1 100% !important;
 }
 
@@ -410,21 +410,21 @@ body {
   padding: var(--tp-space-1);
 }
 
-.workspace-layout [data-panel]:has(> .workspace-pane) {
+.workspace-layout tp-resizable-panel:has(> .workspace-pane) {
   padding: var(--tp-space-1);
 }
 
-.workspace-layout--maximized [data-panel]:has(> .workspace-pane--hidden-by-maximize) {
+.workspace-layout--maximized tp-resizable-panel:has(> .workspace-pane--hidden-by-maximize) {
   padding: 0;
 }
 
 /* The panes' own borders already mark the gap, so a handle shows only its grip, never a line; the grip
    lights up on hover. Keyboard focus keeps TweakPad's own ring. */
-.workspace-layout [data-slot="resizable-handle"]::part(resizable-panel-group-separator) {
+.workspace-layout tp-resizable-handle::part(resizable-panel-group-separator) {
   background-color: transparent;
 }
 
-.workspace-layout [data-slot="resizable-handle"]:hover::part(resizable-panel-group-handle-decoration) {
+.workspace-layout tp-resizable-handle:hover::part(resizable-panel-group-handle-decoration) {
   background-color: var(--tp-foreground);
 }
 
@@ -819,6 +819,12 @@ body {
 
 .catalog-browser__category-select {
   inline-size: 100%;
+}
+
+/* The selected material's details lead the footer; the actions keep to its end. */
+.catalog-dialog__details {
+  align-self: center;
+  margin-inline-end: auto;
 }
 
 /* Loading and empty categories: the status takes the materials panel's place and sits in its middle. */

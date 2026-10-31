@@ -1,22 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-
-import { Button } from "@/components/ui/primitives/button";
 import {
+  Button,
   Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-} from "@/components/ui/primitives/dialog";
-import { EmptyState } from "@/components/ui/primitives/empty-state";
-import {
+  EmptyState,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/primitives/table";
-import { Time } from "@/components/ui/primitives/time";
+  Time,
+} from "@tweakpad/ui/react";
+
 import { listDocuments, useDocumentLibraryStore } from "@/store/document-library";
 
 type OpenDocumentDialogProps = {
@@ -43,56 +38,54 @@ export function OpenDocumentDialog({ onOpen, onOpenChange, open }: OpenDocumentD
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent description="Pick a saved document to open." title="Open Document">
-
-        {entries.length === 0 ? (
-          <EmptyState title="No saved documents yet." />
-        ) : (
-          <Table className="document-table" label="Saved documents" selectionPresentation="row" stickyHeader>
-            <TableHeader>
-              <TableRow>
-                <TableHead>File name</TableHead>
-                <TableHead className="document-table__modified">Last modified</TableHead>
+    <Dialog
+      description="Pick a saved document to open."
+      label="Open Document"
+      onOpenChange={(event) => onOpenChange(event.detail.value)}
+      open={open}
+    >
+      {entries.length === 0 ? (
+        <EmptyState title="No saved documents yet." />
+      ) : (
+        <Table className="document-table" label="Saved documents" selectionPresentation="row" stickyHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>File name</TableHead>
+              <TableHead className="document-table__modified">Last modified</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {entries.map((entry) => (
+              <TableRow
+                key={entry.id}
+                onClick={() => setSelectedId(entry.id)}
+                onDoubleClick={() => {
+                  setSelectedId(entry.id);
+                  onOpen(entry.id);
+                  onOpenChange(false);
+                }}
+                selected={entry.id === selectedId}
+              >
+                <TableHead scope="row">
+                  <Button size="xs" variant="link">
+                    {entry.title}
+                  </Button>
+                </TableHead>
+                <TableCell className="document-table__modified">
+                  <Time datetime={entry.updatedAt} mode="relative" numeric="always" tooltip={false} />
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entries.map((entry) => (
-                <TableRow
-                  key={entry.id}
-                  onClick={() => setSelectedId(entry.id)}
-                  onDoubleClick={() => {
-                    setSelectedId(entry.id);
-                    onOpen(entry.id);
-                    onOpenChange(false);
-                  }}
-                  selected={entry.id === selectedId}
-                >
-                  <TableHead scope="row">
-                    <Button size="xs" type="button" variant="link">
-                      {entry.title}
-                    </Button>
-                  </TableHead>
-                  <TableCell className="document-table__modified">
-                    <Time value={entry.updatedAt} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="ghost">
-              Cancel
-            </Button>
-          </DialogClose>
-          <Button type="button" disabled={!selectedId} onClick={handleOpen}>
-            Open
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <Button slot="footer" variant="ghost" onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button slot="footer" disabled={!selectedId} onClick={handleOpen}>
+        Open
+      </Button>
     </Dialog>
   );
 }

@@ -1,22 +1,6 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Checkbox, Dialog, Field, Select } from "@tweakpad/ui/react";
 
-import { Alert } from "@/components/ui/primitives/alert";
-import { Button } from "@/components/ui/primitives/button";
-import { Checkbox } from "@/components/ui/primitives/checkbox";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-} from "@/components/ui/primitives/dialog";
-import { Field } from "@/components/ui/primitives/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/primitives/select";
 import { useWorkspaceStore } from "@/store/app";
 import { TEXTURE_CHANNELS, sortedTextureSockets } from "@/editor/panes/textures/channels";
 import type { MaterialAppServices } from "@/components/app/services";
@@ -110,71 +94,62 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (isExporting ? undefined : onOpenChange(next))}>
-      <DialogContent
-        description="Bake selected material channels into a ZIP of PNG textures."
-        showCloseButton={!isExporting}
-        title="Export Textures"
-      >
-
-        <div className="texture-export__form">
-          <Field description="Resolution for every exported map." label="Texture size" nativeLabel={false}>
-            <Select
-              disabled={isExporting}
-              value={String(size)}
-              onValueChange={(value) => setSize(Number(value))}
-            >
-              <SelectTrigger size="sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {EXPORT_SIZES.map((option) => (
-                  <SelectItem key={option.value} value={String(option.value)}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field legend="Channels" legendScale="field" partPresentation={CHANNEL_GROUP}>
-            <div slot="group">
-              {TEXTURE_CHANNELS.map((channel) => (
-                <Checkbox
-                  key={channel.id}
-                  checked={selected.has(channel.socket)}
-                  disabled={isExporting || !available.has(channel.socket)}
-                  onCheckedChange={(checked) => setChannel(channel.socket, checked)}
-                >
-                  {channel.label}
-                </Checkbox>
-              ))}
-            </div>
-          </Field>
-
-          {error ? (
-            <Alert announcement="assertive" severity="danger" title="Texture export failed">
-              {error}
-            </Alert>
-          ) : null}
-        </div>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button disabled={isExporting} type="button" variant="ghost">
-              Cancel
-            </Button>
-          </DialogClose>
-          <Button
-            disabled={exportDisabled}
-            loading={isExporting}
-            type="button"
-            onClick={() => void handleExport()}
+    // While exporting, close proposals (Escape, outside press, the corner control) are left unaccepted.
+    <Dialog
+      description="Bake selected material channels into a ZIP of PNG textures."
+      label="Export Textures"
+      onOpenChange={(event) => (isExporting ? undefined : onOpenChange(event.detail.value))}
+      open={open}
+      showCloseControl={!isExporting}
+    >
+      <div className="texture-export__form">
+        <Field description="Resolution for every exported map." label="Texture size" nativeLabel={false}>
+          <Select
+            disabled={isExporting}
+            value={String(size)}
+            onValueChange={(event) => setSize(Number(event.detail.value))}
           >
-            Export
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+            {EXPORT_SIZES.map((option) => (
+              <option key={option.value} value={String(option.value)}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field legend="Channels" legendScale="field" partPresentation={CHANNEL_GROUP}>
+          <div slot="group">
+            {TEXTURE_CHANNELS.map((channel) => (
+              <Checkbox
+                key={channel.id}
+                checked={selected.has(channel.socket)}
+                disabled={isExporting || !available.has(channel.socket)}
+                onCheckedChange={(event) => setChannel(channel.socket, event.detail.value)}
+              >
+                {channel.label}
+              </Checkbox>
+            ))}
+          </div>
+        </Field>
+
+        {error ? (
+          <Alert announcement="assertive" severity="danger" title="Texture export failed">
+            {error}
+          </Alert>
+        ) : null}
+      </div>
+
+      <Button slot="footer" disabled={isExporting} variant="ghost" onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button
+        slot="footer"
+        disabled={exportDisabled}
+        loadingPosition={isExporting ? "leading" : null}
+        onClick={() => void handleExport()}
+      >
+        Export
+      </Button>
     </Dialog>
   );
 }

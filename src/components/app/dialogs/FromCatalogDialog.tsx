@@ -1,25 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { PackageOpen } from "lucide-react";
-
-import { Button } from "@/components/ui/primitives/button";
 import {
+  Button,
+  DescriptionList,
+  DescriptionListItem,
   Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-} from "@/components/ui/primitives/dialog";
-import { DescriptionList, DescriptionListItem } from "@/components/ui/primitives/description-list";
-import { EmptyState } from "@/components/ui/primitives/empty-state";
-import { ScrollArea } from "@/components/ui/primitives/scroll-area";
-import {
+  EmptyState,
+  ScrollArea,
   Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/primitives/select";
-import { Spinner } from "@/components/ui/primitives/spinner";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
+  Spinner,
+  Toggle,
+  ToggleGroup,
+} from "@tweakpad/ui/react";
+
 import {
   categoryCounts,
   loadCatalog,
@@ -82,106 +75,109 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="catalog-dialog"
-        description="Browse the material catalog by category."
-        title="Open From Catalog"
-      >
-
-        <div className="catalog-browser">
-          {compact ? (
-            // A phone has no room for the category column: the categories become a picker above the grid.
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger aria-label="Category" className="catalog-browser__category-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(catalog?.categories ?? []).map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {`${category.label} (${counts[category.id] ?? 0})`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <ScrollArea className="toggle-list" label="Categories">
-              <ToggleGroup label="Category" onValueChange={setCategoryId} orientation="vertical" value={categoryId}>
-                {(catalog?.categories ?? []).map((category) => (
-                  <ToggleGroupItem key={category.id} value={category.id}>
-                    <span className="toggle-list__name">{category.label}</span>
-                    <span className="toggle-list__detail">{counts[category.id] ?? 0}</span>
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </ScrollArea>
-          )}
-
-          {!catalog ? (
-            <EmptyState className="catalog-browser__materials catalog-browser__status" mediaTreatment="icon" title="Loading catalog…">
-              <Spinner label="" slot="media" />
-            </EmptyState>
-          ) : materials.length === 0 ? (
-            <EmptyState
-              className="catalog-browser__materials catalog-browser__status"
-              description="Materials added to this category will show up here."
-              mediaTreatment="icon"
-              title={`No ${activeCategory?.label.toLowerCase() ?? ""} materials yet`}
+    <Dialog
+      className="catalog-dialog"
+      description="Browse the material catalog by category."
+      label="Open From Catalog"
+      onOpenChange={(event) => onOpenChange(event.detail.value)}
+      open={open}
+    >
+      <div className="catalog-browser">
+        {compact ? (
+          // A phone has no room for the category column: the categories become a picker above the grid.
+          <Select
+            className="catalog-browser__category-select"
+            label="Category"
+            value={categoryId}
+            onValueChange={(event) => setCategoryId(String(event.detail.value))}
+          >
+            {(catalog?.categories ?? []).map((category) => (
+              <option key={category.id} value={category.id}>
+                {`${category.label} (${counts[category.id] ?? 0})`}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <ScrollArea className="toggle-list" label="Categories">
+            {/* One category is always chosen: re-pressing it proposes an empty selection, never accepted. */}
+            <ToggleGroup
+              label="Category"
+              onValueChange={(event) => {
+                const [next] = event.detail.value;
+                if (next) setCategoryId(next);
+              }}
+              orientation="vertical"
+              value={[categoryId]}
             >
-              <PackageOpen aria-hidden slot="media" />
-            </EmptyState>
-          ) : (
-            <ScrollArea className="catalog-browser__materials" label="Materials">
-              <ToggleGroup
-                className="catalog-grid"
-                label="Material"
-                onValueChange={setSelectedId}
-                value={selectedId ?? ""}
-                variant="outline"
-              >
-                {materials.map((material) => (
-                  <ToggleGroupItem
-                    key={material.id}
-                    className="catalog-card"
-                    value={material.id}
-                    onDoubleClick={() => openMaterial(material)}
-                  >
-                    <img
-                      src={`${import.meta.env.BASE_URL}${material.thumbnail}`}
-                      alt=""
-                      className="catalog-card__image"
-                      draggable={false}
-                    />
-                    <span className="catalog-card__name">{material.name}</span>
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </ScrollArea>
-          )}
-        </div>
+              {(catalog?.categories ?? []).map((category) => (
+                <Toggle key={category.id} value={category.id}>
+                  <span className="toggle-list__name">{category.label}</span>
+                  <span className="toggle-list__detail">{counts[category.id] ?? 0}</span>
+                </Toggle>
+              ))}
+            </ToggleGroup>
+          </ScrollArea>
+        )}
 
-        <DialogFooter className="justify-between">
-          {selected ? (
-            <DescriptionList orientation="horizontal">
-              <DescriptionListItem label="Name">{selected.name}</DescriptionListItem>
-              <DescriptionListItem label="Nodes">{selected.nodeCount}</DescriptionListItem>
-              <DescriptionListItem label="Textures">{selected.textures.length}</DescriptionListItem>
-            </DescriptionList>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <DialogClose asChild>
-              <Button type="button" variant="ghost">
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button type="button" disabled={!selected} onClick={handleOpen}>
-              Open
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
+        {!catalog ? (
+          <EmptyState className="catalog-browser__materials catalog-browser__status" mediaTreatment="icon" title="Loading catalog…">
+            <Spinner label="" slot="media" />
+          </EmptyState>
+        ) : materials.length === 0 ? (
+          <EmptyState
+            className="catalog-browser__materials catalog-browser__status"
+            description="Materials added to this category will show up here."
+            mediaTreatment="icon"
+            title={`No ${activeCategory?.label.toLowerCase() ?? ""} materials yet`}
+          >
+            <PackageOpen aria-hidden slot="media" />
+          </EmptyState>
+        ) : (
+          <ScrollArea className="catalog-browser__materials" label="Materials">
+            <ToggleGroup
+              className="catalog-grid"
+              label="Material"
+              onValueChange={(event) => {
+                const [next] = event.detail.value;
+                if (next) setSelectedId(next);
+              }}
+              value={selectedId ? [selectedId] : []}
+              variant="outline"
+            >
+              {materials.map((material) => (
+                <Toggle
+                  key={material.id}
+                  className="catalog-card"
+                  value={material.id}
+                  onDoubleClick={() => openMaterial(material)}
+                >
+                  <img
+                    src={`${import.meta.env.BASE_URL}${material.thumbnail}`}
+                    alt=""
+                    className="catalog-card__image"
+                    draggable={false}
+                  />
+                  <span className="catalog-card__name">{material.name}</span>
+                </Toggle>
+              ))}
+            </ToggleGroup>
+          </ScrollArea>
+        )}
+      </div>
+
+      {selected ? (
+        <DescriptionList className="catalog-dialog__details" orientation="horizontal" slot="footer">
+          <DescriptionListItem label="Name">{selected.name}</DescriptionListItem>
+          <DescriptionListItem label="Nodes">{selected.nodeCount}</DescriptionListItem>
+          <DescriptionListItem label="Textures">{selected.textures.length}</DescriptionListItem>
+        </DescriptionList>
+      ) : null}
+      <Button slot="footer" variant="ghost" onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button slot="footer" disabled={!selected} onClick={handleOpen}>
+        Open
+      </Button>
     </Dialog>
   );
 }

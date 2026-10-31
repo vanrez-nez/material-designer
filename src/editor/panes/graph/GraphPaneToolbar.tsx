@@ -4,9 +4,9 @@ import {
   AlignStartHorizontal,
   AlignStartVertical,
 } from "lucide-react";
+import { Button } from "@tweakpad/ui/react";
 
 import { dispatchGraphAutoLayout, type GraphLayoutArrangement } from "@/app-events";
-import { Button } from "@/components/ui/primitives/button";
 import { GROUP_TYPE, type MaterialGraphDocument } from "@/runtime";
 import { useWorkspaceStore } from "@/store/app";
 
@@ -59,11 +59,10 @@ export function GraphPaneToolbar() {
             aria-label={graphArrangementLabels[nextArrangement]}
             size="icon"
             title={graphArrangementLabels[nextArrangement]}
-            type="button"
             variant={arrangement === nextArrangement ? "secondary" : "ghost"}
             onClick={() => dispatchGraphAutoLayout(nextArrangement)}
           >
-            <Icon />
+            <Icon slot="icon-start" />
           </Button>
         );
       })}

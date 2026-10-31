@@ -1,20 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { Button, Kbd, KbdGroup, Menu, MenuItem, Menubar, Separator } from "@tweakpad/ui/react";
 import type { MaterialGraphDocument } from "@/runtime";
 import { MATERIAL_GRAPH_REBUILD_EVENT } from "@/app-events";
 import { importDocumentFromFile } from "@/store/document-actions";
 import { useWorkspaceStore } from "@/store/app";
-import { Kbd, KbdGroup } from "@/components/ui/primitives/kbd";
-import {
-  Menubar,
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarSub,
-  MenubarSubContent,
-  MenubarSubTrigger,
-  MenubarTrigger,
-} from "@/components/ui/primitives/menubar";
 
 function isMaterialGraphDocument(value: unknown): value is MaterialGraphDocument {
   return (
@@ -35,9 +24,10 @@ function getModifierKeyLabel() {
   return isMacPlatform() ? "⌘" : "Ctrl";
 }
 
+// Marked as the menu item's shortcut, which the item lays out at its end.
 function Shortcut({ keys }: { keys: string[] }) {
   return (
-    <KbdGroup className="ml-auto pl-8">
+    <KbdGroup className="ml-auto pl-8" data-menu-shortcut="" separator="none">
       {keys.map((key) => (
         <Kbd key={key}>{key}</Kbd>
       ))}
@@ -65,7 +55,6 @@ export function AppMenu({
   onClearSession,
 }: AppMenuProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [openMenu, setOpenMenu] = useState("");
   const [lastLoadedFile, setLastLoadedFile] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const undoHistory = useWorkspaceStore((state) => state.undoHistory);
@@ -104,10 +93,6 @@ export function AppMenu({
     rebuildGraphEditor();
   }
 
-  function closeMenu(): void {
-    setOpenMenu("");
-  }
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -125,7 +110,6 @@ export function AppMenu({
       if ((key === "n" || key === "o") && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         event.stopPropagation();
-        closeMenu();
         if (key === "n") onNewDocument?.();
         else onOpenDocument?.();
         return;
@@ -144,152 +128,67 @@ export function AppMenu({
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [undoHistory, redoHistory, onNewDocument, onOpenDocument]);
 
-  useEffect(() => {
-    const isInsideMenu = (target: EventTarget | null): boolean => {
-      if (!(target instanceof Element)) return false;
-
-      return Boolean(
-        target.closest("[data-app-menu-root]") || target.closest("[data-slot='menubar-content']"),
-      );
-    };
-
-    const onOutsidePointer = (event: PointerEvent) => {
-      if (!openMenu || isInsideMenu(event.target)) return;
-      closeMenu();
-    };
-
-    const onOutsideFocus = (event: FocusEvent) => {
-      if (!openMenu || isInsideMenu(event.target)) return;
-      closeMenu();
-    };
-
-    window.addEventListener("pointerdown", onOutsidePointer, { capture: true });
-    window.addEventListener("focusin", onOutsideFocus, { capture: true });
-
-    return () => {
-      window.removeEventListener("pointerdown", onOutsidePointer, { capture: true });
-      window.removeEventListener("focusin", onOutsideFocus, { capture: true });
-    };
-  }, [openMenu]);
-
   return (
-    <div className="app-menubar" data-app-menu-root>
-      <Menubar
-        aria-label="Application menu"
-        className="h-8 border-0 bg-transparent p-0 shadow-none"
-        value={openMenu}
-        onValueChange={setOpenMenu}
-      >
-        <MenubarMenu value="file">
-          <MenubarTrigger>File</MenubarTrigger>
-          <MenubarContent align="start">
-            <MenubarItem
-              onSelect={() => {
-                closeMenu();
-                onNewDocument?.();
-              }}
-            >
-              <span>New</span>
-              <Shortcut keys={[modifierKeyLabel, "N"]} />
-            </MenubarItem>
-            <MenubarItem
-              onSelect={() => {
-                closeMenu();
-                onMakeCopy?.();
-              }}
-            >
-              <span>Make a Copy</span>
-            </MenubarItem>
-            <MenubarSub>
-              <MenubarSubTrigger>Open</MenubarSubTrigger>
-              <MenubarSubContent>
-                <MenubarItem
-                  onSelect={() => {
-                    closeMenu();
-                    onOpenDocument?.();
-                  }}
-                >
-                  <span>Document</span>
-                  <Shortcut keys={[modifierKeyLabel, "O"]} />
-                </MenubarItem>
-                <MenubarItem
-                  onSelect={() => {
-                    closeMenu();
-                    onOpenCatalog?.();
-                  }}
-                >
-                  <span>From Catalog</span>
-                </MenubarItem>
-              </MenubarSubContent>
-            </MenubarSub>
-            <MenubarSeparator />
-            <MenubarSub>
-              <MenubarSubTrigger>Export</MenubarSubTrigger>
-              <MenubarSubContent>
-                <MenubarItem
-                  onSelect={() => {
-                    closeMenu();
-                    onExportDocument?.();
-                  }}
-                >
-                  <span>Document</span>
-                </MenubarItem>
-                <MenubarItem
-                  onSelect={() => {
-                    closeMenu();
-                    onExportTextures?.();
-                  }}
-                >
-                  <span>Textures</span>
-                </MenubarItem>
-              </MenubarSubContent>
-            </MenubarSub>
-            <MenubarSeparator />
-            <MenubarItem
-              onSelect={() => {
-                closeMenu();
-                inputRef.current?.click();
-              }}
-            >
-              <span>Load</span>
-            </MenubarItem>
-          </MenubarContent>
-        </MenubarMenu>
-        <MenubarMenu value="edit">
-          <MenubarTrigger>Edit</MenubarTrigger>
-          <MenubarContent align="start">
-            <MenubarItem
-              disabled={!canUndo}
-              onSelect={() => {
-                closeMenu();
-                handleUndo();
-              }}
-            >
-              <span>Undo</span>
-              <Shortcut keys={[modifierKeyLabel, "Z"]} />
-            </MenubarItem>
-            <MenubarItem
-              disabled={!canRedo}
-              onSelect={() => {
-                closeMenu();
-                handleRedo();
-              }}
-            >
-              <span>Redo</span>
-              <Shortcut keys={[modifierKeyLabel, "⇧", "Z"]} />
-            </MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem
-              variant="destructive"
-              onSelect={() => {
-                closeMenu();
-                onClearSession?.();
-              }}
-            >
-              <span>Clear Session</span>
-            </MenubarItem>
-          </MenubarContent>
-        </MenubarMenu>
+    <div className="app-menubar">
+      {/* Non-modal: an open menu leaves the rest of the page interactive. Activating an item closes it. */}
+      <Menubar aria-label="Application menu" className="h-8 border-0 bg-transparent p-0 shadow-none" modal={false}>
+        <Menu align="start" portal={false} value="file">
+          <Button size="sm" slot="trigger" variant="ghost">
+            File
+          </Button>
+          <MenuItem onClick={() => onNewDocument?.()}>
+            <span>New</span>
+            <Shortcut keys={[modifierKeyLabel, "N"]} />
+          </MenuItem>
+          <MenuItem onClick={() => onMakeCopy?.()}>
+            <span>Make a Copy</span>
+          </MenuItem>
+          <Menu portal={false}>
+            <Button slot="trigger" variant="ghost">
+              Open
+            </Button>
+            <MenuItem onClick={() => onOpenDocument?.()}>
+              <span>Document</span>
+              <Shortcut keys={[modifierKeyLabel, "O"]} />
+            </MenuItem>
+            <MenuItem onClick={() => onOpenCatalog?.()}>
+              <span>From Catalog</span>
+            </MenuItem>
+          </Menu>
+          <Separator />
+          <Menu portal={false}>
+            <Button slot="trigger" variant="ghost">
+              Export
+            </Button>
+            <MenuItem onClick={() => onExportDocument?.()}>
+              <span>Document</span>
+            </MenuItem>
+            <MenuItem onClick={() => onExportTextures?.()}>
+              <span>Textures</span>
+            </MenuItem>
+          </Menu>
+          <Separator />
+          <MenuItem onClick={() => inputRef.current?.click()}>
+            <span>Load</span>
+          </MenuItem>
+        </Menu>
+        <Menu align="start" portal={false} value="edit">
+          <Button size="sm" slot="trigger" variant="ghost">
+            Edit
+          </Button>
+          <MenuItem disabled={!canUndo} onClick={handleUndo}>
+            <span>Undo</span>
+            <Shortcut keys={[modifierKeyLabel, "Z"]} />
+          </MenuItem>
+          <MenuItem disabled={!canRedo} onClick={handleRedo}>
+            <span>Redo</span>
+            <Shortcut keys={[modifierKeyLabel, "⇧", "Z"]} />
+          </MenuItem>
+          <Separator />
+          <MenuItem variant="destructive" onClick={() => onClearSession?.()}>
+            <span>Clear Session</span>
+          </MenuItem>
+        </Menu>
       </Menubar>
       <input
         ref={inputRef}
