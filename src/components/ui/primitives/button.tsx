@@ -1,29 +1,18 @@
 import * as React from "react";
+import type { TpButton } from "@tweakpad/ui";
+import { Button as TpButtonBinding, type ButtonProps as TpButtonProps } from "@tweakpad/ui/react";
 
-type ButtonVariant = "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
-type ButtonSize = "default" | "xs" | "sm" | "lg" | "icon" | "icon-xs" | "icon-sm" | "icon-lg";
-
-type ButtonProps = Omit<React.ComponentProps<"button">, "ref"> & {
+type ButtonProps = Omit<TpButtonProps, "loadingPosition" | "ref"> & {
   // Render a child anchor as the button: tp-button renders a native link from href/target/rel.
   asChild?: boolean;
   // Shows the shared spinner as the leading mark (busy semantics; does not disable the Button).
   loading?: boolean;
-  size?: ButtonSize;
-  variant?: ButtonVariant;
 };
 
-function Button({
-  asChild = false,
-  children,
-  loading = false,
-  size = "default",
-  type = "button",
-  variant = "default",
-  ...props
-}: ButtonProps) {
-  const hostRef = React.useRef<HTMLElement>(null);
+function Button({ asChild = false, children, loading = false, type = "button", ...props }: ButtonProps) {
+  const hostRef = React.useRef<TpButton>(null);
   let content = children;
-  let linkProps: Record<string, unknown> = {};
+  let linkProps: Pick<TpButtonProps, "href" | "rel" | "target"> = {};
 
   if (asChild && React.isValidElement<React.ComponentProps<"a">>(children) && children.type === "a") {
     const { children: anchorChildren, href, rel, target } = children.props;
@@ -41,20 +30,15 @@ function Button({
   });
 
   return (
-    <tp-button
+    <TpButtonBinding
       ref={hostRef}
-      data-slot="button"
-      data-size={size}
-      data-variant={variant}
-      loading-position={loading ? "leading" : undefined}
-      size={size}
+      loadingPosition={loading ? "leading" : null}
       type={type}
-      variant={variant}
       {...linkProps}
       {...props}
     >
       {content}
-    </tp-button>
+    </TpButtonBinding>
   );
 }
 

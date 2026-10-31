@@ -22,11 +22,14 @@ export type WorkspaceLayoutNode =
     };
 
 export type WorkspaceLayoutSlice = {
+  // The one pane a compact (phone-width) screen shows; a view choice, not saved with the layout.
+  compactPaneId: WorkspacePaneId;
   layoutPreset: WorkspaceLayoutPreset;
   layoutTree: WorkspaceLayoutNode;
   maximizedPaneId: WorkspacePaneId | null;
   resetWorkspaceLayout: () => void;
   restoreWorkspaceLayout: () => void;
+  setCompactPane: (paneId: WorkspacePaneId) => void;
   setLayoutPreset: (preset: WorkspaceLayoutPreset) => void;
   setMaximizedPane: (paneId: WorkspacePaneId | null) => void;
   setPaneVisible: (paneId: WorkspacePaneId, visible: boolean) => void;
@@ -90,6 +93,7 @@ export function createWorkspaceLayoutSlice(): StateCreator<
   WorkspaceLayoutSlice
 > {
   return (set) => ({
+    compactPaneId: "graph",
     layoutPreset: "graph-left",
     layoutTree: createLayoutTree("graph-left"),
     maximizedPaneId: null,
@@ -101,6 +105,7 @@ export function createWorkspaceLayoutSlice(): StateCreator<
         visiblePanes: DEFAULT_VISIBLE_PANES,
       }),
     restoreWorkspaceLayout: () => set({ maximizedPaneId: null }),
+    setCompactPane: (paneId) => set({ compactPaneId: paneId }),
     setLayoutPreset: (preset) =>
       set({
         layoutPreset: preset,

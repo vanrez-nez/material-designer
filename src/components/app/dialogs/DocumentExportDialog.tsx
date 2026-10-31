@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 
-import metadataHelp from "@/help/document-metadata.md?raw";
 import {
   copyDocumentExportToClipboard,
   downloadDocumentExport,
@@ -14,7 +13,6 @@ import {
   DialogFooter,
 } from "@/components/ui/primitives/dialog";
 import { Field } from "@/components/ui/primitives/field";
-import { HelpHint } from "@/components/ui/composables/help-hint";
 import { useWorkspaceStore } from "@/store/app";
 
 type DocumentExportDialogProps = {
@@ -49,16 +47,12 @@ export function DocumentExportDialog({ onOpenChange, open }: DocumentExportDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent description="Save the current material graph as a JSON document." title="Export Document">
 
-        <Field orientation="horizontal">
-          <span slot="label">
-            Include document metadata
-            <HelpHint ariaLabel="Document metadata help" doc={metadataHelp} size="xs" trigger="hover" />
-          </span>
-          <Checkbox
-            aria-label="Include document metadata"
-            checked={includeMetadata}
-            onCheckedChange={setIncludeMetadata}
-          />
+        <Field
+          description="Keeps the title, node layout, editor view and UI settings, so the document reopens exactly as authored. Turn it off to export only the material graph."
+          label="Include document metadata"
+          orientation="horizontal"
+        >
+          <Checkbox checked={includeMetadata} onCheckedChange={setIncludeMetadata} />
         </Field>
 
         <DialogFooter>

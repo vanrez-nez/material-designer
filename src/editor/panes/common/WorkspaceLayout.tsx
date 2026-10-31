@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { Maximize2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/primitives/button";
@@ -7,6 +7,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/primitives/resizable";
+import { useCompactLayout } from "@/lib/use-compact-layout";
 import { cn } from "@/lib/utils";
 import {
   useWorkspaceStore,
@@ -17,6 +18,12 @@ import {
 type PaneRegistry = Record<WorkspacePaneId, ReactNode>;
 type PaneToolbarRegistry = Partial<Record<WorkspacePaneId, ReactNode>>;
 type PaneTitleRegistry = Partial<Record<WorkspacePaneId, ReactNode>>;
+
+// The pane filling the workspace, if any: the maximized pane, or on a compact screen the one picked there.
+const ShownPaneContext = createContext<{ compact: boolean; shownPaneId: WorkspacePaneId | null }>({
+  compact: false,
+  shownPaneId: null,
+});
 
 const paneTitle: Record<WorkspacePaneId, string> = {
   graph: "Graph",
@@ -35,15 +42,23 @@ export function WorkspaceLayout({
 }) {
   const layoutTree = useWorkspaceStore((state) => state.layoutTree);
   const maximizedPaneId = useWorkspaceStore((state) => state.maximizedPaneId);
+  const compactPaneId = useWorkspaceStore((state) => state.compactPaneId);
   const visiblePanes = useWorkspaceStore((state) => state.visiblePanes);
+  // A phone-width screen shows one pane at a time, picked in the header (see LayoutToolbar); the saved
+  // layout and maximize state are left as they are for a wider screen.
+  const compact = useCompactLayout();
+  const shownPaneId = compact ? compactPaneId : maximizedPaneId;
+  const shown = useMemo(() => ({ compact, shownPaneId }), [compact, shownPaneId]);
 
   return (
-    <div
-      className={cn("workspace-layout", maximizedPaneId && "workspace-layout--maximized")}
-      data-maximized-pane={maximizedPaneId ?? undefined}
-    >
-      {renderLayoutNode(layoutTree, panes, toolbars, titles, visiblePanes)}
-    </div>
+    <ShownPaneContext.Provider value={shown}>
+      <div
+        className={cn("workspace-layout", shownPaneId && "workspace-layout--maximized")}
+        data-maximized-pane={shownPaneId ?? undefined}
+      >
+        {renderLayoutNode(layoutTree, panes, toolbars, titles, visiblePanes)}
+      </div>
+    </ShownPaneContext.Provider>
   );
 }
 
@@ -177,10 +192,10 @@ function PaneFrame({
   title?: ReactNode;
   toolbar?: ReactNode;
 }) {
-  const maximizedPaneId = useWorkspaceStore((state) => state.maximizedPaneId);
+  const { compact, shownPaneId } = useContext(ShownPaneContext);
   const setMaximizedPane = useWorkspaceStore((state) => state.setMaximizedPane);
-  const maximized = maximizedPaneId === paneId;
-  const hiddenByMaximize = Boolean(maximizedPaneId && !maximized);
+  const maximized = shownPaneId === paneId;
+  const hiddenByMaximize = Boolean(shownPaneId && !maximized);
 
   return (
     <section
@@ -194,15 +209,17 @@ function PaneFrame({
         <div className="workspace-pane__title">{title ?? paneTitle[paneId]}</div>
         <div className="workspace-pane__toolbar">
           {toolbar}
-          <Button
-            aria-label={maximized ? `Restore ${paneTitle[paneId]}` : `Maximize ${paneTitle[paneId]}`}
-            size="icon"
-            title={maximized ? "Restore" : "Maximize"}
-            variant="ghost"
-            onClick={() => setMaximizedPane(maximized ? null : paneId)}
-          >
-            {maximized ? <X /> : <Maximize2 />}
-          </Button>
+          {compact ? null : (
+            <Button
+              aria-label={maximized ? `Restore ${paneTitle[paneId]}` : `Maximize ${paneTitle[paneId]}`}
+              size="icon"
+              title={maximized ? "Restore" : "Maximize"}
+              variant="ghost"
+              onClick={() => setMaximizedPane(maximized ? null : paneId)}
+            >
+              {maximized ? <X /> : <Maximize2 />}
+            </Button>
+          )}
         </div>
       </div>
       <div className="workspace-pane__body">{children}</div>

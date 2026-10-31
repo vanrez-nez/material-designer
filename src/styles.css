@@ -268,6 +268,13 @@ body {
   gap: var(--tp-space-2);
 }
 
+/* Compact screens: the menu and the pane switcher keep their size, the title takes the rest. */
+@media (max-width: 40rem) {
+  .workspace-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
 .workspace-footer {
   display: flex;
   align-items: center;
@@ -299,6 +306,18 @@ body {
 
 .workspace-footer__sep {
   opacity: 0.4;
+}
+
+.workspace-footer__meta {
+  white-space: nowrap;
+}
+
+/* Compact screens keep the product name and link; the build details would wrap the bar. */
+@media (max-width: 40rem) {
+  .workspace-footer__dim,
+  .workspace-footer__sep {
+    display: none;
+  }
 }
 
 #app {
@@ -463,6 +482,12 @@ body {
   margin-left: auto;
 }
 
+/* The header's end inset assumes an icon button last, whose own padding completes it. A toolbar that ends
+   in text instead (a labelled Switch, when there is no Maximize button) adds the rest, matching the title. */
+.workspace-pane__toolbar:has(> .workspace-pane__toolbar-group:last-child > tp-switch:last-child) {
+  padding-inline-end: var(--tp-space-2);
+}
+
 .workspace-pane__body {
   position: relative;
   min-width: 0;
@@ -492,9 +517,22 @@ body {
 .scene-host {
   position: relative; /* positioning context for the floating overlays + the controls dialog scoped here */
   isolation: isolate; /* required by tp-dialog container modality (ControlsDialog) */
+  container: scene-host / size;
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+
+/* A short viewport has no room for the bottom clusters' columns under the top ones: they lay out as rows.
+   The divider between button groups is built for the column, so the row keeps only the spacing. */
+@container scene-host (max-height: 20rem) {
+  .scene-host .floating-widget__body--vertical {
+    flex-direction: row;
+  }
+
+  .scene-host .floating-widget__body--vertical > tp-separator {
+    display: none;
+  }
 }
 
 .scene {
@@ -618,7 +656,8 @@ body {
   /* A toggle group sizes to its members unless the host is given an inline size. */
   inline-size: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+  /* Tiles shrink below their comfortable width before a third one wraps out of sight in a narrow pane. */
+  grid-template-columns: repeat(auto-fit, minmax(min(7.25rem, calc((100% - 2 * 0.5rem) / 3)), 1fr));
   grid-auto-rows: minmax(5.5rem, 1fr);
   gap: 0.5rem;
   min-width: 0;
@@ -778,11 +817,33 @@ body {
   border-radius: var(--tp-radius-md);
 }
 
+.catalog-browser__category-select {
+  inline-size: 100%;
+}
+
+/* Loading and empty categories: the status takes the materials panel's place and sits in its middle. */
+.catalog-browser__status {
+  display: grid;
+  align-content: center;
+}
+
 .catalog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
   gap: var(--tp-space-3);
   padding: var(--tp-space-3);
+}
+
+/* Compact screens: the category picker sits above the materials, which pair up in two columns. */
+@media (max-width: 40rem) {
+  .catalog-browser {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .catalog-grid {
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  }
 }
 
 .catalog-grid::part(toggle-group) {

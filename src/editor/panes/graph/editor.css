@@ -45,6 +45,18 @@
   user-select: none;
 }
 
+/* A narrow canvas has no room for the hint beside the bake panel in the bottom-start corner; the hint
+   goes, the panel stays. */
+.ne-canvas {
+  container-type: inline-size;
+}
+
+@container (max-width: 50rem) {
+  .ne-canvas__tip {
+    display: none;
+  }
+}
+
 /* Marker on the node whose output is previewed on the surface. */
 .fe-node__solo {
   justify-self: start;

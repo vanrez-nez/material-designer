@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { PackageOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/primitives/button";
 import {
@@ -10,6 +11,13 @@ import {
 import { DescriptionList, DescriptionListItem } from "@/components/ui/primitives/description-list";
 import { EmptyState } from "@/components/ui/primitives/empty-state";
 import { ScrollArea } from "@/components/ui/primitives/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/primitives/select";
 import { Spinner } from "@/components/ui/primitives/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/primitives/toggle-group";
 import {
@@ -19,6 +27,7 @@ import {
   type Catalog,
   type CatalogMaterial,
 } from "@/catalog/catalog";
+import { useCompactLayout } from "@/lib/use-compact-layout";
 
 type FromCatalogDialogProps = {
   onOpen: (material: CatalogMaterial) => void;
@@ -30,6 +39,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [categoryId, setCategoryId] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const compact = useCompactLayout();
 
   const counts = useMemo(() => (catalog ? categoryCounts(catalog) : {}), [catalog]);
   const materials = useMemo(
@@ -37,6 +47,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
     [catalog, categoryId],
   );
   const selected = selectedId ? catalog?.materials.find((m) => m.id === selectedId) ?? null : null;
+  const activeCategory = catalog?.categories.find((entry) => entry.id === categoryId);
 
   // Load the catalog (public/catalog/catalog.json) the first time the dialog opens; the loader caches it.
   useEffect(() => {
@@ -79,23 +90,48 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
       >
 
         <div className="catalog-browser">
-          <ScrollArea className="toggle-list" label="Categories">
-            <ToggleGroup label="Category" onValueChange={setCategoryId} orientation="vertical" value={categoryId}>
-              {(catalog?.categories ?? []).map((category) => (
-                <ToggleGroupItem key={category.id} value={category.id}>
-                  <span className="toggle-list__name">{category.label}</span>
-                  <span className="toggle-list__detail">{counts[category.id] ?? 0}</span>
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </ScrollArea>
+          {compact ? (
+            // A phone has no room for the category column: the categories become a picker above the grid.
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger aria-label="Category" className="catalog-browser__category-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(catalog?.categories ?? []).map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {`${category.label} (${counts[category.id] ?? 0})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <ScrollArea className="toggle-list" label="Categories">
+              <ToggleGroup label="Category" onValueChange={setCategoryId} orientation="vertical" value={categoryId}>
+                {(catalog?.categories ?? []).map((category) => (
+                  <ToggleGroupItem key={category.id} value={category.id}>
+                    <span className="toggle-list__name">{category.label}</span>
+                    <span className="toggle-list__detail">{counts[category.id] ?? 0}</span>
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </ScrollArea>
+          )}
 
-          <ScrollArea className="catalog-browser__materials" label="Materials">
-            {!catalog ? (
-              <EmptyState mediaTreatment="icon" title="Loading catalog…">
-                <Spinner label="" slot="media" />
-              </EmptyState>
-            ) : (
+          {!catalog ? (
+            <EmptyState className="catalog-browser__materials catalog-browser__status" mediaTreatment="icon" title="Loading catalog…">
+              <Spinner label="" slot="media" />
+            </EmptyState>
+          ) : materials.length === 0 ? (
+            <EmptyState
+              className="catalog-browser__materials catalog-browser__status"
+              description="Materials added to this category will show up here."
+              mediaTreatment="icon"
+              title={`No ${activeCategory?.label.toLowerCase() ?? ""} materials yet`}
+            >
+              <PackageOpen aria-hidden slot="media" />
+            </EmptyState>
+          ) : (
+            <ScrollArea className="catalog-browser__materials" label="Materials">
               <ToggleGroup
                 className="catalog-grid"
                 label="Material"
@@ -120,8 +156,8 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-            )}
-          </ScrollArea>
+            </ScrollArea>
+          )}
         </div>
 
         <DialogFooter className="justify-between">

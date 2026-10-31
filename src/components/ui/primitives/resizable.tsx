@@ -1,8 +1,15 @@
 import * as React from "react";
 import type { TpResizablePanelGroup } from "@tweakpad/ui";
+import {
+  ResizableHandle as TpResizableHandle,
+  type ResizableHandleProps,
+  ResizablePanel as TpResizablePanel,
+  ResizablePanelGroup as TpResizablePanelGroupBinding,
+  type ResizablePanelGroupProps as TpResizablePanelGroupProps,
+  type ResizablePanelProps as TpResizablePanelProps,
+} from "@tweakpad/ui/react";
 
 import { cn } from "@/lib/utils";
-import { useTpEvent } from "@/components/ui/tp/hooks";
 
 // Panel id → size in percent of the group, as reported when a resize settles.
 type Layout = Record<string, number>;
@@ -10,9 +17,9 @@ type Layout = Record<string, number>;
 // Panels report the size the caller wants for them; the group applies a changed set as one layout.
 const PanelSizesContext = React.createContext<Map<string, number> | null>(null);
 
-type ResizablePanelGroupProps = Omit<React.HTMLAttributes<HTMLElement>, "onChange"> & {
+type ResizablePanelGroupProps = Omit<TpResizablePanelGroupProps, "onLayoutChanged"> & {
+  // Reported once a resize settles.
   onLayoutChanged?: (layout: Layout) => void;
-  orientation?: "horizontal" | "vertical";
 };
 
 // tp-resizable-panel-group lays out its tp-resizable-panel / tp-resizable-handle children (direct children,
@@ -21,11 +28,6 @@ function ResizablePanelGroup({ className, onLayoutChanged, orientation, ...props
   const ref = React.useRef<TpResizablePanelGroup>(null);
   const requestedSizes = React.useRef(new Map<string, number>()).current;
   const appliedSizes = React.useRef<string | null>(null);
-
-  useTpEvent<{ layout: Layout }>(ref, "tp-layout-change-complete", (event) => {
-    if (event.target !== ref.current) return;
-    onLayoutChanged?.(event.detail.layout);
-  });
 
   // Panels read their default size once, on connect. When the caller later asks for different sizes or
   // flips the orientation (e.g. a layout preset), apply the requested sizes together; this runs after the
@@ -45,10 +47,10 @@ function ResizablePanelGroup({ className, onLayoutChanged, orientation, ...props
 
   return (
     <PanelSizesContext.Provider value={requestedSizes}>
-      <tp-resizable-panel-group
+      <TpResizablePanelGroupBinding
         ref={ref}
-        data-slot="resizable-panel-group"
         className={cn("h-full w-full", className)}
+        onLayoutChanged={(layout) => onLayoutChanged?.({ ...layout })}
         orientation={orientation}
         {...props}
       />
@@ -56,7 +58,7 @@ function ResizablePanelGroup({ className, onLayoutChanged, orientation, ...props
   );
 }
 
-type ResizablePanelProps = React.HTMLAttributes<HTMLElement> & {
+type ResizablePanelProps = Omit<TpResizablePanelProps, "defaultSize" | "id" | "minSize"> & {
   // Percent of the group.
   defaultSize?: number;
   id: string;
@@ -77,8 +79,7 @@ function ResizablePanel({ defaultSize, id, minSize, ...props }: ResizablePanelPr
   }, [defaultSize, id, requestedSizes]);
 
   return (
-    <tp-resizable-panel
-      data-slot="resizable-panel"
+    <TpResizablePanel
       data-panel=""
       defaultSize={defaultSize === undefined ? undefined : `${defaultSize}%`}
       id={id}
@@ -88,8 +89,8 @@ function ResizablePanel({ defaultSize, id, minSize, ...props }: ResizablePanelPr
   );
 }
 
-function ResizableHandle({ withHandle, ...props }: React.HTMLAttributes<HTMLElement> & { withHandle?: boolean }) {
-  return <tp-resizable-handle data-slot="resizable-handle" withHandle={withHandle} {...props} />;
+function ResizableHandle(props: ResizableHandleProps) {
+  return <TpResizableHandle data-slot="resizable-handle" {...props} />;
 }
 
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup };

@@ -1,12 +1,9 @@
 import * as React from "react";
 
+import { Dialog as TpDialog, type DialogProps as TpDialogProps } from "@tweakpad/ui/react";
+
 import { cn } from "@/lib/utils";
-import {
-  type TpValueChangeDetail,
-  useOpenState,
-  useTpEvent,
-  useTpOpenChange,
-} from "@/components/ui/tp/hooks";
+import { useOpenState } from "@/components/ui/tp/hooks";
 
 const DialogContext = React.createContext<{
   open: boolean;
@@ -63,7 +60,7 @@ function DialogClose({ asChild: _asChild, children, ...props }: DialogActionProp
   return withClick(children, () => setOpen(false), props);
 }
 
-type DialogContentProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
+type DialogContentProps = Omit<TpDialogProps, "title"> & {
   // Scope the dialog to a region instead of the page: it renders inside `container`, which must be
   // `position: relative; isolation: isolate`, and only that region goes inert.
   container?: HTMLElement | null;
@@ -75,9 +72,10 @@ type DialogContentProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
 };
 
 // tp-dialog owns the modal surface, backdrop, focus management, Escape/outside dismissal and the corner
-// close control. Content mounts when the dialog opens, as with Radix, and unmounts only once the close has
-// completed: in container modality tp-dialog projects its children into the container while open, and
-// hands them back on close, so React must not remove them before then.
+// close control; it proposes each open change and commits it once React renders `open`. Content mounts
+// when the dialog opens, as with Radix, and unmounts only once the close has completed: in container
+// modality tp-dialog projects its children into the container while open, and hands them back on close, so
+// React must not remove them before then.
 function DialogContent({
   children,
   container,
@@ -87,28 +85,25 @@ function DialogContent({
   ...props
 }: DialogContentProps) {
   const { open, setOpen } = useDialogContext("DialogContent");
-  const ref = React.useRef<HTMLElement>(null);
   const [present, setPresent] = React.useState(open);
   if (open && !present) setPresent(true);
-  useTpOpenChange(ref, open, setOpen);
-  useTpEvent<TpValueChangeDetail<boolean>>(ref, "tp-open-change-complete", (event) => {
-    if (event.target === ref.current && !event.detail.value) setPresent(false);
-  });
 
   return (
-    <tp-dialog
-      ref={ref}
-      data-slot="dialog-content"
+    <TpDialog
       container={container ?? null}
       description={description}
       label={title}
       modality={container ? "container" : "modal"}
+      onOpenChange={(event) => setOpen(event.detail.value)}
+      onOpenChangeComplete={(isOpen) => {
+        if (!isOpen) setPresent(false);
+      }}
       open={open}
-      show-close-control={showCloseButton}
+      showCloseControl={showCloseButton}
       {...props}
     >
       {open || present ? children : null}
-    </tp-dialog>
+    </TpDialog>
   );
 }
 
@@ -117,7 +112,6 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       slot="footer"
-      data-slot="dialog-footer"
       className={cn("flex flex-1 items-center justify-end gap-2", className)}
       {...props}
     />
