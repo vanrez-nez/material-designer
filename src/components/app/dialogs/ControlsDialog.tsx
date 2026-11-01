@@ -28,6 +28,7 @@ export function ControlsDialog({ onOpenChange, open }: ControlsDialogProps) {
 
   return (
     <Dialog
+      backdrop="blur"
       container={container}
       label="Controls"
       modality={container ? "container" : "modal"}

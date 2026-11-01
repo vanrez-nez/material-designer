@@ -96,6 +96,7 @@ export function TextureExportDialog({ onOpenChange, open, services }: TextureExp
   return (
     // While exporting, close proposals (Escape, outside press, the corner control) are left unaccepted.
     <Dialog
+      backdrop="blur"
       description="Bake selected material channels into a ZIP of PNG textures."
       label="Export Textures"
       onOpenChange={(event) => (isExporting ? undefined : onOpenChange(event.detail.value))}

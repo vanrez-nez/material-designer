@@ -10,6 +10,7 @@ type ClearSessionDialogProps = {
 export function ClearSessionDialog({ onOpenChange, open }: ClearSessionDialogProps) {
   return (
     <AlertDialog
+      backdrop="blur"
       description="Permanently clears all locally stored Material Designer data — saved and autosaved materials, layout, renderer, and editor settings — then reloads the app to a clean state."
       label="Clear Session"
       onOpenChange={(event) => onOpenChange(event.detail.value)}

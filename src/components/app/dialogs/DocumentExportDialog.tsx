@@ -37,6 +37,7 @@ export function DocumentExportDialog({ onOpenChange, open }: DocumentExportDialo
 
   return (
     <Dialog
+      backdrop="blur"
       description="Save the current material graph as a JSON document."
       label="Export Document"
       onOpenChange={(event) => onOpenChange(event.detail.value)}

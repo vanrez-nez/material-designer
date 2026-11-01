@@ -39,6 +39,7 @@ export function OpenDocumentDialog({ onOpen, onOpenChange, open }: OpenDocumentD
 
   return (
     <Dialog
+      backdrop="blur"
       description="Pick a saved document to open."
       label="Open Document"
       onOpenChange={(event) => onOpenChange(event.detail.value)}

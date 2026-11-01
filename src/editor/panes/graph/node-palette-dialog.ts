@@ -63,6 +63,7 @@ export class AddNodeControl {
     const dialog = document.createElement("tp-dialog") as TpDialog;
     dialog.className = "node-palette-dialog";
     dialog.label = "Add Node";
+    dialog.backdrop = "blur";
     dialog.modality = "container";
     dialog.container = this.mount;
 

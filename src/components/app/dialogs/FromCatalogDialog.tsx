@@ -76,6 +76,7 @@ export function FromCatalogDialog({ onOpen, onOpenChange, open }: FromCatalogDia
 
   return (
     <Dialog
+      backdrop="blur"
       className="catalog-dialog"
       description="Browse the material catalog by category."
       label="Open From Catalog"
