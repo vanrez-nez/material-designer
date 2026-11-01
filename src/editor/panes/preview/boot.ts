@@ -364,7 +364,7 @@ window.addEventListener(MATERIAL_DOCUMENT_LOAD_EVENT, (event) => {
   try {
     mainScene.materialController.loadDocument(doc);
     void mainScene.materialSurface.refresh().then(() => {
-      rebuildEditor();
+      rebuildEditor({ fitView: true });
       resize();
       requestRender();
       if (filename) console.info(`[material] Loaded ${filename}`);

@@ -75,6 +75,7 @@ export class EditorPanel {
   private open_ = false
   private config: EditorGraphConfig | null = null
   private pendingConfig: EditorGraphConfig | null = null
+  private pendingFitView = false
   private readonly nodeConfigs = new Map<string, EditorNodeConfig>()
   private readonly nodeElements = new Map<string, HTMLElement>()
   private readonly edgeElements = new Map<string, HTMLElement>()
@@ -102,8 +103,9 @@ export class EditorPanel {
     // and the flat appearance (fields and nodes separated by fill, not edges).
     flow.setAttribute('density', 'compact')
     flow.setAttribute('appearance', 'flat')
-    // Drag and zoom are the widget's defaults. Nodes keep their full content (their parameter fields) at
-    // every zoom.
+    // Drag and zoom are the widget's defaults, but the zoom goes further out so fitting frames even a wide
+    // graph whole. Nodes keep their full content (their parameter fields) at every zoom.
+    flow.minZoom = 0.04
     flow.detailZoom = flow.minZoom
     flow.virtualize = false
     flow.palette = 'none'
@@ -154,12 +156,14 @@ export class EditorPanel {
     return this.canvasHost
   }
 
-  // Rebuilds coalesce to one per frame, so bursts of owner edits (e.g. MCP) redraw once.
-  open(config: EditorGraphConfig): void {
+  // Rebuilds coalesce to one per frame, so bursts of owner edits (e.g. MCP) redraw once. `fitView` frames
+  // the whole graph once it has rendered (a newly opened document) instead of restoring its saved view.
+  open(config: EditorGraphConfig, options: { fitView?: boolean } = {}): void {
     this.root.hidden = false
     this.open_ = true
     const queued = this.pendingConfig !== null
     this.pendingConfig = config
+    if (options.fitView) this.pendingFitView = true
     if (!queued) requestAnimationFrame(() => void this.flushRebuild())
   }
 
@@ -191,18 +195,21 @@ export class EditorPanel {
 
   private async flushRebuild(): Promise<void> {
     const config = this.pendingConfig
+    const fitView = this.pendingFitView
     this.pendingConfig = null
+    this.pendingFitView = false
     if (!config) return
     try {
-      await this.rebuild(config)
+      await this.rebuild(config, fitView)
     } catch (error) {
       console.error('[graph-editor] rebuild failed', error)
     }
   }
 
-  private async rebuild(config: EditorGraphConfig): Promise<void> {
+  private async rebuild(config: EditorGraphConfig, fitView: boolean): Promise<void> {
     // A same-graph rebuild (a param change adding or removing sockets) keeps the view; a different graph
-    // (document load, group navigation) restores its saved view or lays itself out.
+    // (group navigation) restores its saved view or lays itself out; a fitted one (document load) keeps its
+    // positions and is framed whole.
     const previousSignature = this.graphSignature
     const previousViewport = this.flow.viewport
     const hasMissingPositions = config.nodes.some((node) => !node.position)
@@ -233,9 +240,11 @@ export class EditorPanel {
     await this.flow.updateComplete
     await nextFrame()
     const saved = config.editorViewState?.transform
-    if (saved && !hasMissingPositions) await this.restoreViewport({ x: saved.x, y: saved.y, zoom: saved.k })
-    else if (previousSignature === this.graphSignature && !hasMissingPositions) await this.restoreViewport(previousViewport)
-    else await this.arrangeGraph({ history: 'skip' })
+    const keepsLayout = !hasMissingPositions && (saved || previousSignature === this.graphSignature)
+    if (!keepsLayout) await this.arrangeGraph({ history: 'skip' })
+    else if (fitView) await this.frameGraph()
+    else if (saved) await this.restoreViewport({ x: saved.x, y: saved.y, zoom: saved.k })
+    else await this.restoreViewport(previousViewport)
   }
 
   // Each node is its own definition: its ports are instance-specific (groups, mode-dependent sockets).
@@ -548,7 +557,7 @@ export class EditorPanel {
   // Lay the graph out in the chosen direction with the widget's layered layout (measured node sizes),
   // mirroring it for the upward and leftward arrangements, then frame it.
   private async arrangeGraph(options?: EditorHistoryUpdateOptions): Promise<void> {
-    await nextFrame()
+    await this.whenMeasured()
     if (this.nodeElements.size === 0) return
     const model = this.flow.model
     // Every node has been measured by now; an unmeasured one would lay out at its origin.
@@ -586,8 +595,29 @@ export class EditorPanel {
     }
     await this.whenPositioned(targets)
     this.savePositions(options)
+    await this.frameGraph(options)
+  }
+
+  // Fit the whole graph into the canvas once its nodes have their final sizes.
+  private async frameGraph(options?: EditorHistoryUpdateOptions): Promise<void> {
+    await this.whenMeasured()
     await this.flow.fitViewTo({ duration: 0 })
     this.saveViewState(options)
+  }
+
+  // Node sizes follow their rendered boxes (fonts, mounted controls), which settle over a few frames after a
+  // rebuild; a fit or layout before then frames stale sizes. Wait (a short while at most) until the graph's
+  // bounds hold still across consecutive frames.
+  private async whenMeasured(): Promise<void> {
+    await document.fonts.ready
+    let previous = ''
+    for (let frame = 0, stable = 0; frame < 30 && stable < 3; frame++) {
+      await nextFrame()
+      const { x, y, width, height } = this.flow.getNodesBounds()
+      const bounds = `${x},${y},${width},${height}`
+      stable = bounds === previous ? stable + 1 : 0
+      previous = bounds
+    }
   }
 
   // The widget adopts moved children on its own schedule; wait (a few frames at most) until its document

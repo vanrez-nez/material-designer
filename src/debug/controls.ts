@@ -46,7 +46,7 @@ export interface ControlsHandles {
   materialEditor: EditorPanel;
   // The Controls panel (tabs of inline fields), placed into the Controls dialog each time it opens.
   controlsElement: HTMLElement;
-  rebuildEditor: () => void;
+  rebuildEditor: (options?: { fitView?: boolean }) => void;
   // Debug-normals visualization toggle. Lives outside the panel (a button in the viewport toolbar), so
   // it's driven through these handles.
   getDebugNormals: () => boolean;
@@ -470,8 +470,8 @@ export function setupControls({
     mount: materialEditor.overlayHost,
     subscribe: (cb) => bakeService.onBakeReport(cb),
   });
-  const rebuildEditor = (): void => {
-    materialEditor.open(buildMaterialEditorConfig(mainScene.materialController, rebuildEditor));
+  const rebuildEditor = (options?: { fitView?: boolean }): void => {
+    materialEditor.open(buildMaterialEditorConfig(mainScene.materialController, rebuildEditor), options);
     bakeWidget.setActive(
       "material",
       () => countGraphNodes(mainScene.materialController.document),
