@@ -98,8 +98,10 @@ export class EditorPanel {
     flow.className = 'fe-flow'
     flow.label = 'Material graph'
     flow.background = 'dots'
-    // Node bodies are dense rows of inline fields: the canvas, and the popups it opens, use compact density.
+    // Node bodies are dense rows of inline fields: the canvas, and the popups it opens, use compact density
+    // and the flat appearance (fields and nodes separated by fill, not edges).
     flow.setAttribute('density', 'compact')
+    flow.setAttribute('appearance', 'flat')
     // Drag and zoom are the widget's defaults. Nodes keep their full content (their parameter fields) at
     // every zoom.
     flow.detailZoom = flow.minZoom

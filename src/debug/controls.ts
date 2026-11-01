@@ -441,9 +441,12 @@ export function setupControls({
   const tabs = document.createElement("tp-tabs") as TpTabs;
   tabs.className = "controls-panel";
   tabs.setAttribute("label", "Controls");
+  tabs.setAttribute("variant", "underline");
   tabs.setAttribute("default-value", "projection");
-  // Rows of inline fields, like the node bodies: the panel and its popups use compact density.
+  // Rows of inline fields, like the node bodies: the panel and its popups use compact density and the flat
+  // appearance.
   tabs.setAttribute("density", "compact");
+  tabs.setAttribute("appearance", "flat");
   for (const [value, title] of [
     ["projection", "Projection"],
     ["scene", "Scene"],
