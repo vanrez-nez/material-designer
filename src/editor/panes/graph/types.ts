@@ -20,9 +20,19 @@ export type EditorNodeConfig = {
   position?: { x: number; y: number }
   inputs?: EditorSocketConfig[]
   outputs?: EditorSocketConfig[]
+  /** The node's editable values, rendered by the canvas as inline rows in the node body. */
+  properties?: EditorPropertyConfig[]
+  /** The current value of each property, by key. */
+  values?: Record<string, unknown>
   /**
-   * Mount this node's controls into `host` (e.g. a Tweakpane Pane bound to the node's params).
-   * Return a disposer invoked when the node element unmounts.
+   * An edit to a property: `propose` with each new value (a drag step, a typed entry, a picked option)
+   * and `commit` once a continuous gesture settles. Sliders and colors commit; numbers, selects and
+   * switches only propose.
+   */
+  onPropertyChange?: (key: string, value: unknown, phase: 'propose' | 'commit') => void
+  /**
+   * Mount further content into the node body below its properties (e.g. editors the property controls
+   * don't cover). Return a disposer invoked when the node element unmounts.
    */
   mountControls?: (host: HTMLElement) => () => void
   /** Whether this node is currently soloed (its output previewed on the surface). Drives the eye highlight. */
@@ -37,6 +47,19 @@ export type EditorNodeConfig = {
   onRename?: (label: string) => void
   /** Fallback title shown when the custom label is cleared. */
   defaultTitle?: string
+}
+
+/** One editable value of a node, shown by the canvas with the library control its `control` names. */
+export type EditorPropertyConfig = {
+  key: string
+  label: string
+  control: 'slider' | 'number' | 'select' | 'switch' | 'color'
+  /** Slider or number range and step. */
+  min?: number
+  max?: number
+  step?: number
+  /** Select choices; each is its own label. */
+  options?: string[]
 }
 
 /** A node type offered in the editor's add-node palette. */

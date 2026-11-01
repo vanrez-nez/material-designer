@@ -893,19 +893,22 @@ body {
   gap: var(--tp-space-4);
 }
 
-/* Tweakpane controls live inside the modal controls dialog (see ControlsDialog.tsx). The pane element is
-   re-parented here imperatively; override its default absolute positioning so it flows in the dialog body
-   and fills its width. */
-.controls-dialog-host {
-  max-height: min(70vh, 40rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+/* The Controls panel (debug/controls.ts) lives inside the controls dialog (see ControlsDialog.tsx), which
+   renders into the scene pane and scrolls on its own when the pane is short. A column of inline fields
+   needs less than the dialog's default width (eight space-16 steps): about 30% narrower. */
+.scene-host > [data-dialog-portal]::part(dialog-content) {
+  max-inline-size: calc(var(--tp-space-16) * 5.5);
 }
 
-.controls-dialog-host .tp-dfwv,
-.controls-dialog-host > .tp-rotv {
-  position: static !important;
-  width: 100% !important;
+/* Each tab stacks its inline fields; an action sits apart from the fields above it. */
+.controls-panel__page {
+  display: grid;
+  gap: var(--tp-space-1);
+  padding-block-start: var(--tp-space-2);
+}
+
+.controls-panel__action {
+  margin-block-start: var(--tp-space-3);
 }
 
 /* ── Splash / loader ─────────────────────────────────────────────────────────

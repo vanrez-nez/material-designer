@@ -1,6 +1,5 @@
-import { Pane } from "tweakpane";
-import type { BindingApi } from "@tweakpane/core";
-import type { EditorGraphConfig, EditorNodeConfig, EditorPaletteItem } from "./types";
+import { parseColor, serializeColor } from "@tweakpad/ui/widgets";
+import type { EditorGraphConfig, EditorNodeConfig, EditorPaletteItem, EditorPropertyConfig } from "./types";
 import type { MaterialGraphController } from "./controller";
 import { nodePorts, nodeParamDefs } from "@/runtime";
 import { mountCurveWidget } from "./curve-widget";
@@ -12,6 +11,7 @@ import {
   type CurveValue,
   type GraphNode,
   type ParamDef,
+  type ParamType,
   type PortDef,
 } from "@/runtime";
 
@@ -24,99 +24,106 @@ const UNDELETABLE = new Set([OUTPUT_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE]);
 const PALETTE_HIDDEN = new Set([OUTPUT_TYPE, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE, "principled-bsdf"]);
 
 // Registry-driven adapter: turns the controller's live MaterialGraphDocument into the generic editor
-// config (material-graph-plan.md). Node ports and Tweakpane controls are generated from each node's
-// MaterialNodeDef — no hand-written per-node builders. Param/toggle edits flow back into the controller
-// (live uniform update or recompile), so the surface reacts immediately.
+// config (material-graph-plan.md). Node ports and controls are generated from each node's MaterialNodeDef —
+// no hand-written per-node builders. Param edits flow back into the controller (live uniform update or
+// recompile), so the surface reacts immediately.
 
-function bindParam(
-  pane: Pane,
+// The canvas control for each param type it renders as a property row. A vector shows one number row per
+// component (see propertiesFor); curves are mounted as body content instead (see curveControls).
+const PROPERTY_CONTROLS: Partial<Record<ParamType, EditorPropertyConfig["control"]>> = {
+  bool: "switch",
+  color: "color",
+  float: "slider",
+  int: "slider",
+  select: "select",
+};
+
+const VECTOR_AXES = ["x", "y", "z"] as const;
+
+// A vector component's property key, e.g. `location.x`; the node's data holds each component under it.
+const componentKey = (key: string, axis: string): string => `${key}.${axis}`;
+
+function propertiesFor(param: ParamDef): EditorPropertyConfig[] {
+  if (param.type === "vec3") {
+    return VECTOR_AXES.map((axis) => ({
+      key: componentKey(param.key, axis),
+      label: `${param.label} ${axis.toUpperCase()}`,
+      control: "number",
+    }));
+  }
+  const control = PROPERTY_CONTROLS[param.type];
+  if (!control) return [];
+  return [
+    {
+      key: param.key,
+      label: param.label,
+      control,
+      min: param.min,
+      max: param.max,
+      step: param.step ?? (param.type === "int" ? 1 : undefined),
+      options: param.options,
+    },
+  ];
+}
+
+// Applies a property edit from the canvas. A slider drag or a color pick proposes many values and then
+// commits: the proposals write live in one history transaction, committed as one undo step. A select or
+// switch proposes once and is a checkpoint of its own.
+function applyParamEdit(
   controller: MaterialGraphController,
   nodeId: string,
   param: ParamDef,
-  local: Record<string, unknown>,
-  // For declare-driven nodes, called after a non-live param change so the editor re-renders with the new
-  // ports. Deferred (queueMicrotask) so the canvas rebuild doesn't dispose this Pane mid change-event.
-  onPortsMaybeChanged?: () => void,
+  value: unknown,
+  phase: "propose" | "commit",
+  // For nodes whose ports or visible params follow a mode, re-renders the editor once the mode changed.
+  // Deferred (queueMicrotask) so the canvas rebuild doesn't replace the node in the middle of its event.
+  onModeChange?: () => void,
 ): void {
-  // Curve params render a bespoke canvas editor (not a Tweakpane binding); it writes live via setParam.
-  if (param.type === "curve") {
-    mountCurveWidget(pane.element, controller, nodeId, param.key, local[param.key] as CurveValue);
+  const scope = `param:${nodeId}:${param.key}`;
+  if (param.type === "select" || param.type === "bool") {
+    if (phase === "propose") {
+      controller.setParam(nodeId, param.key, value);
+      if (onModeChange) queueMicrotask(onModeChange);
+    }
     return;
   }
-  let binding: BindingApi;
-  switch (param.type) {
-    case "color":
-      binding = pane.addBinding(local, param.key, { label: param.label, view: "color" });
-      break;
-    case "select":
-      binding = pane.addBinding(local, param.key, {
-        label: param.label,
-        options: Object.fromEntries((param.options ?? []).map((o) => [o, o])),
-      });
-      break;
-    case "bool":
-      binding = pane.addBinding(local, param.key, { label: param.label });
-      break;
-    case "vec3":
-      // Tweakpane renders an {x,y,z} object as a 3-field vector input.
-      binding = pane.addBinding(local, param.key, { label: param.label });
-      break;
-    case "int":
-    case "float":
-    default:
-      binding = pane.addBinding(local, param.key, {
-        label: param.label,
-        min: param.min,
-        max: param.max,
-        step: param.step ?? (param.type === "int" ? 1 : undefined),
-      });
-      break;
+  if (phase === "commit") {
+    if (controller.isHistoryTransactionActive(scope)) controller.commitHistoryTransaction(scope);
+    // An int can decide which params a mode shows (e.g. Voronoi's relax), so a settled change re-renders.
+    if (param.type === "int" && onModeChange) queueMicrotask(onModeChange);
+    return;
   }
-  binding.on("change", (ev) => {
-    let value = ev.value;
-    // Guard against a non-finite edit (e.g. clearing the numeric field) — committing NaN to a param
-    // serialises to invalid WGSL and invalidates the whole shader. Drop back to the default instead.
-    if ((param.type === "int" || param.type === "float") && !Number.isFinite(Number(value))) {
-      value = param.default;
-    }
-    const transactionScope = `param:${nodeId}:${param.key}`;
-    const continuous =
-      param.type === "float" ||
-      param.type === "int" ||
-      param.type === "color" ||
-      param.type === "vec3";
-    const last = ev.last;
-    const transactionActive = controller.isHistoryTransactionActive(transactionScope);
-
-    if (continuous && last === false && !transactionActive) {
-      controller.beginHistoryTransaction(transactionScope);
-    }
-
-    controller.setParam(
-      nodeId,
-      param.key,
-      value,
-      continuous && (last === false || transactionActive) ? { history: "skip" } : undefined,
-    );
-
-    if (continuous && last === true && transactionActive) {
-      controller.commitHistoryTransaction(transactionScope);
-    }
-    // Only `select` / `bool` params can change a node's ports (every declare() keys off a select: noiseType,
-    // op, feature, operation). Rebuilding the whole editor on numeric edits (int/float) is unnecessary AND
-    // disruptive — it disposes the live Tweakpane mid-edit, snapping sliders (e.g. `scale`) back. Restrict
-    // the port-rebuild to the param types that actually affect ports.
-    if (onPortsMaybeChanged && (param.type === "select" || param.type === "bool")) {
-      queueMicrotask(onPortsMaybeChanged);
-    }
-  });
+  // A non-finite number would serialise to invalid WGSL and invalidate the whole shader: use the default.
+  // Colors are opaque `#rrggbb`, whatever notation or alpha the picker proposes.
+  const next =
+    param.type === "color"
+      ? opaqueHex(value)
+      : (param.type === "int" || param.type === "float") && !Number.isFinite(Number(value))
+        ? param.default
+        : value;
+  if (next === null) return;
+  if (!controller.isHistoryTransactionActive(scope)) controller.beginHistoryTransaction(scope);
+  controller.setParam(nodeId, param.key, next, { history: "skip" });
 }
 
-function paneMount(build: (pane: Pane) => void): (host: HTMLElement) => () => void {
+function opaqueHex(value: unknown): string | null {
+  const color = parseColor(String(value));
+  return color ? serializeColor({ ...color, alpha: 1 }, "hex") : null;
+}
+
+// Curve params have no property control: their editor mounts below the property rows.
+function curveControls(
+  controller: MaterialGraphController,
+  nodeId: string,
+  params: ParamDef[],
+  values: Record<string, unknown>,
+): ((host: HTMLElement) => () => void) | undefined {
+  if (params.length === 0) return undefined;
   return (host) => {
-    const pane = new Pane({ container: host });
-    build(pane);
-    return () => pane.dispose();
+    for (const param of params) {
+      mountCurveWidget(host, controller, nodeId, param.key, values[param.key] as CurveValue);
+    }
+    return () => host.replaceChildren();
   };
 }
 
@@ -153,19 +160,29 @@ function nodeToConfig(
   // (e.g. Tileable Noise hides `aspect` on cellular types). See registry.nodeParamDefs. Hidden params keep
   // their value in node.params; switching mode re-renders (below) and restores them.
   const paramDefs = nodeParamDefs(node, registry);
-  // A local mirror of params (defaults filled in) the Tweakpane controls bind to; changes forward to
-  // the controller.
-  const local: Record<string, unknown> = {};
+  // The values the controls show, defaults filled in.
+  const values: Record<string, unknown> = {};
   for (const p of paramDefs) {
     let v = node.params[p.key] ?? p.default;
     // Never surface a non-finite numeric param (a value corrupted to NaN by a transient empty field) in the
     // control — fall back to the default so the editor neither shows nor re-commits NaN.
     if ((p.type === "int" || p.type === "float") && !Number.isFinite(Number(v))) v = p.default;
-    // vec3 / curve are objects mutated in place by their widgets — deep-copy so edits don't alias
-    // node.params before they're committed via setParam.
-    local[p.key] =
+    // vec3 / curve are objects their editors mutate in place — deep-copy so edits don't alias node.params
+    // before they're committed via setParam.
+    values[p.key] =
       p.type === "vec3" ? { ...(v as object) } : p.type === "curve" ? structuredClone(v) : v;
   }
+  const properties = paramDefs.flatMap(propertiesFor);
+  // The canvas shows each property from the node's data: a vector's components sit under their own keys.
+  const data: Record<string, unknown> = { ...values };
+  for (const p of paramDefs) {
+    if (p.type !== "vec3") continue;
+    const vector = values[p.key] as Record<string, number>;
+    for (const axis of VECTOR_AXES) data[componentKey(p.key, axis)] = vector[axis];
+  }
+  // A mode change (select/bool, or an int a mode reads) can add/remove ports (declare) and/or params
+  // (paramsFor) → rerender.
+  const onModeChange = def.declare || def.paramsFor ? rerender : undefined;
 
   // Solo/preview routes a node's FIRST output to the surface. Only previewable values qualify: a node with
   // no outputs (Material Output, Group Output) or a shader-closure first output (Principled/Emission) can't
@@ -182,14 +199,31 @@ function nodeToConfig(
     position: node.position,
     inputs: ports.inputs.map((p) => ({ key: p.key, label: p.label ?? p.key, kind: p.kind })),
     outputs: ports.outputs.map((p) => ({ key: p.key, label: p.label ?? p.key, kind: p.kind })),
-    mountControls: groupBoundaryControls(controller, node, ports, rerender) ?? (
-      paramDefs.length > 0
-        ? paneMount((pane) => {
-            // A mode change (select/bool) can add/remove ports (declare) AND/OR controls (paramsFor) → rerender.
-            const onModeChange = def.declare || def.paramsFor ? rerender : undefined;
-            for (const p of paramDefs) bindParam(pane, controller, node.id, p, local, onModeChange);
-          })
-        : undefined),
+    properties,
+    values: data,
+    onPropertyChange: (key, value, phase) => {
+      const [paramKey, axis] = key.split(".");
+      const param = paramDefs.find((p) => p.key === paramKey);
+      if (!param) return;
+      if (param.type === "vec3") {
+        // A component edit replaces the vector, one checkpoint per typed value or step.
+        const n = Number(value);
+        if (phase !== "propose" || !axis || !Number.isFinite(n)) return;
+        const vector = { ...(values[param.key] as Record<string, number>), [axis]: n };
+        values[param.key] = vector;
+        controller.setParam(node.id, param.key, vector);
+        return;
+      }
+      applyParamEdit(controller, node.id, param, value, phase, onModeChange);
+    },
+    mountControls:
+      groupBoundaryControls(controller, node, ports, rerender) ??
+      curveControls(
+        controller,
+        node.id,
+        paramDefs.filter((p) => p.type === "curve"),
+        values,
+      ),
     // Exclusive solo: reflect whether this node is the previewed one; toggling rebuilds the editor so the
     // previously-soloed node's button clears too.
     soloed: controller.soloNode === node.id,

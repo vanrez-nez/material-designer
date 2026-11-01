@@ -32,9 +32,9 @@ export type MaterialPreviewPaneMountEvent = CustomEvent<{
   sceneHost: HTMLDivElement;
 }>;
 
-// The Tweakpane controls now live in a modal dialog rather than the always-on preview panel. The dialog
-// fires this when its body mounts so the imperative pane element can be re-parented into it (mirrors the
-// preview-pane mount handshake). Fires on every open, since the modal content re-mounts each time.
+// The scene controls live in a modal dialog rather than the always-on preview panel. The dialog
+// fires this with its body each time it opens, so the imperative Controls panel can be re-parented into it
+// (mirrors the preview-pane mount handshake).
 export type MaterialControlsDialogMountEvent = CustomEvent<{
   controlsHost: HTMLDivElement;
 }>;

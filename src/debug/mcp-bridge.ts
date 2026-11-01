@@ -137,8 +137,8 @@ export function installMcpBridge(deps: McpBridgeDeps): void {
   }
 
   // The MCP `set_param` tool's `value` field is untyped, so a numeric value can arrive over the wire as a
-  // string. Storing a string in a float/int param makes the editor's Tweakpane render a plain text input
-  // instead of a slider (and can serialise oddly), so coerce to the registry param type before writing.
+  // string. A string in a float/int param doesn't belong to its slider (and can serialise oddly), so coerce
+  // to the registry param type before writing.
   function coerceParamValue(nodeType: string, key: string, value: unknown): unknown {
     const registry = controller.getRegistry();
     if (!registry.has(nodeType)) return value;

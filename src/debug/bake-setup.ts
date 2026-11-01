@@ -106,7 +106,7 @@ export function installBakeDevHandles({ mainScene, exporter }: BakeDevHandleDeps
 
 // ---------------------------------------------------------------------------------------------------------
 // /export-bake route — an isolated headless bake driven entirely by the URL. Visiting the page boots a
-// minimal renderer + a non-persisting material controller (NO preview scene, NO Tweakpane), bakes each
+// minimal renderer + a non-persisting material controller (NO preview scene, NO Controls panel), bakes each
 // requested preset's channels, and POSTs them to the bake server. See runExportBake below.
 // ---------------------------------------------------------------------------------------------------------
 
@@ -227,7 +227,7 @@ async function runPresetOneShot(
   log(`startup bake done (${presets.length} preset(s)).`);
 }
 
-// Entry point for the `/export-bake` route. Boots an isolated renderer (NO preview scene, NO Tweakpane)
+// Entry point for the `/export-bake` route. Boots an isolated renderer (NO preview scene, NO Controls panel)
 // and connects to the bake server as a persistent WORKER: each document POSTed to the server's
 // `/export-bake` endpoint is relayed here over SSE, baked on the GPU, and its result reported back. An
 // optional `?preset=`/`?size=`/`?channels=` runs a one-shot preset bake at startup.

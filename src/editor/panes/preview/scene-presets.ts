@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { CloudSun, Lightbulb, Sun, type IconNode } from "lucide";
 
 // Lighting presets applied from the scene overlay controls. Each `values` object is a partial of the
-// tweakpane `sceneState` (same field names/types), so applying a preset is a straight merge into that
-// state followed by the module's normal apply/persist path — see `applyScenePreset` in debug/tweakpane.ts.
+// Controls panel `sceneState` (same field names/types), so applying a preset is a straight merge into that
+// state followed by the module's normal apply/persist path — see `applyScenePreset` in debug/controls.ts.
 export interface ScenePresetValues {
   toneMapping: THREE.ToneMapping;
   exposure: number;

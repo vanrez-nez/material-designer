@@ -2,10 +2,12 @@
 // and keeps the owner (the material controller) as the source of truth.
 //
 // Nodes and wires are authored as `tp-flow-node` / `tp-flow-edge` children: the widget adopts them into
-// its document, and a node's light-DOM content (its Tweakpane pane) renders in the panel body with the
-// page's styles. The widget may move nodes on its own; every topology edit (connect, disconnect, delete,
-// rename) goes through the config hooks first and is then reflected in the authored children. Undo and
-// redo stay with the owner's history, so the widget's own history steps are refused.
+// its document. A node's properties are part of its definition and its values are its `data`, so the
+// widget renders them as inline rows in the panel body and reports edits as node-data changes, which go
+// to the owner; any further light-DOM content renders below them with the page's styles. The widget may
+// move nodes on its own; every topology edit (connect, disconnect, delete, rename) goes through the config
+// hooks first and is then reflected in the authored children. Undo and redo stay with the owner's history,
+// so the widget's own history steps are refused.
 import { html, nothing, type TemplateResult } from 'lit'
 import { ref } from 'lit/directives/ref.js'
 import { Eye, Pencil, Trash2 } from 'lucide'
@@ -96,7 +98,9 @@ export class EditorPanel {
     flow.className = 'fe-flow'
     flow.label = 'Material graph'
     flow.background = 'dots'
-    // Drag and zoom are the widget's defaults. Nodes keep their full content (their parameter panes) at
+    // Node bodies are dense rows of inline fields: the canvas, and the popups it opens, use compact density.
+    flow.setAttribute('density', 'compact')
+    // Drag and zoom are the widget's defaults. Nodes keep their full content (their parameter fields) at
     // every zoom.
     flow.detailZoom = flow.minZoom
     flow.virtualize = false
@@ -241,8 +245,9 @@ export class EditorPanel {
     }
   }
 
-  // An authored node: the panel card shows the title and port rows; its content is the node's controls
-  // (a Tweakpane pane, or the group-interface editor) and the preview marker.
+  // An authored node: the panel card shows the title, port rows and property rows (from its definition and
+  // `data`); its content is the preview marker and any further controls (vectors, curves, the
+  // group-interface editor).
   private renderNodeElement(node: EditorNodeConfig, position: Point): void {
     let element = this.nodeElements.get(node.id)
     if (!element) {
@@ -253,6 +258,7 @@ export class EditorPanel {
       this.nodeElements.set(node.id, element)
     }
     element.setAttribute('label', node.title)
+    element.setAttribute('data', JSON.stringify(node.values ?? {}))
     setPosition(element, position)
     const content: HTMLElement[] = []
     if (node.soloed) {
@@ -265,7 +271,7 @@ export class EditorPanel {
     if (node.mountControls) {
       const host = document.createElement('div')
       host.className = 'fe-node__controls'
-      // The pane owns presses inside it (sliders, fields), so they never start a node drag.
+      // The controls own presses inside them (fields, the curve canvas), so they never start a node drag.
       host.addEventListener('pointerdown', (event) => event.stopPropagation())
       content.push(host)
       this.controls.set(node.id, { host, dispose: node.mountControls(host) })
@@ -433,6 +439,12 @@ export class EditorPanel {
       if (next) queueMicrotask(() => this.applyReconnect(reconnect.edgeId, next))
       return
     }
+    // A property edit inside a node body: the widget keeps the new value and the owner applies it.
+    if (metadata?.surface === 'node' && metadata.nodeId && metadata.property) {
+      const data = metadata.changes?.find((change) => change.type === 'node-data')?.data
+      if (data) this.nodeConfigs.get(metadata.nodeId)?.onPropertyChange?.(metadata.property, data[metadata.property], 'propose')
+      return
+    }
     const changes = metadata?.changes ?? []
     if (!changes.every((change) => GEOMETRY_CHANGES.has(change.type))) {
       event.preventDefault()
@@ -447,7 +459,14 @@ export class EditorPanel {
     }
   }
 
-  private readonly onValueCommit = (): void => {
+  private readonly onValueCommit = (event: Event): void => {
+    if (event.target !== this.flow) return
+    const metadata = (event as CustomEvent<{ metadata?: FlowChangeMeta }>).detail?.metadata
+    if (metadata?.surface === 'node' && metadata.nodeId && metadata.property) {
+      const value = this.flow.nodes.find((node) => node.id === metadata.nodeId)?.data[metadata.property]
+      this.nodeConfigs.get(metadata.nodeId)?.onPropertyChange?.(metadata.property, value, 'commit')
+      return
+    }
     if (this.positionsDirty) {
       this.positionsDirty = false
       this.savePositions({ history: 'skip' })
@@ -610,9 +629,11 @@ export class EditorPanel {
 }
 
 type FlowChangeMeta = {
-  changes?: ReadonlyArray<{ type: string }>
+  changes?: ReadonlyArray<{ type: string; data?: Record<string, unknown> }>
   history?: 'undo' | 'redo'
   surface?: string
+  nodeId?: string
+  property?: string
   reconnect?: { edgeId: string; end: 'source' | 'target' }
 }
 
@@ -622,6 +643,15 @@ function definitionFor(node: EditorNodeConfig): FlowNodeDefinition {
     label: node.title,
     shape: 'panel',
     tone: node.nodeClass ? CLASS_TONE[node.nodeClass] : undefined,
+    properties: (node.properties ?? []).map((property) => ({
+      key: property.key,
+      label: property.label,
+      control: property.control,
+      min: property.min,
+      max: property.max,
+      step: property.step,
+      options: property.options?.map((option) => ({ value: option, label: option })),
+    })),
     ports: [
       ...(node.outputs ?? []).map((socket) => ({
         id: socket.key,

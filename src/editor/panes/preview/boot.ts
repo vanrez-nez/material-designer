@@ -15,7 +15,7 @@ import { createExport } from "@/debug/export";
 import { installBakeDevHandles } from "@/debug/bake-setup";
 import { installMcpBridge } from "@/debug/mcp-bridge";
 import { connectedTextureSockets } from "@/editor/panes/textures/channels";
-import { loadRendererConfig, setupTweakpane } from "@/debug/tweakpane";
+import { loadRendererConfig, setupControls } from "@/debug/controls";
 import { createFrameScheduler } from "@/lib/frame-scheduler";
 import type { MaterialAppServices } from "@/components/app/services";
 import {
@@ -43,9 +43,6 @@ if (!app) {
 
 let sceneHost = app.querySelector<HTMLDivElement>(".scene-host") ?? document.createElement("div");
 const graphHost = app.querySelector<HTMLDivElement>(".graph-host") ?? document.createElement("div");
-// The Tweakpane pane is created into this placeholder, then re-parented into the controls dialog each
-// time it opens (see MATERIAL_CONTROLS_DIALOG_MOUNT_EVENT). `.pane-host` no longer exists in the DOM.
-const paneHost = app.querySelector<HTMLDivElement>(".pane-host") ?? document.createElement("div");
 
 const sceneCanvas = document.createElement("canvas");
 sceneCanvas.className = "scene";
@@ -56,8 +53,8 @@ const INITIAL_CAMERA_POS = new THREE.Vector3(0, 1.35, 7.2);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 30);
 camera.position.copy(INITIAL_CAMERA_POS);
 
-// Renderer config lives in the debug/tweakpane module (the Render tab owns it), but the renderer must be
-// constructed with it before the pane exists — so load it here and hand the object to setupTweakpane.
+// Renderer config lives in the debug/controls module (the Render tab owns it), but the renderer must be
+// constructed with it before the panel exists — so load it here and hand the object to setupControls.
 const rendererConfig = loadRendererConfig();
 const savedRendererConfig =
   useWorkspaceStore.getState().materialDocument.ui?.settings?.rendererConfig;
@@ -121,7 +118,7 @@ let sceneRenderable = false;
 // On-demand rendering: the scene is static (no animation), so instead of a continuous rAF loop we render
 // once per meaningful change — camera interaction, a material bake/rebuild, a scene/lighting tweak, a
 // resize, or a document load. `requestRender` coalesces bursts into a single rAF-timed frame. These are
-// declared before setupTweakpane because it applies saved settings synchronously (→ resize → requestRender).
+// declared before setupControls because it applies saved settings synchronously (→ resize → requestRender).
 let rendererReady = false; // flipped true after renderer.init(); guards early rAFs (resize runs pre-init)
 // The single scene-render method — every path renders through this (directly, or debounced via
 // requestRender). Advances the node frame, then renders.
@@ -213,16 +210,15 @@ sceneCanvas.addEventListener("pointercancel", endTurnDrag);
 
 const {
   materialEditor,
-  paneElement,
+  controlsElement,
   rebuildEditor,
   getDebugNormals,
   setDebugNormals,
   applyScenePreset,
   setTiling,
   getTiling,
-} = setupTweakpane({
+} = setupControls({
   graphHost,
-  paneHost,
   renderer,
   mainScene,
   rendererConfig,
@@ -231,7 +227,7 @@ const {
 });
 
 // Which preset (if any) the current lighting matches — so the overlay checks the right preset on load
-// (the lights already reflect the loaded/default sceneState after setupTweakpane's applyDocumentSettings).
+// (the lights already reflect the loaded/default sceneState after setupControls's applyDocumentSettings).
 const dl = mainScene.directionalLight;
 const initialPresetId = matchScenePresetId({
   toneMapping: renderer.toneMapping,
@@ -261,7 +257,7 @@ const sceneControls = new SceneControls({
 });
 
 // Top-right overlay: [settings ⚙] opens the controls dialog; [debug-normals] toggles the normal
-// visualization (relocated out of the Tweakpane Graph folder).
+// visualization (relocated out of the old Graph folder).
 const viewportControls = new ViewportControls({
   mount: sceneHost,
   onOpenControls: dispatchOpenControls,
@@ -394,11 +390,11 @@ window.addEventListener(MATERIAL_PREVIEW_PANE_MOUNT_EVENT, (event) => {
   attachPreviewHosts(nextSceneHost);
 });
 
-// The controls dialog re-mounts its body on every open; re-parent the imperative Tweakpane element into it
+// The controls dialog hands over its body on every open; re-parent the imperative Controls panel into it
 // each time (the pane keeps its state — it's a single detached subtree between opens).
 window.addEventListener(MATERIAL_CONTROLS_DIALOG_MOUNT_EVENT, (event) => {
   const { controlsHost } = (event as MaterialControlsDialogMountEvent).detail;
-  if (paneElement.parentElement !== controlsHost) controlsHost.appendChild(paneElement);
+  if (controlsElement.parentElement !== controlsHost) controlsHost.appendChild(controlsElement);
 });
 
 window.addEventListener(MATERIAL_GRAPH_PANE_MOUNT_EVENT, (event) => {

@@ -62,7 +62,7 @@
   justify-self: start;
 }
 
-/* RGB Curves canvas editor (curve-widget.ts), embedded inside the node's Tweakpane root. */
+/* RGB Curves canvas editor (curve-widget.ts), mounted in the node body below its property rows. */
 .curve-widget {
   padding: var(--tp-space-1) var(--tp-space-1-5) var(--tp-space-1-5);
   user-select: none;

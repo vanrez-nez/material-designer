@@ -2,9 +2,9 @@ import "./styles.css";
 
 import { preloadAssets } from "./lib/preload";
 
-// Entry dispatcher. `/export-bake` boots an isolated headless bake (no preview scene, no Tweakpane);
+// Entry dispatcher. `/export-bake` boots an isolated headless bake (no preview scene, no Controls panel);
 // every other path boots the full app. Dynamic imports keep the two graphs apart — the export route never
-// loads MainScene/tweakpane, and the normal route never loads the bake-setup module.
+// loads MainScene and the Controls panel, and the normal route never loads the bake-setup module.
 const path = new URL(location.href).pathname.replace(/\/+$/, "");
 if (path === "/export-bake") {
   const { runExportBake } = await import("./debug/bake-setup");
