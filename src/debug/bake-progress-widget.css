@@ -8,6 +8,12 @@
   text-overflow: ellipsis;
 }
 
+/* One width whatever it shows (collapsed summary, expanded detail, idle or baking), so expanding or
+   collapsing never resizes it; longer text ellipsizes. */
+.bake-widget {
+  inline-size: calc(var(--tp-space-16) * 4);
+}
+
 /* Room between the bar, the detail line and the button. */
 .bake-widget .floating-widget__body {
   gap: var(--tp-space-2);

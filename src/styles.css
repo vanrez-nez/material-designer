@@ -263,7 +263,10 @@ body {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   background: var(--tp-background);
-  padding: var(--tp-space-1) var(--tp-space-2);
+  /* Optically centered: without a border, the header reads as the band from the window's top to the
+     panes' top edge, which includes the layout's gap below it (space-2). Its block padding sits on the
+     side away from that gap, so the content centers on the band at the same height. */
+  padding: var(--tp-space-2) var(--tp-space-2) 0;
   flex: none;
   gap: var(--tp-space-2);
 }
@@ -280,7 +283,8 @@ body {
   align-items: center;
   justify-content: space-between;
   flex: none;
-  padding: var(--tp-space-1) var(--tp-space-2);
+  /* Optically centered on the band from the panes' bottom edge to the window's bottom, like the header. */
+  padding: 0 var(--tp-space-2) var(--tp-space-2);
   /* Start the text where the header's menu text starts: the header inset plus the menubar's inset
      (space-1) and its trigger's inline padding (space-1-5). */
   padding-inline-start: calc(var(--tp-space-2) + var(--tp-space-1) + var(--tp-space-1-5));
