@@ -904,11 +904,14 @@ body {
   max-inline-size: calc(var(--tp-space-16) * 5.5);
 }
 
-/* Each tab stacks its inline fields; an action sits apart from the fields above it. */
+/* Each tab stacks its inline fields; an action sits apart from the fields above it. A slider at its max
+   value hangs its thumb's invisible hit area past the row end, which made the scrolling dialog scroll
+   sideways; the rows are full width and popups open in their own layer, so clip that overflow here. */
 .controls-panel__page {
   display: grid;
   gap: var(--tp-space-1);
   padding-block-start: var(--tp-space-2);
+  overflow-x: clip;
 }
 
 .controls-panel__action {
