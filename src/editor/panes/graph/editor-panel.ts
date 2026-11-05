@@ -296,9 +296,9 @@ export class EditorPanel {
     const element = document.createElement('tp-flow-edge')
     element.id = id
     element.setAttribute('source', connection.from)
-    element.setAttribute('source-port', connection.fromOutput)
+    element.setAttribute('source-port', flowPortId('output', connection.fromOutput))
     element.setAttribute('target', connection.to)
-    element.setAttribute('target-port', connection.toInput)
+    element.setAttribute('target-port', flowPortId('input', connection.toInput))
     this.flow.appendChild(element)
     this.edgeElements.set(id, element)
   }
@@ -361,7 +361,7 @@ export class EditorPanel {
     if (!this.config?.onConnect || !this.config.onConnect(connection)) return false
     // One wire per input: the new connection replaces whatever fed that input.
     for (const edge of this.flow.edges) {
-      if (edge.target === connection.to && edge.targetPort === connection.toInput) this.removeEdgeElement(edge.id)
+      if (edge.target === connection.to && edge.targetPort === flowPortId('input', connection.toInput)) this.removeEdgeElement(edge.id)
     }
     this.addEdgeElement(connection)
     return true
@@ -686,7 +686,7 @@ function definitionFor(node: EditorNodeConfig): FlowNodeDefinition {
     })),
     ports: [
       ...(node.outputs ?? []).map((socket) => ({
-        id: socket.key,
+        id: flowPortId('output', socket.key),
         label: socket.label,
         direction: 'output' as const,
         dataType: socket.kind,
@@ -694,7 +694,7 @@ function definitionFor(node: EditorNodeConfig): FlowNodeDefinition {
       })),
       // A drop on a connected input replaces its wire (applyConnection), so the widget must let it through.
       ...(node.inputs ?? []).map((socket) => ({
-        id: socket.key,
+        id: flowPortId('input', socket.key),
         label: socket.label,
         direction: 'input' as const,
         dataType: socket.kind,
@@ -710,7 +710,22 @@ function edgeId(connection: EditorConnectionConfig): string {
 }
 
 function fromFlowEdge(edge: { source: string; sourcePort?: string; target: string; targetPort?: string }): EditorConnectionConfig {
-  return { from: edge.source, fromOutput: edge.sourcePort ?? '', to: edge.target, toInput: edge.targetPort ?? '' }
+  return {
+    from: edge.source,
+    fromOutput: socketKey('output', edge.sourcePort),
+    to: edge.target,
+    toInput: socketKey('input', edge.targetPort),
+  }
+}
+
+// Material sockets are keyed within their direction; Flow port IDs must be unique across a node.
+// Keep that UI identity out of material documents and controller callbacks.
+function flowPortId(direction: 'input' | 'output', key: string): string {
+  return `${direction}:${key}`
+}
+
+function socketKey(direction: 'input' | 'output', id = ''): string {
+  return id.startsWith(`${direction}:`) ? id.slice(direction.length + 1) : id
 }
 
 function setPosition(element: HTMLElement, point: Point): void {

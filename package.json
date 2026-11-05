@@ -20,7 +20,7 @@
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
-    "@tweakpad/ui": "^0.2.2",
+    "@tweakpad/ui": "^0.2.4",
     "clsx": "^2.1.1",
     "fflate": "^0.8.3",
     "lit": "^3.3.3",

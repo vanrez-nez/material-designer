@@ -4,7 +4,7 @@
 // adapter (material-editor-config.ts), so the editor panel stays reusable inside the graph pane.
 
 export type EditorSocketConfig = {
-  /** Unique-per-node key the connections reference. */
+  /** Key unique within a node's input or output direction; connections reference this key. */
   key: string
   label?: string
   /** Port type; sockets with different kinds get distinct Socket instances (typed ports). */
